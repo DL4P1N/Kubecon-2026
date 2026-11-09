@@ -58,7 +58,88 @@ spec:
         items:
           - { x: 0, "y": 0, width: 12, height: 8, content: { $ref: "#/spec/panels/page_load_p95" } }
           - { x: 12, "y": 0, width: 12, height: 8, content: { $ref: "#/spec/panels/page_loads" } }
+    - kind: Grid
+      spec:
+        display:
+          title: Web Vitals (p75 by initial document route)
+        items:
+          - { x: 0, "y": 0, width: 6, height: 8, content: { $ref: "#/spec/panels/vitals_lcp" } }
+          - { x: 6, "y": 0, width: 6, height: 8, content: { $ref: "#/spec/panels/vitals_inp" } }
+          - { x: 12, "y": 0, width: 6, height: 8, content: { $ref: "#/spec/panels/vitals_cls" } }
+          - { x: 18, "y": 0, width: 6, height: 8, content: { $ref: "#/spec/panels/vitals_ttfb" } }
   panels:
+    vitals_lcp:
+      kind: Panel
+      spec:
+        display:
+          name: LCP p75 by route (seconds)
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: "{{http_route}}"
+                  query: histogram_quantile(0.75, sum by (le, http_route) (rate(companion_web_vitals_lcp_seconds_bucket{service_name="companion-web"}[5m])))
+    vitals_inp:
+      kind: Panel
+      spec:
+        display:
+          name: INP p75 by route (seconds)
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: "{{http_route}}"
+                  query: histogram_quantile(0.75, sum by (le, http_route) (rate(companion_web_vitals_inp_seconds_bucket{service_name="companion-web"}[5m])))
+    vitals_cls:
+      kind: Panel
+      spec:
+        display:
+          name: CLS p75 by route (unitless)
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: "{{http_route}}"
+                  query: histogram_quantile(0.75, sum by (le, http_route) (rate(companion_web_vitals_cls_bucket{service_name="companion-web"}[5m])))
+    vitals_ttfb:
+      kind: Panel
+      spec:
+        display:
+          name: TTFB p75 by route (seconds)
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: "{{http_route}}"
+                  query: histogram_quantile(0.75, sum by (le, http_route) (rate(companion_web_vitals_ttfb_seconds_bucket{service_name="companion-web"}[5m])))
     # ---------------------------------------------------------------- SLOs
     slo_latency_p95:
       kind: Panel

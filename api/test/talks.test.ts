@@ -54,7 +54,7 @@ describe("GET /api/talks/:id", () => {
     expect(res.headers["cache-control"]).toBe("public, max-age=60");
     expect((res.json() as TalkDetailResponse).talk).toMatchObject({ id: "src", title: "Securing images", room: "Hall A" });
     const span = spans.find((s) => s.name === "talks.detail")!;
-    expect(span.attrs).toEqual({ "http.request.method": "GET", "url.path": "/api/talks/:id" });
+    expect(span.attrs).toEqual({ "http.request.method": "GET", "http.route": "/api/talks/:id" });
     expect(span.set).toEqual({ "http.response.status_code": 200 });
   });
   it("404s an unknown talk and 400s a malformed id", async () => {

@@ -14,7 +14,7 @@
 - **Related** uses the same semantic query as alternatives (`content_semantic`, built from title + start of abstract), with no time restriction. It excludes the talk itself and non-session tracks (Contribfest). `sharedTags` explains the match; empty means "similar topic".
 - All three routes share one plugin (`api/src/routes/talks.ts`): 60 s in-memory cache per route/id/size, `Cache-Control: public, max-age=60`, and a per-route per-client rate limit (60/min).
 - Elasticsearch overload or inference warm-up maps to `503` + `Retry-After: 5`; other ES failures map to `502`.
-- Spans: `talks.detail`, `talks.related`, `talks.alternatives`. They carry only allowlisted attributes (`http.request.method`, the route template in `url.path`, `http.response.status_code`, `search.hits`). The talk id is never put on a span.
+- Spans: `talks.detail`, `talks.related`, `talks.alternatives`. They carry only allowlisted attributes (`http.request.method`, the route template in `http.route`, `http.response.status_code`, `search.hits`). The talk id is never put on a span.
 
 ## Web
 

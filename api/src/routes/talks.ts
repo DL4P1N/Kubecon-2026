@@ -78,7 +78,7 @@ export const talkRoutes: FastifyPluginAsync<TalkRouteOptions> = async (app, opts
     compute: () => Promise<T | undefined>,
     hits: (v: T) => number | undefined,
   ) {
-    return withSpan(spanName, { "http.request.method": "GET", "url.path": routeTemplate }, async (span) => {
+    return withSpan(spanName, { "http.request.method": "GET", "http.route": routeTemplate }, async (span) => {
       const hit = cache.get(key);
       let value = hit && now() - hit.at < TALKS_CACHE_MS ? (hit.value as T) : undefined;
       if (value === undefined) {

@@ -5,7 +5,8 @@ import { Search } from "../src/pages/Search.js";
 import { Schedule } from "../src/pages/Schedule.js";
 import { api, setToken } from "../src/api.js";
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+// Search persists its query in the URL; reset it so one test does not auto-run the next one's search.
+afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.replaceState(null, "", "/"); });
 const talk = { id: "talk", title: "Secure Kubernetes", speaker: "Demo Speaker", abstract: "Supply chain security",
   track: "Security", room: "Room A", start: "2026-11-09T10:00:00Z", end: "2026-11-09T11:00:00Z", tags: [] };
 
@@ -17,8 +18,8 @@ it("compares both methods and displays the server query", async () => {
   fireEvent.click(screen.getByLabelText("Include Elasticsearch query details"));
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
   await screen.findByText("Comparison ready.");
-  expect(search).toHaveBeenCalledWith("secure my supply chain", "keyword", true);
-  expect(search).toHaveBeenCalledWith("secure my supply chain", "hybrid", true);
+  expect(search).toHaveBeenCalledWith("secure my supply chain", "keyword", true, {});
+  expect(search).toHaveBeenCalledWith("secure my supply chain", "hybrid", true, {});
   expect(within(screen.getByRole("region", { name: "Keyword" })).getByText(/No matching talks/)).toBeTruthy();
   expect(within(screen.getByRole("region", { name: "Hybrid" })).getByText(talk.title)).toBeTruthy();
   expect(screen.getAllByText(/match_all/)).toHaveLength(2);
