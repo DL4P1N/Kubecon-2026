@@ -17,6 +17,10 @@ export function Register() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (pending) return;
+    if (interests.length === 0) {
+      setStatus("Choose at least one topic before registering.");
+      return;
+    }
     setPending(true);
     setStatus("");
     try {
@@ -40,14 +44,16 @@ export function Register() {
       <h1>Register</h1>
       <p>Create your conference profile, then find talks that fit your interests.</p>
       <label htmlFor="name">Name</label>
-      <input id="name" autoComplete="name" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} required pattern=".*\S.*" />
+      <input id="name" autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} required pattern=".*\S.*" />
       <label htmlFor="email">Email</label>
-      <input id="email" type="email" autoComplete="email" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <input id="email" type="email" autoComplete="email" maxLength={254} aria-describedby="email-help" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <p id="email-help">Optional. Your email is not stored.</p>
+      <p>Choose at least one topic to get started.</p>
       <TopicChoices selected={interests} onChange={setInterests} />
       <fieldset>
         <legend>What we store and why</legend>
         <p>
-          We store your name, email, interests and consent choices to create your profile and recommend talks.
+          We store your name, interests and consent choices to create your profile and recommend talks. Your email is not stored.
           Attendee-level data, including your schedule and room entitlements, is deleted after 24 hours.
         </p>
         <p>Both choices below are optional and start off. You can get recommendations without selecting either.</p>
