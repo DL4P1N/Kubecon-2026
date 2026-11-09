@@ -94,6 +94,15 @@ Fastify logging is enabled by passing `loggerOptions` to `Fastify()` in
 `api/src/server.ts`. Level comes from `LOG_LEVEL` (default `info`, `silent`
 under vitest).
 
+Each access-scan handler decision emits one structured INFO audit record with
+`access.decision` (`allow` or `deny`) and `room.id`. The room is a validated
+catalog value, or the fixed `unknown` sentinel when validation has not succeeded.
+The record contains no attendee id, token, submitted body, denial detail or raw
+room input. Existing request/trace correlation fields still come from the logger.
+The access privacy test exercises allowed and denied valid-room scans, invalid
+tokens, unknown/malformed rooms and entitlement-backend failure using the
+production logger configuration.
+
 ## Web (`web/src/telemetry/rum.ts`)
 
 OpenTelemetry web SDK (`@opentelemetry/sdk-trace` `TracerProvider`,
