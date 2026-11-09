@@ -1,0 +1,15 @@
+{
+  "name": "conference-companion",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Conference Companion monorepo (api, web, shared API contract)",
+  "engines": { "node": ">=20" },
+  "workspaces": ["shared", "api", "web"],
+  "scripts": {
+    "build": "npm run build -w shared && npm run build -w api && npm run build -w web",
+    "test": "npm run build -w shared && npm run test --workspaces --if-present",
+    "typecheck": "npm run build -w shared && npm run typecheck --workspaces --if-present",
+    "dev:api": "npm run dev -w api",
+    "dev:web": "npm run dev -w web"
+  }
+}
