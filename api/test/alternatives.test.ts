@@ -173,4 +173,10 @@ describe("review fixes (#46)", () => {
     await setup({ tracker, searchStatus: 429 }).get("/api/talks/src/alternatives");
     expect(calls.map((c) => [c[0], c[2]])).toEqual([["hybrid", "ok"], ["hybrid", "overloaded"]]);
   });
+  it("does not count an unknown talk (404, no semantic search ran) as a hybrid search", async () => {
+    const calls: unknown[][] = [];
+    const tracker = { ...createStatusTracker(), recordSearch: (...a: unknown[]) => void calls.push(a) } as StatusTracker;
+    expect((await setup({ tracker }).get("/api/talks/nope/alternatives")).statusCode).toBe(404);
+    expect(calls).toEqual([]);
+  });
 });
