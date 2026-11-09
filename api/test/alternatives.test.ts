@@ -76,7 +76,7 @@ describe("GET /api/talks/:id/alternatives", () => {
     expect(body.alternatives.map((a) => a.talk.id)).toEqual(["alt1", "alt2"]);
     expect(body.alternatives[0]).toMatchObject({ score: 2.5, sharedTags: ["security"] });
     const span = spans.find((s) => s.name === "talks.alternatives")!;
-    expect(span.attrs).toEqual({ "http.request.method": "GET", "url.path": "/api/talks/:id/alternatives" });
+    expect(span.attrs).toEqual({ "http.request.method": "GET", "http.route": "/api/talks/:id/alternatives" });
     expect(span.set).toEqual({ "http.response.status_code": 200, "search.hits": 2 });
   });
 

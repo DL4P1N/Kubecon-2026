@@ -11,6 +11,7 @@ import { createEmbedder } from "./es/embeddings.js";
 import { loggerOptions } from "./telemetry/logger.js";
 import { accessRoutes } from "./routes/access.js";
 import { registerInterestRoutes } from "./routes/interests.js";
+import { registerCatalogRoutes } from "./routes/catalog.js";
 import { registerRoutes } from "./routes/register.js";
 import { registerClusterRoutes } from "./routes/clusters.js";
 import { alternativesRoutes } from "./routes/alternatives.js";
@@ -80,6 +81,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   app.register(alternativesRoutes, { es, tracker, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/talks/:id/alternatives
   registerStatusRoutes(app, { es, tracker, version: VERSION, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/status
   registerClusterRoutes(app, { es }); // Module 4: GET /api/interests/clusters
+  registerCatalogRoutes(app, es);
 
   // Module 3: POST /api/access/token + POST /api/access/scan (routes/access.ts).
   app.register(accessRoutes, { es, tokens });

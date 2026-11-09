@@ -60,7 +60,7 @@ export const alternativesRoutes: FastifyPluginAsync<AlternativesRouteOptions> = 
     ALTERNATIVES_PATH,
     { config: { rateLimit: { max: opts.rateLimitPerMinute ?? 60, timeWindow: "1 minute" } } },
     async (req, reply) =>
-      withSpan("talks.alternatives", { "http.request.method": "GET", "url.path": ALTERNATIVES_PATH }, async (span) => {
+      withSpan("talks.alternatives", { "http.request.method": "GET", "http.route": ALTERNATIVES_PATH }, async (span) => {
         const { id } = req.params;
         const size = req.query.size === undefined ? DEFAULT_ALTERNATIVES : Number(req.query.size);
         if (!TALK_ID.test(id) || !Number.isInteger(size) || size < 1 || size > MAX_ALTERNATIVES) {
