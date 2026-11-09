@@ -13,7 +13,7 @@ artifacts; the committed screenshots/JSON and PRs below are the portable evidenc
 | --- | --- | --- |
 | Elasticsearch | [417-talk live 12-query report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162): hybrid 5 wins / 7 ties / 0 losses, hit@3 5/12 vs 0/12, MRR@10 0.306 vs 0.017 | Majority-win criterion not met; [report/docs PR40](https://github.com/DL4P1N/Kubecon-2026/pull/40) is separate from merged evaluator PR27 |
 | Radar | [Actual AI run + follow-up](#actual-radar-ai-investigation-task-30), [merged PR37](https://github.com/DL4P1N/Kubecon-2026/pull/37), committed verdict/screenshot | Original capacity diagnosis was via ES APIs; controlled outage is not a natural incident |
-| Dash0 | [Collector export/scrub probe](#evidence-boundaries); [SDK PR15](https://github.com/DL4P1N/Kubecon-2026/pull/15), [privacy tests PR30](https://github.com/DL4P1N/Kubecon-2026/pull/30), [dashboard/SLO code PR33](https://github.com/DL4P1N/Kubecon-2026/pull/33) merged | Complete app trace and live dashboard/SLO screenshots await verified rollout after [PR #32](https://github.com/DL4P1N/Kubecon-2026/pull/32); Agent0 remediation and raw URL/path findings are being handled in board task #40 |
+| Dash0 | [Real MCP/Agent0 finding and collector correction](evidence/dash0-agent0-investigation.md), browser/API trace and sampled after export | Complete browser/API/ES trace, live dashboard/SLO data screenshots and full privacy-flow validation remain pending; raw log-path fix is [PR52](https://github.com/DL4P1N/Kubecon-2026/pull/52) |
 | Gitar | [Rules 1/1](#repository-rule-verification-task-34), [fix PR8](https://github.com/DL4P1N/Kubecon-2026/pull/8), [probe fix PR6](https://github.com/DL4P1N/Kubecon-2026/pull/6), [requested retrospective CI diagnosis](gitar-ci-diagnosis.md#verified-diagnosis-after-an-explicit-request-on-an-open-pr) | Automatic CI-failure triggering and auto-apply remain unproven; functional validation not enabled; no Sonar tooling claim |
 | TLS | [TLS overlay PR31](https://github.com/DL4P1N/Kubecon-2026/pull/31) and trust/hostname tests merged | [Live overlay/browser trust validation](../deploy/k8s/tls/README.md) pending; current app/collector transport must not be called verified end-to-end TLS |
 | Demo | [Labelled mock-API UI fallback](demo/recording.md), [runbook/seed PR34](https://github.com/DL4P1N/Kubecon-2026/pull/34) | Real deployed attendee-flow recording and presenter review remain separate gates |
@@ -27,7 +27,7 @@ entry only after a real review finding is acted on.
 | Judge lane | Design Doc evidence required | Current evidence gap |
 | --- | --- | --- |
 | Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | [Rules 1/1](#repository-rule-verification-task-34), acted-on findings and [explicitly requested CI diagnosis](gitar-ci-diagnosis.md) verified. Automatic triggering/auto-apply remain unproven. No Sonar tooling claim. |
-| Dash0: Stop Flying Blind | Browser → API → ES trace, search/embedding/access spans, p95 SLO, dashboard, scrubbing proof, real issue investigation | Collector probe verified live; [full privacy test PR30](https://github.com/DL4P1N/Kubecon-2026/pull/30) merged. Live app trace, SLO/dashboard data and issue-remediation artifact remain pending. |
+| Dash0: Stop Flying Blind | Browser → API → ES trace, search/embedding/access spans, p95 SLO, dashboard, scrubbing proof, real issue investigation | [MCP/Agent0 investigation with sampled live collector correction](evidence/dash0-agent0-investigation.md) captured. Browser/API trace verified; complete ES child-span proof and live SLO/dashboard data screenshots pending. |
 | Radar: AI SRE | Ready Kubernetes workloads, UI and MCP used, real investigation with remediation | Live UI/MCP and an actual safeguarded Codex AI investigation captured below, with evidence, verified follow-up and linked fix. Human review of #30 pending. |
 | Elasticsearch: Find the Right Talk | Real catalog and ES inference per human decisions; BM25 vs hybrid results and query comparison | [12-query live report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162): 417 talks, 5 hybrid wins / 7 ties / 0 losses. Majority-win criterion not met; earlier five-query raw results remain committed. |
 
@@ -265,19 +265,33 @@ kubectl radar diagnose statefulset/elasticsearch \
 
 ## Dash0
 
+- Board task #40: the operator asked Agent0 to investigate actual search 400s;
+  [raw question/output and direct span evidence](demo/dash0-agent0-investigation.json),
+  [readable rendering of captured output](demo/dash0-agent0-output.png), and
+  [before registration-page screenshot](demo/dash0-before-registration.png) are
+  committed. The rendering is labelled as an MCP export, not the Dash0 UI.
+  Agent0 reported a raw query-bearing internal request path; direct MCP
+  attributes confirmed it despite Agent0's contradictory inference that query
+  values were not exported. The operator removed `url.path` from collector
+  allowlists and rolled out that correction. [Actual after export](demo/dash0-after-spans.json)
+  retains `http.route` with the `url.path` column empty for sampled spans.
+  [Finding, exact trace IDs, remediation and limits](evidence/dash0-agent0-investigation.md)
+  distinguish this privacy fix from the separate registration-contract PR28.
+
 - End-to-end trace (browser -> api -> Elasticsearch) for one `/api/search`
   request: screenshot goes here (`docs/evidence/dash0-search-trace.png`),
-  with the trace id. Collector credentials/export are verified; full app-trace proof
-  awaits verified app rollout after the
-  [production-image dependency fix PR #32](https://github.com/DL4P1N/Kubecon-2026/pull/32).
+  with the trace id. Browser/API spans are captured above after the
+  [production-image fix PR32](https://github.com/DL4P1N/Kubecon-2026/pull/32);
+  the complete Elasticsearch child-span chain still needs separate proof.
 - Privacy test evidence: [merged PR #30](https://github.com/DL4P1N/Kubecon-2026/pull/30)
   exercises registration, search, allow and revoked scan with an in-memory span
   exporter and captured logs, and checks collector allowlist configuration. It
   does not execute a real collector. The corresponding live trace screenshot
-  remains pending; additional raw URL/path findings are being handled in board task #40.
+  remains pending; sampled raw attribute correction is captured above and
+  raw log-path remediation is [PR52](https://github.com/DL4P1N/Kubecon-2026/pull/52).
 - Metrics: `http.server.request.duration` by `http.route`,
   `companion.search.duration`, `access.scans` dashboard. Screenshot: pending.
-- SLO (p95 search latency) and Agent0 / Dash0 MCP investigation: pending.
+- Live SLO data screenshots remain pending; Agent0/MCP investigation is captured above.
 - Dashboard, SLOs and check rules as code (#14, PR [#33](https://github.com/DL4P1N/Kubecon-2026/pull/33)):
   **pending live verification**. `deploy/dash0/dashboard.yaml` (PersesDashboard:
   SLO tiles, burn rate, rate/p95/5xx by route, search p95 by mode, access scans,

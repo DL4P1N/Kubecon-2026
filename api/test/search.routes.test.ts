@@ -473,7 +473,7 @@ describe("schedule routes", () => {
     spans.length = 0;
     await app.inject({ method: "GET", url: "/api/schedule", headers });
     expect(spans.map((s) => s.name)).toEqual(["schedule.get", "schedule.load", "talks.fetch"]);
-    expect(spans[0]!.attrs).toEqual({ "http.request.method": "GET", "url.path": "/api/schedule" });
+    expect(spans[0]!.attrs).toEqual({ "http.request.method": "GET", "http.route": "/api/schedule" });
     expect(spans[0]!.set).toEqual({ "http.response.status_code": 200 });
     expect(spans.slice(1).every((s) => Object.keys(s.attrs).length === 0)).toBe(true);
     expect(JSON.stringify(spans)).not.toContain("ada-1");

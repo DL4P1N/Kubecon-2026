@@ -16,14 +16,14 @@ processors:
           - keep_keys(attributes, ["service.name", "service.version", "service.namespace", "deployment.environment"])
       - context: span
         statements:
-          - keep_keys(attributes, ["http.request.method", "http.response.status_code", "http.route", "url.path", "server.address", "server.port", "rpc.system", "rpc.service", "rpc.method", "db.system", "db.operation.name", "db.namespace", "room.id", "access.decision", "search.mode", "search.hits", "error.type", "retention.deleted", "clusters.attendees", "clusters.k", "clusters.shown", "clusters.suppressed"])
+          - keep_keys(attributes, ["http.request.method", "http.response.status_code", "http.route", "server.address", "server.port", "rpc.system", "rpc.service", "rpc.method", "db.system", "db.operation.name", "db.namespace", "room.id", "access.decision", "search.mode", "search.hits", "error.type", "retention.deleted", "clusters.attendees", "clusters.k", "clusters.shown", "clusters.suppressed"])
     log_statements:
       - context: resource
         statements:
           - keep_keys(attributes, ["service.name", "service.version", "service.namespace", "deployment.environment"])
       - context: log
         statements:
-          - keep_keys(attributes, ["log.severity", "http.request.method", "http.response.status_code", "http.route", "url.path", "room.id", "access.decision", "search.mode", "search.hits", "error.type", "retention.deleted"])
+          - keep_keys(attributes, ["log.severity", "http.request.method", "http.response.status_code", "http.route", "room.id", "access.decision", "search.mode", "search.hits", "error.type", "retention.deleted"])
           # Defence in depth: never forward URL query strings inside log bodies.
           - replace_pattern(body, "\\?\\S*", "?[redacted]")
     metric_statements:
@@ -32,7 +32,7 @@ processors:
           - keep_keys(attributes, ["service.name", "service.version", "service.namespace", "deployment.environment"])
       - context: datapoint
         statements:
-          - keep_keys(attributes, ["http.request.method", "http.response.status_code", "http.route", "url.path", "room.id", "access.decision", "search.mode"])
+          - keep_keys(attributes, ["http.request.method", "http.response.status_code", "http.route", "room.id", "access.decision", "search.mode"])
   batch: {}
 exporters:
   otlphttp/dash0:
