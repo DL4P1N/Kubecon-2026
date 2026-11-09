@@ -8,8 +8,8 @@ unreviewed fields cannot leave the collector.
 | Signal | Allowed attributes |
 | --- | --- |
 | Resource | `service.name`, `service.version`, `service.namespace`, `deployment.environment` |
-| Trace | `http.request.method`, `http.response.status_code`, `url.path`, `server.address`, `server.port`, `rpc.system`, `rpc.service`, `rpc.method`, `db.system`, `db.operation.name`, `db.namespace`, `room.id`, `access.decision`, `search.mode`, `search.hits` |
-| Log | `log.severity`, `http.request.method`, `http.response.status_code`, `url.path`, `room.id`, `access.decision`, `search.mode`, `search.hits` |
+| Trace | `http.request.method`, `http.response.status_code`, `url.path`, `server.address`, `server.port`, `rpc.system`, `rpc.service`, `rpc.method`, `db.system`, `db.operation.name`, `db.namespace`, `room.id`, `access.decision`, `search.mode`, `search.hits`, `retention.deleted` |
+| Log | `log.severity`, `http.request.method`, `http.response.status_code`, `url.path`, `room.id`, `access.decision`, `search.mode`, `search.hits`, `retention.deleted` |
 | Metric point | `http.request.method`, `http.response.status_code`, `url.path`, `room.id`, `access.decision`, `search.mode` |
 
 ## Local validation
