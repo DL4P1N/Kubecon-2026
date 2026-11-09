@@ -1,8 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { InterestClustersResponse } from "@cc/shared";
 import { api, ApiError } from "../api.js";
+import { EmptyState, ErrorState, LoadingState } from "../components/PageState.js";
 import "./discovery.css";
 import "./cluster-map.css";
+
+const KEY_REQUIRED = "An organizer key is required.";
 
 /** Organizer view of the latest k-means batch run. Aggregates only; every cluster has at least 5 attendees. */
 export function ClusterMap() {
@@ -18,7 +21,7 @@ export function ClusterMap() {
       setData(await api.clusters(organizerKey));
     } catch (err) {
       setData(null);
-      setError(err instanceof ApiError && err.status === 401 ? "An organizer key is required." : "Could not load the cluster map. Please try again.");
+      setError(err instanceof ApiError && err.status === 401 ? KEY_REQUIRED : "Could not load the cluster map. Check your connection and try again.");
     } finally {
       setPending(false);
     }
@@ -48,15 +51,21 @@ export function ClusterMap() {
           {pending ? "Loading" : "Load map"}
         </button>
       </form>
-      {error && <p role="alert">{error}</p>}
-      {data && data.runId === null && <p role="status">No cluster run has completed yet.</p>}
+      {error && <ErrorState onRetry={error === KEY_REQUIRED ? undefined : () => void load(key.trim())}>{error}</ErrorState>}
+      {pending && !data && !error && <LoadingState>Loading cluster map…</LoadingState>}
+      {data && data.runId === null && <EmptyState><p>No cluster run has completed yet.</p></EmptyState>}
       {data && data.runId !== null && (
         <>
-          <p role="status">
-            {data.clusters.length === 0
-              ? `No group reached the minimum of ${data.minClusterSize} attendees, so nothing is shown.`
-              : `${data.clusters.length} cluster${data.clusters.length === 1 ? "" : "s"}, computed ${new Date(data.computedAt ?? "").toLocaleString()}.`}
-          </p>
+          {data.clusters.length === 0 ? (
+            <EmptyState>
+              <p>{`No group reached the minimum of ${data.minClusterSize} attendees, so nothing is shown.`}</p>
+              <p>{`To protect privacy, clusters smaller than ${data.minClusterSize} are never displayed. More groups appear as more attendees opt in.`}</p>
+            </EmptyState>
+          ) : (
+            <p role="status">
+              {`${data.clusters.length} cluster${data.clusters.length === 1 ? "" : "s"}, computed ${new Date(data.computedAt ?? "").toLocaleString()}.`}
+            </p>
+          )}
           <ul className="cluster-bubbles" aria-label="Interest clusters">
             {data.clusters.map((c) => {
               const diameter = 7 + 7 * Math.sqrt(c.size / max);
