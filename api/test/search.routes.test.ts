@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import Fastify from "fastify";
-import type { FastifyRequest } from "fastify";
 import type { OnboardingResponse, ScheduleResponse, SearchResponse } from "@cc/shared";
+import { createTokenService } from "../src/auth/token.js";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
-import { RETRY_AFTER_SECONDS, STUB_ATTENDEE_ID, defaultResolveAttendee, registerSearchRoutes } from "../src/routes/search.js";
+import { RETRY_AFTER_SECONDS, registerSearchRoutes } from "../src/routes/search.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
 import { loggerOptions } from "../src/telemetry/logger.js";
 import { esHit, fakeEs, talk, type FakeHandler } from "./helpers.js";
@@ -151,7 +151,7 @@ function appWithLogs(es: ReturnType<typeof fakeEs>) {
     if (String(JSON.parse(l).msg).startsWith("elasticsearch request failed")) lines.push(l);
   };
   const app = Fastify({ logger: { ...loggerOptions, level: "info", stream: { write: keep } } });
-  registerSearchRoutes(app, { es });
+  registerSearchRoutes(app, { es, resolveAttendee: async () => "attendee-test" });
   return { app, lines, all };
 }
 
@@ -290,15 +290,30 @@ describe("POST /api/onboarding", () => {
   });
 });
 
+const KEY = "test-signing-key-that-is-long-enough-0123456789";
+
 describe("schedule routes", () => {
   const fixedNow = new Date("2026-11-10T07:00:00.000Z");
+  let clock = fixedNow.getTime();
+  const tokens = createTokenService({ key: KEY, now: () => clock });
+  const asAttendee = async (id: string): Promise<Record<string, string>> => ({
+    authorization: `Bearer ${(await tokens.sign(id)).token}`,
+  });
+  const server = (es: ReturnType<typeof memoryEs>["es"], search: Record<string, unknown> = {}) =>
+    buildServer(loadConfig({}), { es, tokens, search: { now: () => fixedNow, ...search } });
+
+  afterEach(() => {
+    clock = fixedNow.getTime();
+  });
 
   it("builds an overlap-free schedule from answers, saves it and reads it back", async () => {
     const { es, docs } = memoryEs(hits);
-    const app = buildServer(loadConfig({}), { es, search: { now: () => fixedNow } });
+    const app = server(es);
+    const headers = await asAttendee("ada-1");
     const res = await app.inject({
       method: "POST",
       url: "/api/schedule",
+      headers,
       payload: { answers: { topics: ["security"], experience: "beginner", goals: [] } },
     });
     expect(res.statusCode).toBe(200);
@@ -308,81 +323,158 @@ describe("schedule routes", () => {
     expect(body.droppedTalkIds).toEqual(["b"]);
     expect(spans.some((s) => s.name === "schedule.build")).toBe(true);
 
-    const saved = docs.get("attendee-stub-1") as Record<string, unknown>;
+    const saved = docs.get("ada-1") as Record<string, unknown>;
     expect(saved.talk_ids).toEqual(["a", "c"]);
     expect(saved.updated_at).toBe(fixedNow.toISOString());
     expect(saved.expires_at).toBe("2026-11-11T07:00:00.000Z");
 
-    const get = await app.inject({ method: "GET", url: "/api/schedule" });
+    const get = await app.inject({ method: "GET", url: "/api/schedule", headers });
     expect((get.json() as ScheduleResponse).items.map((i) => i.talk.id).sort()).toEqual(["a", "c"]);
   });
 
   it("saves explicit talkIds in priority order and reports unknown and conflicting ids", async () => {
     const { es, docs } = memoryEs([esHit(A, 1), esHit(B, 1), esHit(C, 1)]);
-    const app = buildServer(loadConfig({}), { es });
-    const res = await app.inject({ method: "POST", url: "/api/schedule", payload: { talkIds: ["b", "a", "c", "nope"] } });
+    const app = server(es);
+    const headers = await asAttendee("ada-1");
+    const res = await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: ["b", "a", "c", "nope"] } });
     const body = res.json() as ScheduleResponse;
     expect(body.items.map((i) => i.talk.id)).toEqual(["b", "c"]);
     expect(body.droppedTalkIds).toEqual(["nope", "a"]);
-    expect((docs.get("attendee-stub-1") as { talk_ids: string[] }).talk_ids).toEqual(["b", "c"]);
+    expect((docs.get("ada-1") as { talk_ids: string[] }).talk_ids).toEqual(["b", "c"]);
   });
 
-  it("keys schedules per injected attendee without exposing the id in spans", async () => {
+  it("keeps two registered attendees' schedules separate", async () => {
+    const { es, docs } = memoryEs([esHit(A, 1), esHit(C, 1)]);
+    const app = server(es);
+    const ada = await asAttendee("ada-1");
+    const bob = await asAttendee("bob-2");
+    expect((await app.inject({ method: "POST", url: "/api/schedule", headers: ada, payload: { talkIds: ["a"] } })).statusCode).toBe(200);
+    expect((await app.inject({ method: "POST", url: "/api/schedule", headers: bob, payload: { talkIds: ["c"] } })).statusCode).toBe(200);
+    expect((docs.get("ada-1") as { talk_ids: string[] }).talk_ids).toEqual(["a"]);
+    expect((docs.get("bob-2") as { talk_ids: string[] }).talk_ids).toEqual(["c"]);
+    const ids = async (headers: Record<string, string>) =>
+      ((await app.inject({ method: "GET", url: "/api/schedule", headers })).json() as ScheduleResponse).items.map((i) => i.talk.id);
+    expect(await ids(ada)).toEqual(["a"]);
+    expect(await ids(bob)).toEqual(["c"]);
+    expect(JSON.stringify(spans)).not.toContain("ada-1");
+    expect(JSON.stringify(spans)).not.toContain("bob-2");
+  });
+
+  it.each<[string, () => Promise<Record<string, string>>]>([
+    ["no Authorization header", async () => ({})],
+    ["an unsigned stub-style token", async () => ({ authorization: "Bearer stub.victim-7" })],
+    ["a malformed token", async () => ({ authorization: "Bearer a.b.c" })],
+    [
+      "a tampered token (payload swapped, original signature)",
+      async () => {
+        const [h, , sig] = (await tokens.sign("ada-1")).token.split(".");
+        const claims = { sub: "victim-7", iss: "conference-companion", aud: "attendee", exp: 4102444800 };
+        const forged = Buffer.from(JSON.stringify(claims)).toString("base64url");
+        return { authorization: `Bearer ${h}.${forged}.${sig}` };
+      },
+    ],
+    [
+      "a token signed with another key",
+      async () => ({ authorization: `Bearer ${(await createTokenService({ key: `${KEY}-other` }).sign("victim-7")).token}` }),
+    ],
+    [
+      "an expired token",
+      async () => {
+        const headers = await asAttendee("victim-7");
+        clock += 9 * 60 * 60 * 1000; // past the 8h session lifetime
+        return headers;
+      },
+    ],
+  ])("returns 401 for %s and never touches any schedule", async (_label, makeHeaders) => {
     const { es, docs } = memoryEs([esHit(A, 1)]);
-    const app = buildServer(loadConfig({}), { es, search: { resolveAttendee: () => "zed-42" } });
+    const victim = { talk_ids: ["a"], updated_at: "2026-11-09T00:00:00.000Z", expires_at: "2099-01-01T00:00:00.000Z" };
+    docs.set("victim-7", victim);
+    const app = server(es);
+    const headers = await makeHeaders();
+    const get = await app.inject({ method: "GET", url: "/api/schedule", headers });
+    expect(get.statusCode).toBe(401);
+    expect(get.headers["www-authenticate"]).toMatch(/^Bearer/);
+    const post = await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: ["a"] } });
+    expect(post.statusCode).toBe(401);
+    expect(docs.get("victim-7")).toEqual(victim);
+    expect(docs.size).toBe(1);
+    expect(es.calls).toHaveLength(0);
+    // Rejected requests are still traced, with allowlisted attributes only.
+    // requireAttendee awaits reply.send(), which can settle just after inject() resolves.
+    await new Promise((r) => setImmediate(r));
+    expect(spans.map((s) => [s.name, s.set["http.response.status_code"]])).toEqual([
+      ["schedule.get", 401],
+      ["schedule.save", 401],
+    ]);
+    expect(JSON.stringify(spans)).not.toContain("victim-7");
+  });
+
+  it("fails closed with 401 when no token service is wired", async () => {
+    const { es } = memoryEs([]);
+    const app = Fastify();
+    registerSearchRoutes(app, { es });
+    const res = await app.inject({ method: "GET", url: "/api/schedule", headers: await asAttendee("ada-1") });
+    expect(res.statusCode).toBe(401);
+    expect(es.calls).toHaveLength(0);
+  });
+
+  it("keeps search and onboarding public (no token needed)", async () => {
+    const { es } = memoryEs(hits);
+    const app = server(es);
+    expect((await app.inject({ method: "GET", url: "/api/search?q=x&mode=keyword" })).statusCode).toBe(200);
+    const onboarding = await app.inject({ method: "POST", url: "/api/onboarding", payload: { answers: { topics: ["security"] } } });
+    expect(onboarding.statusCode).toBe(200);
+  });
+
+  it("keys schedules per injected attendee resolver without exposing the id in spans", async () => {
+    const { es, docs } = memoryEs([esHit(A, 1)]);
+    const app = server(es, { resolveAttendee: async () => "zed-42" });
     await app.inject({ method: "POST", url: "/api/schedule", payload: { talkIds: ["a"] } });
     await app.inject({ method: "GET", url: "/api/schedule" });
     expect(docs.has("zed-42")).toBe(true);
     expect(JSON.stringify(spans)).not.toContain("zed-42");
   });
 
-  it("does not trust an unsigned Bearer stub.<id> header (no IDOR on other attendees' schedules)", async () => {
-    const { es, docs } = memoryEs([esHit(A, 1)]);
-    docs.set("victim-7", { talk_ids: ["a"], updated_at: fixedNow.toISOString(), expires_at: "2099-01-01T00:00:00.000Z" });
-    const app = buildServer(loadConfig({}), { es });
-    const headers = { authorization: "Bearer stub.victim-7" };
-    const get = await app.inject({ method: "GET", url: "/api/schedule", headers });
-    expect((get.json() as ScheduleResponse).items).toEqual([]);
-    await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: ["a"] } });
-    expect(docs.has("attendee-stub-1")).toBe(true);
-    expect((docs.get("victim-7") as { updated_at: string }).updated_at).toBe(fixedNow.toISOString());
-    expect(defaultResolveAttendee({ headers } as FastifyRequest)).toBe(STUB_ATTENDEE_ID);
-  });
-
   it("ignores expired schedules on load and serves unexpired ones", async () => {
     const { es, docs } = memoryEs([esHit(A, 1)]);
-    const app = buildServer(loadConfig({}), { es, search: { now: () => fixedNow } });
+    const app = server(es);
+    const headers = await asAttendee("ada-1");
     const doc = (expires_at: string) => ({ talk_ids: ["a"], updated_at: "2026-11-09T00:00:00.000Z", expires_at });
-    docs.set("attendee-stub-1", doc("2026-11-10T06:59:59.000Z"));
-    const expired = await app.inject({ method: "GET", url: "/api/schedule" });
+    docs.set("ada-1", doc("2026-11-10T06:59:59.000Z"));
+    const expired = await app.inject({ method: "GET", url: "/api/schedule", headers });
     expect(expired.json()).toEqual({ items: [], updatedAt: new Date(0).toISOString() });
-    docs.set("attendee-stub-1", doc("2026-11-10T07:00:01.000Z"));
-    const live = await app.inject({ method: "GET", url: "/api/schedule" });
+    docs.set("ada-1", doc("2026-11-10T07:00:01.000Z"));
+    const live = await app.inject({ method: "GET", url: "/api/schedule", headers });
     expect((live.json() as ScheduleResponse).items.map((i) => i.talk.id)).toEqual(["a"]);
   });
 
-  it("wraps GET /api/schedule load and talk fetch in attribute-free spans", async () => {
+  it("wraps GET /api/schedule in a request span plus attribute-free load and fetch spans", async () => {
     const { es } = memoryEs([esHit(A, 1)]);
-    const app = buildServer(loadConfig({}), { es, search: { now: () => fixedNow } });
-    await app.inject({ method: "POST", url: "/api/schedule", payload: { talkIds: ["a"] } });
+    const app = server(es);
+    const headers = await asAttendee("ada-1");
+    await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: ["a"] } });
     spans.length = 0;
-    await app.inject({ method: "GET", url: "/api/schedule" });
-    expect(spans.map((s) => s.name)).toEqual(["schedule.load", "talks.fetch"]);
-    expect(spans.every((s) => Object.keys(s.attrs).length === 0)).toBe(true);
-    expect(JSON.stringify(spans)).not.toContain("attendee-stub-1");
+    await app.inject({ method: "GET", url: "/api/schedule", headers });
+    expect(spans.map((s) => s.name)).toEqual(["schedule.get", "schedule.load", "talks.fetch"]);
+    expect(spans[0]!.attrs).toEqual({ "http.request.method": "GET", "url.path": "/api/schedule" });
+    expect(spans[0]!.set).toEqual({ "http.response.status_code": 200 });
+    expect(spans.slice(1).every((s) => Object.keys(s.attrs).length === 0)).toBe(true);
+    expect(JSON.stringify(spans)).not.toContain("ada-1");
   });
 
   it("returns an empty schedule when nothing was saved", async () => {
     const { es } = memoryEs([]);
-    const app = buildServer(loadConfig({}), { es });
-    const res = await app.inject({ method: "GET", url: "/api/schedule" });
+    const app = server(es);
+    const res = await app.inject({ method: "GET", url: "/api/schedule", headers: await asAttendee("new-3") });
+    expect(res.statusCode).toBe(200);
     expect((res.json() as ScheduleResponse).items).toEqual([]);
   });
 
   it("validates the body", async () => {
     const { es } = memoryEs([]);
-    const app = buildServer(loadConfig({}), { es });
-    const post = (payload: unknown) => app.inject({ method: "POST", url: "/api/schedule", payload: payload as object });
+    const app = server(es);
+    const headers = await asAttendee("ada-1");
+    const post = (payload: unknown) => app.inject({ method: "POST", url: "/api/schedule", headers, payload: payload as object });
     expect((await post({})).statusCode).toBe(400);
     expect((await post({ talkIds: [1] })).statusCode).toBe(400);
     expect((await post({ talkIds: ["a"], maxTalks: 0 })).statusCode).toBe(400);

@@ -65,33 +65,43 @@ The fix commit is the PR link until the merge hash is known.
 
 Still pending: CI-failure diagnosis and the review link for the demo.
 
+### Repository-rule verification (task #34)
+
+The existing `.gitar/review/` files are review guidance. Prior PR dashboards
+reported Rules as "No rules evaluated"; those reviews do not prove execution
+of a repository rule. `.gitar/rules/conference-companion-check.md` adds an
+explicit project check with documented frontmatter. Verified on
+[PR #25's Gitar dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/25#issuecomment-6749180455):
+"Rules 1/1 met", "1 passed". The check states that this docs/config-only PR
+preserves all seven project requirements and explicitly limits the result
+to static review. This proves repository-rule execution on this PR, not
+runtime compliance or a separate Knowledge-library fact citation.
+The human confirmed a Pro trial. Functional validation remains "Not enabled"
+and requires Enterprise; CI-failure diagnosis still needs separate observed
+failure-analysis evidence. No claim is made that either was demonstrated.
+
 ## Elasticsearch real issues
 
 ### Search 502 during E5 warm-up (natural incident)
 
-- What happened: on the kind cluster (ES 8.19.6, 417 talks seeded with
-  `.multilingual-e5-small-elasticsearch`), `GET /api/search?mode=hybrid` returned
-  502 `search_unavailable` while keyword search returned 200 and a direct
-  `companion_svc` RRF query returned hits. It happened during the E5 inference
-  seed and warm-up, when the ML node did not have capacity to start the model.
-  The API mapped every Elasticsearch failure to a generic 502, so the original
-  ES error body was not preserved.
-- What was found (by ecan0-omp, from the cluster): ML memory was the limit.
-  `xpack.ml.max_machine_memory_percent` was raised from 30% to 50%. After that
-  hybrid search returned 200 with real hits, matching the direct RRF query.
-- What changed (task #35): `EsError` keeps the ES `error.type` and HTTP status;
-  `withSpan` records the type as the `error.type` span attribute; the search error
-  handler writes one log line with the type and status only (no query text, ids,
-  credentials or ES body). ES overload (429, `inference_exception`,
-  `circuit_breaking_exception`, `es_rejected_execution_exception`) now returns 503
-  `search_overloaded` with `Retry-After`; other ES failures stay 502. Hybrid does not
-  fall back to keyword on overload, so the incident stays visible. Tests:
-  `Elasticsearch failures are diagnosable` in `api/test/search.routes.test.ts`
-  and `EsError classification` in `api/test/es.test.ts`.
-- Not yet captured: a Dash0 trace or log of the incident, and a Radar
-  investigation. Add links here if they exist; none are claimed. `error.type` and
-  `http.route` are added to the collector allowlist and both collector configs
-  (same lines as the OTel task #12, so the two merge cleanly).
+- What happened: during the E5 inference seed on the kind cluster, the first deployed
+  `GET /api/search?mode=hybrid` returned 502 `search_unavailable` while keyword search and
+  a direct `companion_svc` RRF query returned 200. The API mapped every Elasticsearch
+  failure to a generic 502, so the original ES error body was not preserved and the cause
+  of that one request is unconfirmed. The related seed failure (429 `inference_exception`,
+  "no ML nodes with sufficient capacity") and its fix (`xpack.ml.max_machine_memory_percent`
+  30% to 50%, by ecan0-omp) are under Radar, "Real incident: Elasticsearch ML capacity".
+- What changed (task #35): `EsError` keeps the ES `error.type` and HTTP status; the span
+  gets the allowlisted `error.type` attribute; the search error handler writes one log line
+  with the type and status only (no query text, ids, credentials or ES body). ES overload
+  (429, `inference_exception`, `circuit_breaking_exception`,
+  `es_rejected_execution_exception`) now returns 503 `search_overloaded` with
+  `Retry-After`; other ES failures stay 502. Hybrid does not fall back to keyword on
+  overload, so an incident stays visible. Tests: `Elasticsearch failures are diagnosable`
+  in `api/test/search.routes.test.ts` and `EsError classification` in `api/test/es.test.ts`
+  (realistic 429 and 400 ES bodies, production logger options).
+- Not captured: a Dash0 trace or log of this request, or a Radar investigation of it. None
+  is claimed.
 
 ## Radar
 
