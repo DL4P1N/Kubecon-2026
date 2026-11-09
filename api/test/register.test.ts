@@ -13,7 +13,8 @@ const KEY = "test-signing-key-that-is-long-enough-0123456789";
 function fakeEs() {
   const docs = new Map<string, Record<string, unknown>>();
   const calls: string[] = [];
-  let failWrites = false;
+  /** Index names whose PUTs fail with 500 ("*" = all). */
+  const failWrites = new Set<string>();
   const fetchImpl = (async (url: string, init: RequestInit) => {
     const u = new URL(url);
     const method = init.method ?? "GET";
@@ -23,7 +24,7 @@ function fakeEs() {
     const [, index, op, id] = m;
     const key = `${index}/${decodeURIComponent(id!)}`;
     if (method === "PUT") {
-      if (failWrites) return new Response(`{"error":"boom ${u.pathname}"}`, { status: 500 });
+      if (failWrites.has("*") || failWrites.has(index!)) return new Response(`{"error":"boom ${u.pathname}"}`, { status: 500 });
       if (op === "_create" && docs.has(key)) return new Response("{}", { status: 409 });
       docs.set(key, JSON.parse(String(init.body)));
       return new Response(JSON.stringify({ result: "created" }), { status: 201 });
@@ -34,12 +35,16 @@ function fakeEs() {
       const { interest_vector: _omit, ...rest } = src;
       return new Response(JSON.stringify({ found: true, _source: rest }), { status: 200 });
     }
+    if (method === "DELETE") {
+      const existed = docs.delete(key);
+      return new Response(JSON.stringify({ result: existed ? "deleted" : "not_found" }), { status: existed ? 200 : 404 });
+    }
     return new Response("{}", { status: 405 });
   }) as unknown as typeof fetch;
   return {
     docs,
     calls,
-    setFailWrites: (v: boolean) => (failWrites = v),
+    setFailWrites: (index: string) => failWrites.add(index),
     client: createEsClient({ esUrl: "http://es:9200", esUsername: "u", esPassword: "p" }, fetchImpl),
   };
 }
@@ -131,10 +136,69 @@ describe("POST /api/register and GET /api/me", () => {
   });
 
   it("returns 503 without leaking the attendee ID when ES writes fail", async () => {
-    es.setFailWrites(true);
+    es.setFailWrites("*");
     const res = await register();
     expect(res.statusCode).toBe(503);
     expect(res.body).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/);
+  });
+
+  it("cleans up the attendee doc when the entitlement write fails", async () => {
+    es.setFailWrites("entitlements");
+    const res = await register();
+    expect(res.statusCode).toBe(503);
+    expect(es.docs.size).toBe(0);
+    expect(es.calls.filter((c) => c.startsWith("DELETE"))).toHaveLength(2);
+    const span = exporter.getFinishedSpans().find((s) => s.name === "register")!;
+    expect(span.attributes["http.response.status_code"]).toBe(503);
+  });
+
+  it("returns 5xx, writes nothing and still ends the span when signing fails", async () => {
+    const app2 = Fastify({ logger: false });
+    await app2.register(registerRoutes, {
+      es: es.client,
+      tokens: {
+        sign: async () => {
+          throw new Error("kms down");
+        },
+        verify: async () => "x",
+      },
+      embed: async () => [1],
+    });
+    const res = await app2.inject({ method: "POST", url: "/api/register", payload: validBody });
+    expect(res.statusCode).toBe(500);
+    expect(res.body).not.toContain("kms down");
+    expect(es.docs.size).toBe(0);
+    const spans = exporter.getFinishedSpans().filter((s) => s.name === "register");
+    expect(spans).toHaveLength(1);
+    expect(spans[0]!.attributes["http.response.status_code"]).toBe(500);
+    await app2.close();
+  });
+
+  it("emits a `me` span on 200, 401 and 503 paths, without the attendee ID", async () => {
+    const reg = (await register()).json() as RegisterResponse;
+    const auth = { authorization: `Bearer ${reg.token}` };
+    exporter.reset();
+
+    expect((await app.inject({ method: "GET", url: "/api/me", headers: auth })).statusCode).toBe(200);
+    expect((await app.inject({ method: "GET", url: "/api/me" })).statusCode).toBe(401);
+    es.docs.clear();
+    expect((await app.inject({ method: "GET", url: "/api/me", headers: auth })).statusCode).toBe(401);
+
+    const failing = createEsClient(
+      { esUrl: "http://es:9200", esUsername: "", esPassword: "" },
+      (async () => new Response("boom", { status: 500 })) as unknown as typeof fetch,
+    );
+    const app2 = Fastify({ logger: false });
+    await app2.register(registerRoutes, { es: failing, tokens: createTokenService({ key: KEY, now }), embed: async () => [1] });
+    expect((await app2.inject({ method: "GET", url: "/api/me", headers: auth })).statusCode).toBe(503);
+    await app2.close();
+
+    const spans = exporter.getFinishedSpans().filter((s) => s.name === "me");
+    expect(spans.map((s) => s.attributes["http.response.status_code"])).toEqual([200, 401, 401, 503]);
+    for (const s of spans) {
+      expect(s.ended).toBe(true);
+      expect(JSON.stringify(s.attributes)).not.toContain(reg.attendeeId);
+    }
   });
 
   it("still registers when the embedder is down, without interest_vector", async () => {

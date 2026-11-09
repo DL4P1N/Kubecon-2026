@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import rateLimit from "@fastify/rate-limit";
-import { SpanStatusCode, trace, type Span } from "@opentelemetry/api";
-import type { FastifyPluginAsync } from "fastify";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
+import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { z } from "zod";
 import { routes, type MeResponse, type RegisterResponse } from "@cc/shared";
 import { requireAttendee, type TokenService } from "../auth/token.js";
@@ -88,16 +88,41 @@ export interface RegisterRoutesOptions {
 
 const tracer = () => trace.getTracer("companion-api");
 
-/** Only allowlisted attributes (docs/telemetry-allowlist.md). */
-function endSpan(span: Span, method: string, path: string, status: number) {
-  span.setAttributes({
-    "http.request.method": method,
-    "url.path": path,
-    "http.response.status_code": status,
-    "db.system": "elasticsearch",
+/**
+ * Runs a handler inside a span that is ended on every path (success, 4xx,
+ * 5xx, thrown error). Only allowlisted attributes (docs/telemetry-allowlist.md)
+ * are set; never the attendee ID or error messages (ES errors contain doc
+ * paths, and so IDs). Unexpected errors become a generic 500.
+ */
+async function traced(
+  name: string,
+  method: string,
+  path: string,
+  reply: FastifyReply,
+  fn: () => Promise<unknown>,
+): Promise<unknown> {
+  return tracer().startActiveSpan(name, async (span) => {
+    let status = 500;
+    try {
+      const out = await fn();
+      status = reply.statusCode;
+      return out;
+    } catch {
+      // Deliberately not logged or recorded: error text may contain the attendee ID.
+      status = 500;
+      if (!reply.sent) return reply.code(500).send({ error: "internal_error", message: "unexpected error" });
+      return reply;
+    } finally {
+      span.setAttributes({
+        "http.request.method": method,
+        "url.path": path,
+        "http.response.status_code": status,
+        "db.system": "elasticsearch",
+      });
+      if (status >= 500) span.setStatus({ code: SpanStatusCode.ERROR, message: "server_error" });
+      span.end();
+    }
   });
-  if (status >= 500) span.setStatus({ code: SpanStatusCode.ERROR, message: "storage_error" });
-  span.end();
 }
 
 export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (app, opts) => {
@@ -117,10 +142,9 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
       },
     },
     async (req, reply) =>
-      tracer().startActiveSpan("register", async (span) => {
+      traced("register", "POST", routes.register.path, reply, async () => {
         const parsed = registerBodySchema.safeParse(req.body);
         if (!parsed.success) {
-          endSpan(span, "POST", routes.register.path, 400);
           return reply.code(400).send({
             error: "invalid_request",
             // Field paths and messages only; never echo submitted values.
@@ -133,71 +157,78 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
         const createdAt = new Date(t).toISOString();
         const expiresAt = new Date(t + ATTENDEE_RETENTION_MS).toISOString();
 
-        try {
-          // The vector only feeds the cluster map; if the embedder (ES inference)
-          // is down, register anyway without it rather than block sign-up.
-          const interestVector = await embedText(body.interests.join(", ")).catch(() => undefined);
-          const attendee: AttendeeDoc = {
-            id,
-            display_name: body.name,
-            interests: body.interests,
-            ...(interestVector ? { interest_vector: interestVector } : {}),
-            consent: { cluster_map: body.consent.clusterMap, qr_checkin: body.consent.qrCheckin },
-            created_at: createdAt,
-            expires_at: expiresAt,
-          };
-          await es.request("PUT", `/attendees/_create/${id}?refresh=wait_for`, attendee);
+        // Sign first: if signing fails nothing has been written yet (traced() turns it into a 500).
+        const signed = await tokens.sign(id);
 
-          const entitlement: EntitlementDoc = {
-            attendee_id: id,
-            pass_type: DEFAULT_PASS_TYPE,
-            rooms: [ALL_ROOMS],
-            updated_at: createdAt,
-            expires_at: expiresAt,
-          };
+        // The vector only feeds the cluster map; if the embedder (ES inference)
+        // is down, register anyway without it rather than block sign-up.
+        const interestVector = await embedText(body.interests.join(", ")).catch(() => undefined);
+        const attendee: AttendeeDoc = {
+          id,
+          display_name: body.name,
+          interests: body.interests,
+          ...(interestVector ? { interest_vector: interestVector } : {}),
+          consent: { cluster_map: body.consent.clusterMap, qr_checkin: body.consent.qrCheckin },
+          created_at: createdAt,
+          expires_at: expiresAt,
+        };
+        const entitlement: EntitlementDoc = {
+          attendee_id: id,
+          pass_type: DEFAULT_PASS_TYPE,
+          rooms: [ALL_ROOMS],
+          updated_at: createdAt,
+          expires_at: expiresAt,
+        };
+
+        try {
+          await es.request("PUT", `/attendees/_create/${id}?refresh=wait_for`, attendee);
           await es.request("PUT", `/entitlements/_doc/${id}?refresh=wait_for`, entitlement);
         } catch {
-          // Deliberately not logging the error: it contains the doc path.
-          endSpan(span, "POST", routes.register.path, 503);
+          // Best-effort cleanup so a failed registration leaves no half-written
+          // attendee. Errors are not logged: they contain the doc path.
+          await Promise.allSettled([
+            es.request("DELETE", `/attendees/_doc/${id}`, undefined, [404]),
+            es.request("DELETE", `/entitlements/_doc/${id}`, undefined, [404]),
+          ]);
           return reply.code(503).send({ error: "storage_unavailable", message: "could not store registration" });
         }
 
-        const signed = await tokens.sign(id);
         const res: RegisterResponse = { attendeeId: id, token: signed.token, expiresAt: signed.expiresAt };
-        endSpan(span, "POST", routes.register.path, 201);
         return reply.code(201).send(res);
       }),
   );
 
-  app.get(routes.me.path, async (req, reply) => {
-    const id = await requireAttendee(tokens, req, reply);
-    if (id === null) return reply;
+  app.get(routes.me.path, async (req, reply) =>
+    traced("me", "GET", routes.me.path, reply, async () => {
+      const id = await requireAttendee(tokens, req, reply);
+      if (id === null) return reply;
 
-    let doc: { found?: boolean; _source?: Omit<AttendeeDoc, "interest_vector"> } | undefined;
-    try {
-      const r = await es.request<typeof doc>(
-        "GET",
-        `/attendees/_doc/${encodeURIComponent(id)}?_source_excludes=interest_vector`,
-        undefined,
-        [404],
-      );
-      doc = r.body;
-    } catch {
-      return reply.code(503).send({ error: "storage_unavailable", message: "could not load profile" });
-    }
+      let doc: { found?: boolean; _source?: Omit<AttendeeDoc, "interest_vector"> } | undefined;
+      try {
+        const r = await es.request<typeof doc>(
+          "GET",
+          `/attendees/_doc/${encodeURIComponent(id)}?_source_excludes=interest_vector`,
+          undefined,
+          [404],
+        );
+        doc = r.body;
+      } catch {
+        return reply.code(503).send({ error: "storage_unavailable", message: "could not load profile" });
+      }
 
-    const src = doc?.found ? doc._source : undefined;
-    // Unknown or expired (24h retention) attendee: the token no longer grants anything.
-    if (!src || Date.parse(src.expires_at) <= now()) {
-      return reply.code(401).send({ error: "unauthorized", message: "attendee not found" });
-    }
-    const res: MeResponse = {
-      attendeeId: src.id,
-      name: src.display_name,
-      interests: src.interests,
-      consent: { clusterMap: src.consent.cluster_map, qrCheckin: src.consent.qr_checkin },
-      onboarded: false,
-    };
-    return res;
-  });
+      const src = doc?.found ? doc._source : undefined;
+      // Unknown or expired (24h retention) attendee: the token no longer grants anything.
+      if (!src || Date.parse(src.expires_at) <= now()) {
+        return reply.code(401).send({ error: "unauthorized", message: "attendee not found" });
+      }
+      const res: MeResponse = {
+        attendeeId: src.id,
+        name: src.display_name,
+        interests: src.interests,
+        consent: { clusterMap: src.consent.cluster_map, qrCheckin: src.consent.qr_checkin },
+        onboarded: false,
+      };
+      return res;
+    }),
+  );
 };
