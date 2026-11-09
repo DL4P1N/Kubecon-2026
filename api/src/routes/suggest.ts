@@ -19,7 +19,7 @@ export interface SuggestRouteOptions {
 /**
  * GET /api/suggest?q= : title and speaker completions for the search box.
  * Public catalog data only. The typed text is never logged or put on a span
- * (only the route template is), and it is used only as an in-memory cache key
+ * (only the route template, as `http.route`, is), and it is used only as an in-memory cache key
  * for 30 s. Rate limited per client IP; cached hits count against the limit.
  */
 export const suggestRoutes: FastifyPluginAsync<SuggestRouteOptions> = async (app, opts) => {
@@ -42,7 +42,7 @@ export const suggestRoutes: FastifyPluginAsync<SuggestRouteOptions> = async (app
     SUGGEST_PATH,
     { config: { rateLimit: { max: opts.rateLimitPerMinute ?? 120, timeWindow: "1 minute" } } },
     async (req, reply) =>
-      withSpan("search.suggest", { "http.request.method": "GET", "url.path": SUGGEST_PATH }, async (span) => {
+      withSpan("search.suggest", { "http.request.method": "GET", "http.route": SUGGEST_PATH }, async (span) => {
         const raw = req.query.q ?? "";
         if (typeof raw !== "string" || raw.length > MAX_SUGGEST_CHARS * 2) {
           span.setAttribute("http.response.status_code", 400);

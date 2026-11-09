@@ -133,7 +133,7 @@ describe("GET /api/suggest", () => {
     await setup().get("secret query");
     const span = spans.find((s) => s.name === "search.suggest")!;
     expect(JSON.stringify(span)).not.toContain("secret");
-    expect(span.attrs).toEqual({ "http.request.method": "GET", "url.path": "/api/suggest" });
+    expect(span.attrs).toEqual({ "http.request.method": "GET", "http.route": "/api/suggest" });
     expect(span.set["http.response.status_code"]).toBe(200);
   });
 });

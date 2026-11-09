@@ -5,6 +5,7 @@ import type {
   SearchHit,
   SearchLeg,
   SearchMode,
+  SearchFacets,
   SearchResponse,
   Talk,
 } from "@cc/shared";
@@ -24,6 +25,7 @@ import {
   type SearchFilters,
 } from "./queries.js";
 import { DEFAULT_MAX_TALKS, buildSchedule, type ScoredTalk } from "./schedule.js";
+import { facetAggs, parseFacets } from "./facets.js";
 
 export const SCHEDULES_INDEX = "schedules";
 export const SCHEDULE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -38,6 +40,7 @@ interface EsHit {
 interface EsSearchResponse {
   took?: number;
   hits: { hits: EsHit[] };
+  aggregations?: unknown;
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -81,20 +84,24 @@ export interface RunSearchOptions {
   mode: SearchMode;
   size: number;
   filters?: SearchFilters;
+  /** Adds track/level/day facet aggregations (GET /api/search only). */
+  facets?: boolean;
 }
 
 export interface RunSearchResult {
   hits: SearchHit[];
+  facets?: SearchFacets;
   tookMs: number;
   body: EsBody;
 }
 
 /** Runs one search against the talks index inside a `search` span. */
 export async function runSearch(es: EsClient, opts: RunSearchOptions): Promise<RunSearchResult> {
-  const body =
+  const built =
     opts.mode === "hybrid"
       ? buildHybridBody(opts.text, opts.size, opts.filters)
       : buildKeywordBody(opts.text, opts.size, opts.filters);
+  const body = opts.facets ? { ...built, aggs: facetAggs() } : built;
   return timeSearch(opts.mode, () => withSpan("search", { "search.mode": opts.mode }, async (span) => {
     const started = Date.now();
     const call = () => es.request<EsSearchResponse>("POST", `/${TALKS_INDEX}/_search`, body);
@@ -107,7 +114,8 @@ export async function runSearch(es: EsClient, opts: RunSearchOptions): Promise<R
       matched: legsOf(h),
     }));
     span.setAttribute("search.hits", hits.length);
-    return { hits, tookMs: res.body.took ?? Date.now() - started, body };
+    const facets = opts.facets ? parseFacets(res.body.aggregations) : undefined;
+    return { hits, tookMs: res.body.took ?? Date.now() - started, body, ...(facets ? { facets } : {}) };
   }));
 }
 
@@ -117,9 +125,17 @@ export async function searchTalks(
   mode: SearchMode,
   size: number,
   debug: boolean,
+  filters: SearchFilters = {},
 ): Promise<SearchResponse> {
-  const r = await runSearch(es, { text: q, mode, size });
-  return { q, mode, tookMs: r.tookMs, hits: r.hits, ...(debug ? { debug: r.body } : {}) };
+  const r = await runSearch(es, { text: q, mode, size, filters, facets: true });
+  return {
+    q,
+    mode,
+    tookMs: r.tookMs,
+    hits: r.hits,
+    ...(r.facets ? { facets: r.facets } : {}),
+    ...(debug ? { debug: r.body } : {}),
+  };
 }
 
 export async function onboardingSearch(

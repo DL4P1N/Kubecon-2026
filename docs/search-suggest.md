@@ -21,7 +21,7 @@ Returns up to 8 completions: `{ suggestions: [{ text, kind: "title" | "speaker" 
 - A speaker is suggested only when a typed word starts one of their name's words, once even if they have several talks.
 - Fewer than 2 characters: `200` with an empty list and no Elasticsearch call. More than 100: `400`. A repeated `q`: `400`.
 - Public and cheap to abuse, so: 30 s in-memory cache (500 entries, key = lower-cased trimmed query), `Cache-Control: public, max-age=30`, and a per-client rate limit of 120/min (people firing several requests while typing; cached hits count).
-- Privacy: the typed text is never logged and never on a span. The span `search.suggest` carries only the allowlisted `http.request.method`, `url.path` (the route template), `http.response.status_code` and `search.hits`. No new telemetry attribute.
+- Privacy: the typed text is never logged and never on a span. The span `search.suggest` carries only the allowlisted `http.request.method`, `http.route` (the route template), `http.response.status_code` and `search.hits`. No new telemetry attribute.
 - Elasticsearch overload/inference warm-up is `503` + `Retry-After: 5`; other failures `502`.
 
 ## 3. Search box

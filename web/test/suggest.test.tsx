@@ -115,3 +115,16 @@ it("client sends the query encoded and passes the abort signal", async () => {
   f.mockResolvedValue(new Response("{}", { status: 503 }));
   await expect(fetchSuggestions("ab")).rejects.toThrow("503");
 });
+
+it("picking a suggestion equal to the current text does not swallow the next keystroke's lookup", async () => {
+  const load = vi.fn().mockResolvedValue(SUGGESTIONS);
+  render(<Harness load={load} />);
+  const input = screen.getByRole("combobox") as HTMLInputElement;
+  type("Ada Lovelace"); await settle();
+  expect(load).toHaveBeenCalledTimes(1);
+  fireEvent.mouseDown(screen.getAllByRole("option")[1]!); // "Ada Lovelace": same as what is typed
+  expect(input.value).toBe("Ada Lovelace");
+  type("Ada Lovelace s"); await settle();
+  expect(load).toHaveBeenCalledTimes(2);
+  expect(load.mock.calls[1]![0]).toBe("Ada Lovelace s");
+});

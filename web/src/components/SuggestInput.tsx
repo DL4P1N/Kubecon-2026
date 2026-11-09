@@ -26,11 +26,16 @@ export function SuggestInput({ id, value, onChange, maxLength, placeholder, load
   const [items, setItems] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  // Set when the value changed because a suggestion was picked, so it does not trigger another lookup.
-  const skipLookup = useRef(false);
+  // The text of the suggestion just picked. A value equal to it is not looked up again; the first keystroke
+  // that changes the value clears it. (A boolean flag would stay armed when the picked text equals the current
+  // value, because no re-render follows, and would silently swallow the next keystroke's lookup.)
+  const picked = useRef<string | null>(null);
 
   useEffect(() => {
-    if (skipLookup.current) { skipLookup.current = false; return; }
+    if (picked.current !== null) {
+      if (value === picked.current) return;
+      picked.current = null;
+    }
     const q = value.trim();
     if (q.length < MIN_CHARS) { setItems([]); setOpen(false); return; }
     const controller = new AbortController();
@@ -44,7 +49,7 @@ export function SuggestInput({ id, value, onChange, maxLength, placeholder, load
   }, [value, load, debounceMs]);
 
   function pick(item: Suggestion) {
-    skipLookup.current = true;
+    picked.current = item.text;
     onChange(item.text);
     setOpen(false);
     setActive(-1);

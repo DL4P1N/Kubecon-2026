@@ -39,6 +39,20 @@ per-PR opt-in. See [CI-failure analysis](https://docs.gitar.ai/features/ci-failu
 
 ## Verifying repository-rule execution
 
+Four focused checks in `.gitar/rules/` extend the original project check:
+`aggregate-privacy.md` (attendee k>=5), `public-endpoint-protection.md`
+(rate limits and safe caching), `identifier-exposure.md` (response/log/trace
+minimization), and `telemetry-allowlist-sync.md` (code, docs and both collectors).
+They include necessary exceptions for catalog counts, authorized credential
+issuance and existing allowlisted keys. Each also applies to edits to itself,
+so its first PR can prove configuration evaluation without claiming runtime
+compliance. These are review checks; they grant no automatic write/merge rights.
+Verified on [PR55's dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/55#issuecomment-6750358094):
+"Rules 5/5 met", "5 passed", with all four new names and the original project
+check listed. The earlier head listed only three new checks; explicitly naming
+the aggregate rule's path in its trigger made that check run on the next head.
+This is configuration evaluation on that PR, not proof of runtime enforcement.
+
 On a PR that contains the rule, inspect Verification → Rules. Request
 `gitar display:verbose` to see rule applicability and evidence. Record the
 actual dashboard link and outcome in `docs/track-evidence.md`; neither a

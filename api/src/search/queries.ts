@@ -1,4 +1,4 @@
-import type { ExperienceLevel, OnboardingAnswers } from "@cc/shared";
+import { EVENT_UTC_OFFSET, type ExperienceLevel, type OnboardingAnswers } from "@cc/shared";
 
 /** Alias of the talks index (see api/src/es/mappings.ts). */
 export const TALKS_INDEX = "talks";
@@ -58,6 +58,10 @@ export interface SearchFilters {
   from?: string;
   /** Talk must end at or before this ISO timestamp. */
   to?: string;
+  /** Talk track must be one of these (exact keyword match). */
+  tracks?: string[];
+  /** Talk must start on this local conference day (`YYYY-MM-DD`, EVENT_UTC_OFFSET). */
+  day?: string;
 }
 
 export type EsBody = Record<string, unknown>;
@@ -79,6 +83,12 @@ export function filterClauses(f: SearchFilters = {}): object[] {
   if (f.levels && f.levels.length > 0) clauses.push({ terms: { level: f.levels } });
   if (f.from) clauses.push({ range: { start: { gte: f.from } } });
   if (f.to) clauses.push({ range: { end: { lte: f.to } } });
+  if (f.tracks && f.tracks.length > 0) clauses.push({ terms: { track: f.tracks } });
+  if (f.day) {
+    clauses.push({
+      range: { start: { gte: f.day, lt: `${f.day}||+1d`, format: "strict_date", time_zone: EVENT_UTC_OFFSET } },
+    });
+  }
   return clauses;
 }
 
