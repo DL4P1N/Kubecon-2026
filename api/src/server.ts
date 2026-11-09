@@ -15,6 +15,7 @@ import { registerCatalogRoutes } from "./routes/catalog.js";
 import { registerRoutes } from "./routes/register.js";
 import { registerClusterRoutes } from "./routes/clusters.js";
 import { talkRoutes } from "./routes/talks.js";
+import { suggestRoutes } from "./routes/suggest.js";
 import { registerStatusRoutes } from "./routes/status.js";
 import { createStatusTracker, type StatusTracker } from "./status/tracker.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
@@ -81,6 +82,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   app.register(talkRoutes, { es, tracker, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/talks/:id, /related, /alternatives
   registerStatusRoutes(app, { es, tracker, version: VERSION, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/status
   registerClusterRoutes(app, { es }); // Module 4: GET /api/interests/clusters
+  app.register(suggestRoutes, { es, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/suggest
   registerCatalogRoutes(app, es);
 
   // Module 3: POST /api/access/token + POST /api/access/scan (routes/access.ts).
