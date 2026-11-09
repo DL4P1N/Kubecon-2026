@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../tls
+  - ingress.yaml
+patches:
+  - target:
+      kind: ConfigMap
+      name: companion-app-config
+    patch: |-
+      - op: add
+        path: /data/TRUST_PROXY
+        value: "2"

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 import { Search } from "../src/pages/Search.js";
 import { Schedule } from "../src/pages/Schedule.js";
-import { api } from "../src/api.js";
+import { api, setToken } from "../src/api.js";
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 const talk = { id: "talk", title: "Secure Kubernetes", speaker: "Demo Speaker", abstract: "Supply chain security",
@@ -35,7 +35,24 @@ it("retains successful results when the other method fails", async () => {
   expect(screen.getByText(talk.title)).toBeTruthy();
 });
 
+it("prompts unregistered visitors to register instead of loading a schedule", async () => {
+  const get = vi.spyOn(api, "getSchedule");
+  render(<MemoryRouter><Schedule /></MemoryRouter>);
+  expect(screen.getByRole("link", { name: "Register now" }).getAttribute("href")).toBe("/register");
+  expect(get).not.toHaveBeenCalled();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("prompts to register again when the session token is rejected (401)", async () => {
+  setToken("expired-session");
+  vi.spyOn(api, "getSchedule").mockRejectedValue(new Error("GET /api/schedule failed: 401"));
+  render(<MemoryRouter><Schedule /></MemoryRouter>);
+  expect(await screen.findByRole("link", { name: "Register now" })).toBeTruthy();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
 it("renders schedule times, room and recommendation reason and requests a QR", async () => {
+  setToken("session");
   vi.spyOn(api, "getSchedule").mockResolvedValue({ items: [{ talk, reason: "Matches your security interests" }], updatedAt: "" });
   const access = vi.spyOn(api, "accessToken").mockResolvedValue({ token: "short-lived", expiresAt: new Date(Date.now() + 60000).toISOString() });
   render(<MemoryRouter><Schedule /></MemoryRouter>);

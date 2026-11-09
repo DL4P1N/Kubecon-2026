@@ -1,0 +1,8 @@
+.cluster-map { max-width: 60rem; }
+.cluster-note { border-left: .25rem solid #92400e; background: #fffbeb; padding: .5rem .75rem; color: #451a03; }
+.cluster-bubbles { display: flex; flex-wrap: wrap; gap: 1rem; list-style: none; padding: 0; align-items: center; }
+.cluster-bubble { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  border-radius: 50%; padding: .75rem; background: #164e9b; color: #fff; overflow: hidden; }
+.cluster-bubble.other { background: #475569; }
+.cluster-bubble span { font-size: .9rem; }
+.cluster-bubble small { font-size: .75rem; overflow-wrap: anywhere; }

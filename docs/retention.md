@@ -17,7 +17,10 @@ the image tag and CA Secret name to match the API Deployment. It expects
 `companion-app-config`, `companion-app-secrets`, and the `elasticsearch-ca`
 Secret with a `ca.crt` entry. Never commit credentials.
 
-Output contains only the deleted count. The tracing seam records
-`retention.run` with `retention.deleted`; SDK initialization and shutdown must
-also be wired for this standalone CLI when task #12 lands. Live Kubernetes
-execution is pending the deployment owner's validation.
+Output contains only the deleted count. The CLI starts telemetry as
+`companion-retention` before loading application modules and always awaits SDK
+shutdown in a finally block to flush buffered spans and logs, even on failure.
+`retention.run` and its correlated OTLP log carry only the allowlisted numeric
+`retention.deleted` count. Error bodies are not printed. Without an OTLP endpoint,
+SDK startup is a no-op. Live Kubernetes execution remains pending the deployment
+owner's validation.
