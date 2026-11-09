@@ -44,9 +44,14 @@ boundaries in the Design Doc.
 
 ## Gitar findings acted on
 
-Board task #62 adds four focused privacy/protection checks alongside the
-original project check. Evaluation evidence is pending its PR dashboard;
-configuration alone does not prove execution or runtime compliance.
+Board task #62 added four focused privacy/protection checks alongside the
+original project check. [PR55's Gitar dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/55#issuecomment-6750358094)
+reports "Rules 5/5 met", "5 passed", naming attendee aggregate privacy,
+identifier/token exposure, public endpoint protections, telemetry allowlist
+synchronization and the original project requirements. This proves static
+configuration evaluation on that PR, not runtime compliance. The prior head
+listed only four checks; the aggregate check ran after its trigger explicitly
+named its own repository path.
 
 Gitar requested changes on PR #1 and PR #3; both were merged before the findings
 were addressed. The initial fixes merged in [PR #8](https://github.com/DL4P1N/Kubecon-2026/pull/8)
