@@ -53,7 +53,7 @@ export function Schedule() {
     let active = true;
     api.getSchedule().then((result) => { if (active) { setSchedule(result); setError(""); } }, (err: unknown) => {
       if (!active) return;
-      // api.ts reports the HTTP status at the end of the message; 401 means a missing or expired session.
+      // Discard personal state when the server rejects this session.
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         setNeedsRegistration(true);
         setSchedule(null);
