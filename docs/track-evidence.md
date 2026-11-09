@@ -279,6 +279,13 @@ kubectl radar diagnose statefulset/elasticsearch \
   `companion.search.duration`, `access.scans` dashboard. Screenshot: pending.
 - SLO (p95 search latency) and Agent0 / Dash0 MCP investigation: pending.
 - Dashboard, SLOs and check rules as code (#14, PR [#33](https://github.com/DL4P1N/Kubecon-2026/pull/33)):
+  [Operator persistence record](evidence/dash0-live-definitions.json) from the
+  saved `fe34415` checkpoint reports the official Dash0 CLI applied one
+  dashboard, six check rules and two SLOs and confirmed them by list calls.
+  This is persisted-definition evidence, not a measurement of live panel data
+  or SLO correctness. The 6h slow-burn rule required a 5-minute evaluation
+  interval; the record describes that API constraint and subsequent apply.
+  No new live calls or traffic were generated to publish this record.
   **pending live verification**. `deploy/dash0/dashboard.yaml` (PersesDashboard:
   SLO tiles, burn rate, rate/p95/5xx by route, search p95 by mode, access scans,
   browser page load), `deploy/dash0/check-rules.yaml` (PrometheusRule: p95 of
