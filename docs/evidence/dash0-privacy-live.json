@@ -1,0 +1,44 @@
+{
+  "task": 75,
+  "release": "9c047d7 (deployed main, served via the team tunnel https://conference-companion-ecan4.vercel.app)",
+  "flow": {
+    "attendee": "synthetic, name 'SYNTHETIC PRIVACY 75'; ID prefix a61ff32c (full ID and tokens kept only in a local scratch file, never committed)",
+    "canary": "zebracanary7741 (in onboarding freeText, schedule freeText and both search queries)",
+    "startedAt": "2026-11-09T23:49:14.572Z",
+    "endedAt": "2026-11-09T23:49:38.457Z",
+    "steps": [
+      ["POST /api/register", 201], ["GET /api/me", 200], ["POST /api/onboarding", 200],
+      ["GET /api/search?mode=keyword", 200], ["GET /api/search?mode=hybrid", 200],
+      ["POST /api/schedule", 200], ["GET /api/schedule", 200],
+      ["POST /api/access/token", 200], ["POST /api/access/scan", 200]
+    ]
+  },
+  "dash0_window": "2026-11-09T23:49:10Z to 23:50:00Z, filter service.name = companion-api",
+  "checked_at": "2026-11-09T23:50:30Z to 23:53:10Z, Dash0 UI in a signed-in browser",
+  "spans": {
+    "count_in_window": 139,
+    "attribute_keys_listed_by_filter_picker": ["service.namespace","service.version","deployment.environment.name","dash0.span.name","dash0.operation.name","dash0.operation.type","otel.span.name","otel.span.status.code","otel.span.status.message","otel.span.kind","http.response.status_code","http.request.method","http.route","db.system.name","dash0.resource.name","dash0.resource.type","server.address","server.port"],
+    "searches": {
+      "url": "No matching attributes found (no url.path / url.query / url.full)",
+      "zebracanary": "No matching attributes found",
+      "a61ff32c": "No matching attributes found",
+      "access/scan (positive control)": "matched dash0.span.name / dash0.operation.name / otel.span.name 'POST /api/access/scan' and http.route '/api/access/scan' - proves the picker searches values"
+    },
+    "http_route_values": "route templates only, e.g. /api/access/scan"
+  },
+  "logs": {
+    "count_in_window": 70,
+    "bodies": "only 'incoming request' and 'request completed'",
+    "searches": {
+      "attribute key 'url'": "No matching attributes found",
+      "otel.log.body contains 'url'": "0 of 70 records"
+    }
+  },
+  "limitations": [
+    "One synthetic attendee and one 50-second window; not an exhaustive audit of all exported telemetry.",
+    "The Dash0 filter picker's key list is what the UI offered for the window; resource attributes were not individually reviewed.",
+    "Bearer and QR tokens were deliberately not typed into Dash0 (no secrets into a third-party UI); their absence rests on there being no attribute key that could carry them and the fixed log bodies.",
+    "Log bodies were not separately searched for the canary or attendee ID, because all 70 bodies are the two fixed strings above.",
+    "The access scan decision+room stdout audit gap is tracked separately as #76."
+  ]
+}

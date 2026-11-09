@@ -304,6 +304,22 @@ payloads are cited instead.
 
 ## Dash0
 
+### Live privacy proof on deployed `9c047d7` (#75, 2026-11-09 23:49-23:53Z)
+
+One synthetic attendee ran the full flow (register, /api/me, onboarding, keyword and
+hybrid search, schedule, QR token, scan; all 2xx), with the canary `zebracanary7741`
+in the free text and queries ([flow and results](evidence/dash0-privacy-live.json)).
+In Dash0, the 139 companion-api spans in that window have no `url.*` attribute
+([keys](evidence/dash0-privacy-live-span-keys.jpg), [url search](evidence/dash0-privacy-live-span-url-none.jpg)),
+and searches for the canary and the attendee ID prefix find nothing
+([canary](evidence/dash0-privacy-live-span-canary-none.jpg), [attendee](evidence/dash0-privacy-live-span-attendee-none.jpg)).
+A positive control on `access/scan` matched the route templates, so the search
+does cover values ([control](evidence/dash0-privacy-live-span-positive-control.jpg)).
+The window's 70 log records have only the fixed bodies "incoming request" and
+"request completed", and none have `url` attributes ([logs](evidence/dash0-privacy-live-logs.jpg),
+[url filter](evidence/dash0-privacy-live-logs-url-none.jpg)). **Boundary:** this is one attendee in one
+window, and tokens were not typed into Dash0; see the JSON `limitations`.
+
 ### Dash0 UI screenshots on deployed `9c047d7` (#73, 2026-11-09 23:40-23:41Z)
 
 Captured from a signed-in Dash0 browser session (time range "Last 30 minutes",
