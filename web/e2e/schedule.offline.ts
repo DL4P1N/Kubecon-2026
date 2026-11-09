@@ -73,7 +73,15 @@ for (const failure of ["expired cache", "authentication rejected"] as const) {
         await cache.put(key!, new Response(await response.text(), { headers }));
       });
     } else {
+      // Establish the persisted entry, then load an actually offline document.
+      // Chromium may dispatch offline before its worker network emulation flips.
+      await expect.poll(() => page.evaluate(async () => {
+        const cache = await caches.open("cc-schedules-v1");
+        const [key] = await cache.keys();
+        return key ? (await cache.match(key))?.headers.has("x-cc-offline-saved-at") : false;
+      })).toBe(true);
       await context.setOffline(true);
+      await page.reload();
       await expect(page.getByText(/Offline: showing schedule saved at/)).toBeVisible();
       await page.evaluate(() => sessionStorage.setItem("cc.token", "expired"));
       await context.setOffline(false);
