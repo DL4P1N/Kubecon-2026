@@ -10,6 +10,8 @@
     "test": "npm run build -w shared && npm run test --workspaces --if-present",
     "typecheck": "npm run build -w shared && npm run typecheck --workspaces --if-present",
     "dev:api": "npm run dev -w api",
-    "dev:web": "npm run dev -w web"
+    "dev:web": "npm run dev -w web",
+    "es:init": "npm run es:init -w api",
+    "seed": "npm run seed -w api"
   }
 }
