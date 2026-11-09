@@ -3,12 +3,13 @@
 Scope: README and the evidence ledger, 2026-11-09. This is a documentation
 consistency audit, not a new live service test. The
 [real/pending table](track-evidence.md#whats-real-vs-pending) is the entry point.
-Repository base: `1201c4952a44dac745b0352e2f41e448488b6303`.
+Initial repository base: `1201c4952a44dac745b0352e2f41e448488b6303`;
+refreshed after merging subsequent main evidence updates.
 
 ## Checks performed
 
 - Checked every relative Markdown link and heading fragment in README and
-  `docs/`: 18 Markdown files, 69 local links, zero missing destinations or
+  `docs/`: 20 Markdown files, 80 local links, zero missing destinations or
   anchors. Fenced code examples
   and external URLs were excluded from that local filesystem check.
 - Queried GitHub PR metadata for the referenced implementation/evidence PRs;
@@ -27,8 +28,9 @@ Repository base: `1201c4952a44dac745b0352e2f41e448488b6303`.
 The live search evaluation has five hybrid wins and seven ties over twelve
 questions, not a majority win. The current mean reciprocal rank and hit-rate
 numbers are linked to the full measured source. Publication of the updated
-comparison document is [PR40](https://github.com/DL4P1N/Kubecon-2026/pull/40),
-which was open at this snapshot; the evaluator itself already merged.
+comparison document landed through [PR40](https://github.com/DL4P1N/Kubecon-2026/pull/40).
+The [full report](demo/search-eval-report.md) now exists in the repository;
+the evaluator merged separately.
 
 The [Radar verdict](demo/radar-ai-investigation.json),
 [screenshot](demo/radar-ai-investigation.png) and
@@ -38,7 +40,7 @@ reachable artifact. Initial ES diagnosis and the later AI investigation are
 credited separately, and the injected outage is labelled controlled.
 
 Dash0 code, the collector probe and in-memory privacy tests do not substitute
-for actual browser/API/ES trace, dashboard or SLO screenshots. Task #40's
+for actual browser/API/ES trace, dashboard or SLO screenshots. Board task #40's
 additional raw URL/path findings remain open at this snapshot. The TLS overlay
 is merged but its live rollout/browser trust result is still pending.
 
@@ -47,9 +49,10 @@ live token, search or telemetry evidence. The live attendee recording remains
 a separate acceptance item.
 
 Gitar repository-rule execution and acted-on findings are documented with
-actual review links. CI-failure diagnosis remains not observed in the
-[specific audit PR39](https://github.com/DL4P1N/Kubecon-2026/pull/39); the lack of
-that artifact is not disguised as an access or settings diagnosis. Functional
+actual review links. The [updated specific CI audit](gitar-ci-diagnosis.md)
+records a later explicitly requested retrospective diagnosis with log analysis
+and a verified readiness-race explanation. Automatic triggering and auto-apply
+remain unproven, and the teammate's fix predates that request. Functional
 validation is not enabled. No Sonar tooling integration is claimed.
 
 External operator-only endpoints and future screenshot filenames were not

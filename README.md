@@ -138,8 +138,9 @@ uses 12 hand-judged questions against 417 indexed talks: current hybrid won 5,
 tied 7 and lost 0; hit@3 was 5/12 vs keyword 0/12, MRR@10 was 0.306 vs 0.017.
 This does not meet the majority-of-12 win criterion. The other tested tuning
 variants were no better; current configuration was retained. The
-[measured-report documentation PR #40](https://github.com/DL4P1N/Kubecon-2026/pull/40)
-is separate from the already merged evaluator.
+[measured report in the repository](docs/demo/search-eval-report.md) and
+[updated comparison](docs/search-comparison.md) landed in
+[PR #40](https://github.com/DL4P1N/Kubecon-2026/pull/40), separately from the evaluator.
 
 ### Dash0
 
@@ -172,5 +173,6 @@ one-allocation serving.
 [PR #25 Gitar dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/25#issuecomment-6749180455).
 “Rules 1/1 met” proves the check ran on a config/docs PR; the probe finding was
 acted on and tested during a **controlled** API outage. Functional validation
-is disabled, and CI-failure diagnosis remains unproven. This is a Gitar entry;
+is disabled. An [explicitly requested retrospective CI diagnosis](docs/gitar-ci-diagnosis.md)
+is verified; automatic CI-failure triggering and auto-apply remain unproven. This is a Gitar entry;
 no Sonar tooling integration is claimed.

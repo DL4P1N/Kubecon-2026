@@ -13,8 +13,8 @@ artifacts; the committed screenshots/JSON and PRs below are the portable evidenc
 | --- | --- | --- |
 | Elasticsearch | [417-talk live 12-query report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162): hybrid 5 wins / 7 ties / 0 losses, hit@3 5/12 vs 0/12, MRR@10 0.306 vs 0.017 | Majority-win criterion not met; [report/docs PR40](https://github.com/DL4P1N/Kubecon-2026/pull/40) is separate from merged evaluator PR27 |
 | Radar | [Actual AI run + follow-up](#actual-radar-ai-investigation-task-30), [merged PR37](https://github.com/DL4P1N/Kubecon-2026/pull/37), committed verdict/screenshot | Original capacity diagnosis was via ES APIs; controlled outage is not a natural incident |
-| Dash0 | [Collector export/scrub probe](#evidence-boundaries); [SDK PR15](https://github.com/DL4P1N/Kubecon-2026/pull/15), [privacy tests PR30](https://github.com/DL4P1N/Kubecon-2026/pull/30), [dashboard/SLO code PR33](https://github.com/DL4P1N/Kubecon-2026/pull/33) merged | Complete app trace, live dashboard/SLO screenshots and Agent0 remediation evidence await #40; additional raw URL/path privacy findings are under investigation |
-| Gitar | [Rules 1/1](#repository-rule-verification-task-34), [fix PR8](https://github.com/DL4P1N/Kubecon-2026/pull/8), [probe fix PR6](https://github.com/DL4P1N/Kubecon-2026/pull/6) | [CI diagnosis audit PR39](https://github.com/DL4P1N/Kubecon-2026/pull/39): analysis not observed; functional validation not enabled; no Sonar tooling claim |
+| Dash0 | [Collector export/scrub probe](#evidence-boundaries); [SDK PR15](https://github.com/DL4P1N/Kubecon-2026/pull/15), [privacy tests PR30](https://github.com/DL4P1N/Kubecon-2026/pull/30), [dashboard/SLO code PR33](https://github.com/DL4P1N/Kubecon-2026/pull/33) merged | Complete app trace and live dashboard/SLO screenshots await verified rollout after [PR #32](https://github.com/DL4P1N/Kubecon-2026/pull/32); Agent0 remediation and raw URL/path findings are being handled in board task #40 |
+| Gitar | [Rules 1/1](#repository-rule-verification-task-34), [fix PR8](https://github.com/DL4P1N/Kubecon-2026/pull/8), [probe fix PR6](https://github.com/DL4P1N/Kubecon-2026/pull/6), [requested retrospective CI diagnosis](gitar-ci-diagnosis.md#verified-diagnosis-after-an-explicit-request-on-an-open-pr) | Automatic CI-failure triggering and auto-apply remain unproven; functional validation not enabled; no Sonar tooling claim |
 | TLS | [TLS overlay PR31](https://github.com/DL4P1N/Kubecon-2026/pull/31) and trust/hostname tests merged | [Live overlay/browser trust validation](../deploy/k8s/tls/README.md) pending; current app/collector transport must not be called verified end-to-end TLS |
 | Demo | [Labelled mock-API UI fallback](demo/recording.md), [runbook/seed PR34](https://github.com/DL4P1N/Kubecon-2026/pull/34) | Real deployed attendee-flow recording and presenter review remain separate gates |
 
@@ -26,7 +26,7 @@ entry only after a real review finding is acted on.
 
 | Judge lane | Design Doc evidence required | Current evidence gap |
 | --- | --- | --- |
-| Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | [Rules 1/1 verified](#repository-rule-verification-task-34); acted-on findings and probe fix below. CI diagnosis remains not observed. No Sonar tooling claim. |
+| Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | [Rules 1/1](#repository-rule-verification-task-34), acted-on findings and [explicitly requested CI diagnosis](gitar-ci-diagnosis.md) verified. Automatic triggering/auto-apply remain unproven. No Sonar tooling claim. |
 | Dash0: Stop Flying Blind | Browser → API → ES trace, search/embedding/access spans, p95 SLO, dashboard, scrubbing proof, real issue investigation | Collector probe verified live; [full privacy test PR30](https://github.com/DL4P1N/Kubecon-2026/pull/30) merged. Live app trace, SLO/dashboard data and issue-remediation artifact remain pending. |
 | Radar: AI SRE | Ready Kubernetes workloads, UI and MCP used, real investigation with remediation | Live UI/MCP and an actual safeguarded Codex AI investigation captured below, with evidence, verified follow-up and linked fix. Human review of #30 pending. |
 | Elasticsearch: Find the Right Talk | Real catalog and ES inference per human decisions; BM25 vs hybrid results and query comparison | [12-query live report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162): 417 talks, 5 hybrid wins / 7 ties / 0 losses. Majority-win criterion not met; earlier five-query raw results remain committed. |
@@ -88,19 +88,24 @@ Later signed-session/access implementations are linked explicitly below.
   Change: web startup/liveness now probe local `/index.html`; proxied `/healthz` kept for readiness only (`deploy/k8s/app/deployments.yaml`, commit `87ebf1b`).
   Verified live (CONTROLLED API outage, ~40s): `/index.html` stayed 200, `/healthz` returned 504, web `Ready=False`, nginx restarts 0 to 0; API restored and `/healthz` back to 200.
 
-Still not observed: Gitar CI-failure diagnosis; see the
-[specific audit PR #39](https://github.com/DL4P1N/Kubecon-2026/pull/39).
+An explicitly requested retrospective CI diagnosis is now verified; see the
+[specific audit](gitar-ci-diagnosis.md). Automatic triggering and auto-apply
+remain unproven.
 
 Task #44 audited the two real failed Actions runs (PR14 Docker build and PR22
 schedule browser tests). Their current Gitar dashboards contain Code Review,
 without retained CI-analysis output. PR14's missing-fixture finding predates
 the actual failure, so it proves useful review, not CI-log analysis. The fix
 and subsequent green run are linked in the [CI evidence audit](gitar-ci-diagnosis.md).
-A read-only retrospective diagnosis was requested; its bot reply gave no CI
-root cause or log analysis, so it is not diagnosis evidence. Admin settings
-confirmation is pending on board question #15. CI diagnosis and auto-apply
-remain unproven; no separate enable toggle or unavailable-plan explanation
-is invented.
+The first retrospective request received a generic reply, which is not evidence.
+A later [explicit request on open PR39](https://github.com/DL4P1N/Kubecon-2026/pull/39#issuecomment-6749839603)
+received [substantive log-backed diagnosis](https://github.com/DL4P1N/Kubecon-2026/pull/39#issuecomment-6749861362)
+of PR23's real keyboard-test failure. It identified the asynchronous topic-load
+race and the already-authored readiness-wait fix; the fixed-head CI passed.
+This proves requested CI-log access/analysis, not automatic triggering or a
+Gitar-authored fix. The earlier lack-of-access hypothesis is resolved without
+inventing a settings or plan restriction. See the audit for the distinct
+historical requests and causal limits.
 
 ### Repository-rule verification (task #34)
 
@@ -113,9 +118,10 @@ explicit project check with documented frontmatter. Verified on
 preserves all seven project requirements and explicitly limits the result
 to static review. This proves repository-rule execution on this PR, not
 runtime compliance or a separate Knowledge-library fact citation.
-The human confirmed a Pro trial. Functional validation remains "Not enabled";
-CI-failure diagnosis still needs separate observed
-failure-analysis evidence. No claim is made that either was demonstrated.
+The human confirmed a Pro trial. Functional validation remains "Not enabled".
+Requested retrospective CI diagnosis is verified separately in the
+[CI evidence audit](gitar-ci-diagnosis.md); automatic triggering and auto-apply
+are not claimed.
 
 ## Elasticsearch real issues
 
@@ -256,7 +262,7 @@ kubectl radar diagnose statefulset/elasticsearch \
   exercises registration, search, allow and revoked scan with an in-memory span
   exporter and captured logs, and checks collector allowlist configuration. It
   does not execute a real collector. The corresponding live trace screenshot
-  remains pending; additional raw URL/path findings are being handled in #40.
+  remains pending; additional raw URL/path findings are being handled in board task #40.
 - Metrics: `http.server.request.duration` by `http.route`,
   `companion.search.duration`, `access.scans` dashboard. Screenshot: pending.
 - SLO (p95 search latency) and Agent0 / Dash0 MCP investigation: pending.
