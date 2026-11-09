@@ -1,8 +1,44 @@
 # Gitar CI-diagnosis evidence audit
 
-Audit date: 2026-11-09. **CI-log diagnosis and auto-apply remain unproven.**
-A matching code-review finding is useful evidence, but does not by itself show
-that Gitar analyzed a failed CI run.
+Audit date: 2026-11-09. **CI-log access and explicitly requested retrospective
+diagnosis are now verified. Automatic CI-failure triggering and auto-apply
+remain unproven.** A matching code-review finding alone is not diagnosis proof.
+
+## Verified diagnosis after an explicit request on an open PR
+
+A read-only [request on open PR39](https://github.com/DL4P1N/Kubecon-2026/pull/39#issuecomment-6749839603)
+linked the real failed [Accessibility run 42686153504](https://github.com/DL4P1N/Kubecon-2026/actions/runs/42686153504)
+from PR23 at commit `b9544e57`. At 19:52:17 UTC,
+[Gitar returned a substantive diagnosis](https://github.com/DL4P1N/Kubecon-2026/pull/39#issuecomment-6749861362)
+and said, “Logs were fully accessible via `gh run view --log-failed`.”
+
+- Failed job/step: `axe`, `npm run test:a11y -w web`; 16/17 tests passed.
+- Failure: the keyboard-only registration test at
+  `web/e2e/accessibility.pw.ts:92` expected the Kubernetes checkbox to be focused.
+- Diagnosis: the test pressed Tab after the heading/main were ready, before
+  asynchronous topic checkboxes were ready. Gitar inspected the log, source,
+  and already-applied fix.
+- Fix: [d7282fbb](https://github.com/DL4P1N/Kubecon-2026/commit/d7282fbbf959fe6d7db2a7265c31becfe9985c6d)
+  waits for the topic checkbox to be visible before pressing Tab.
+- Recovery independently checked: [the fixed-head Accessibility run](https://github.com/DL4P1N/Kubecon-2026/actions/runs/42687055796)
+  succeeded; Gitar, build-test, and Docker checks also passed on that head.
+
+This verifies actual log reading and diagnosis through an explicit comment.
+The fix predates the request: it was authored by the teammate, not applied by
+Gitar. No code changes, pushes, job retries, permission changes, or auto-apply
+were requested or performed for this diagnosis.
+
+Gitar also speculated that an OTLP proxy connection refusal indicated backend
+availability trouble. A collector refusal does not establish that the topic
+API was unavailable; this audit relies on the readiness race, source fix, and
+green rerun rather than that extra causal claim.
+
+The repo owner reported through the board that automatic reviews run and the
+documented automatic-processing toggle is not visible in their dashboard.
+The owner uses a personal GitHub account; its installation path is
+`github.com/settings/installations` → Gitar → Configure. The successful log
+read resolves the access uncertainty without changing permissions. The
+installation's pending-warning UI was not inspected by this agent.
 
 ## Real failures inspected
 
@@ -33,7 +69,7 @@ GitHub's current comment API does not provide the historical bodies of edited
 dashboard comments, so the audit cannot prove whether a transient analysis
 was ever shown.
 
-## Documented behavior and follow-up
+## Documented behavior and initial follow-up
 
 The official [CI analysis documentation](https://docs.gitar.ai/features/ci-failure-analysis)
 says GitHub Actions logs use the code-host connection without another CI
@@ -75,7 +111,7 @@ it provides no CI root cause or log analysis. This is not diagnosis evidence,
 and does not establish why historical analysis is absent. Preserve any later
 substantive response as retrospective, not original CI diagnosis.
 
-On the next natural failure at the current PR head, capture the actual Gitar
+To verify automatic triggering on a future natural failure at the current PR head, capture the actual Gitar
 CI-analysis section and run URL before pushing a fix. Do not manufacture a
 failure for evidence. Auto-apply stays off: no unresolved low-risk CI fix was
 available to approve in the inspected runs. Its documented per-PR command is
