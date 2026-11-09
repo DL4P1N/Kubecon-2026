@@ -22,6 +22,7 @@ get the most headroom.
 | `POST /api/onboarding` | none | 60 | none | zod: `topics`/`goals` arrays of strings ≤ 100 chars (first 20 entries used), `experience` enum, `freeText` ≤ 1000 chars (first 500 searched), ISO dates; body ≤ 16 KiB (413) | Public talk catalog hits. Answers are not stored |
 | `POST /api/schedule` | Bearer session token (HS256) | 120 | none | `maxTalks` 1 to 50, `talkIds` ≤ 100 strings or onboarding answers as above; body ≤ 16 KiB | The caller's own schedule |
 | `GET /api/schedule` | Bearer session token | 120 | none | none | The caller's own schedule |
+| `GET /api/schedule.ics` | Bearer session token | 120 (shares the schedule limit value) | `Cache-Control: private, no-store` | `talkId` one string of 1 to 200 chars | The caller's own schedule as iCalendar |
 | `POST /api/register` | none | 60 (`REGISTER_RATE_LIMIT_PER_MINUTE`) | none | zod: name ≤ 80, email ≤ 254 (never stored), 1 to 20 interests × ≤ 64, consent booleans; unknown fields dropped | The new attendee ID and token, to that caller only |
 | `GET /api/me` | Bearer session token, plus expiry checked against ES | 120 | none | none | The caller's own profile (vector excluded) |
 | `POST /api/access/token` | Bearer session token + `qr_checkin` consent | 120 | none | none | Short-lived QR token (`aud` = access) |

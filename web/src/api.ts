@@ -87,6 +87,16 @@ export const api = {
     query: { q, mode, ...(debug ? { debug: "1" } : {}) },
   }),
   getSchedule: () => call<ScheduleResponse>(routes.getSchedule),
+  calendar: async (talkId?: string): Promise<Blob> => {
+    const token = getToken();
+    const query = talkId === undefined ? "" : `?${new URLSearchParams({ talkId })}`;
+    const res = await fetch(`${routes.exportCalendar.path}${query}`, {
+      headers: { accept: "text/calendar", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      cache: "no-store",
+    });
+    if (!res.ok) throw new ApiError(`Calendar export failed: ${res.status}`, res.status);
+    return res.blob();
+  },
   saveSchedule: (body: SaveScheduleRequest) => call<ScheduleResponse>(routes.saveSchedule, { body }),
   accessToken: () => call<AccessTokenResponse>(routes.accessToken, { body: {} }),
   scan: scanRoom,

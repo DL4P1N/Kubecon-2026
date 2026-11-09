@@ -13,3 +13,17 @@ input, select, button { font: inherit; padding: 0.4rem 0.6rem; }
 header nav { flex-wrap: wrap; }
 .skip-link { position: absolute; left: 1rem; top: -5rem; padding: .75rem; color: #0b57d0; background: white; z-index: 10; }
 .skip-link:focus { top: .5rem; }
+.skip-link { min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; }
+/* Comfortable touch targets without changing checkbox visuals. */
+input:not([type=checkbox]):not([type=radio]), select, button, summary { min-height: 44px; box-sizing: border-box; }
+header nav { min-width: 0; width: 100%; }
+header a, main a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; box-sizing: border-box; }
+header a { padding: .25rem .35rem; }
+main { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  header { padding: .5rem; }
+  header nav { column-gap: .5rem !important; row-gap: .25rem !important; }
+  header .status-badge-wrap { max-width: 100%; margin-left: 0; }
+  header .status-badge { white-space: normal; }
+  main table { width: 100%; table-layout: fixed; }
+}
