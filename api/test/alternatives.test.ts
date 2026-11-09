@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import Fastify from "fastify";
 import type { AlternativesResponse } from "@cc/shared";
+import { loadConfig } from "../src/config.js";
+import { buildServer } from "../src/server.js";
 import { alternativesRoutes, ALTERNATIVES_CACHE_MS } from "../src/routes/alternatives.js";
 import { buildAlternativesBody, similarityText, sharedTags, NON_SESSION_TRACKS } from "../src/talks/alternatives.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
@@ -130,4 +132,18 @@ describe("GET /api/talks/:id/alternatives", () => {
     expect(r2.statusCode).toBe(502);
     expect(r2.body).not.toContain("boom");
   });
+});
+
+it("is registered on the real server, without any attendee token", async () => {
+  const handler: FakeHandler = (call) => {
+    if (call.path.startsWith("/talks/_search")) {
+      const ids = (call.body as { query?: { terms?: { id?: string[] } } }).query?.terms?.id;
+      return { body: { hits: { hits: ids ? [esHit(SRC, 1)] : [esHit(ALT1, 2)] } } };
+    }
+    return undefined;
+  };
+  const app = buildServer(loadConfig({ NODE_ENV: "test" } as NodeJS.ProcessEnv), { es: fakeEs(handler) });
+  const res = await app.inject({ method: "GET", url: "/api/talks/src/alternatives" });
+  expect(res.statusCode).toBe(200);
+  expect((res.json() as AlternativesResponse).alternatives.map((a) => a.talk.id)).toEqual(["alt1"]);
 });
