@@ -49,6 +49,24 @@ async function call<T>(route: RouteDef, opts: { body?: unknown; query?: Record<s
   return (await res.json()) as T;
 }
 
+/**
+ * The scan endpoint answers an expired or invalid token with 401 and a deny
+ * body ({decision, room, reason}); that is a result to show, not a failure.
+ * The kiosk is not an attendee, so no session token is sent.
+ */
+async function scanRoom(body: ScanRequest): Promise<ScanResponse> {
+  const res = await fetch(routes.accessScan.path, {
+    method: routes.accessScan.method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.ok || res.status === 401) {
+    const data = (await res.json()) as Partial<ScanResponse>;
+    if (data.decision === "allow" || data.decision === "deny") return data as ScanResponse;
+  }
+  throw new Error(`${routes.accessScan.method} ${routes.accessScan.path} failed: ${res.status}`);
+}
+
 export const api = {
   register: (body: RegisterRequest) => call<RegisterResponse>(routes.register, { body }),
   onboarding: (body: OnboardingRequest) => call<OnboardingResponse>(routes.onboarding, { body }),
@@ -58,6 +76,6 @@ export const api = {
   getSchedule: () => call<ScheduleResponse>(routes.getSchedule),
   saveSchedule: (body: SaveScheduleRequest) => call<ScheduleResponse>(routes.saveSchedule, { body }),
   accessToken: () => call<AccessTokenResponse>(routes.accessToken, { body: {} }),
-  scan: (body: ScanRequest) => call<ScanResponse>(routes.accessScan, { body }),
+  scan: scanRoom,
   aggregate: () => call<InterestAggregateResponse>(routes.interestsAggregate),
 };
