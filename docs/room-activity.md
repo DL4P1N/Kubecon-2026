@@ -6,6 +6,8 @@ using minute buckets in the API process. No attendee IDs, device identifiers,
 or individual scan records are retained by this counter. Denied, invalid and
 revoked scans are excluded. Catalog failures return 503 rather than a false
 quiet result. A `rooms.occupancy` span contains no user attributes.
+The public endpoint permits 120 requests per client IP per minute before
+rejecting requests with 429, before an Elasticsearch query is made.
 
 Under five allowed scans, both `recentScans` and `percentage` are null and the
 label is quiet. This is small-count suppression, **not** a claim of five

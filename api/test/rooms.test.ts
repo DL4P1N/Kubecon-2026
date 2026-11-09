@@ -3,6 +3,8 @@ import { RoomActivityCounter, roomCapacities } from "../src/rooms/activity.js";
 import { buildServer } from "../src/server.js";
 import { loadConfig } from "../src/config.js";
 import { fakeEs } from "./helpers.js";
+import Fastify from "fastify";
+import { registerRoomRoutes } from "../src/routes/rooms.js";
 
 it("suppresses counts and percentages for every count below five", () => {
   const counter = new RoomActivityCounter(new Map([["A", 10]]), () => 0);
@@ -25,6 +27,28 @@ it("expires old minute buckets and never fabricates unknown capacity", () => {
 it("validates configured capacities", () => {
   expect(roomCapacities('{"A":20}').get("A")).toBe(20);
   for (const raw of ['[]', 'null', '{"A":0}', '{"A":2.5}', '{"A":"10"}']) expect(() => roomCapacities(raw)).toThrow();
+});
+it("does not round a room across the 40/80 percent boundaries", () => {
+  const counter = new RoomActivityCounter(new Map([["A", 200]]), () => 0);
+  for (let i = 0; i < 79; i++) counter.recordAllowed("A");
+  expect(counter.snapshot(["A"]).rooms[0]).toMatchObject({ level: "quiet", percentage: 39 });
+  counter.recordAllowed("A");
+  expect(counter.snapshot(["A"]).rooms[0]).toMatchObject({ level: "busy", percentage: 40 });
+  for (let i = 0; i < 79; i++) counter.recordAllowed("A");
+  expect(counter.snapshot(["A"]).rooms[0]).toMatchObject({ level: "busy", percentage: 79 });
+  counter.recordAllowed("A");
+  expect(counter.snapshot(["A"]).rooms[0]).toMatchObject({ level: "almost full", percentage: 80 });
+});
+it("rate limits before querying Elasticsearch", async () => {
+  const es = fakeEs(() => ({ body: { aggregations: { rooms: { buckets: [] } } } }));
+  const app = Fastify();
+  registerRoomRoutes(app, es, new RoomActivityCounter(), 2);
+  try {
+    expect((await app.inject("/api/rooms/occupancy")).statusCode).toBe(200);
+    expect((await app.inject("/api/rooms/occupancy")).statusCode).toBe(200);
+    expect((await app.inject("/api/rooms/occupancy")).statusCode).toBe(429);
+    expect(es.calls).toHaveLength(2);
+  } finally { await app.close(); }
 });
 it("public occupancy returns catalog rooms only and handles ES failure safely", async () => {
   const counter = new RoomActivityCounter();

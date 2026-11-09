@@ -40,7 +40,7 @@ export class RoomActivityCounter {
         const capacity = this.capacities.get(room) ?? null;
         // Suppress every number that could distinguish 0..4 scans.
         if (count < 5) return { room, level: "quiet", recentScans: null, capacity, percentage: null };
-        const percentage = capacity === null ? null : Math.min(100, Math.round(count / capacity * 100));
+        const percentage = capacity === null ? null : Math.min(100, Math.floor(count / capacity * 100));
         const level = percentage === null ? "busy" : percentage >= 80 ? "almost full" : percentage >= 40 ? "busy" : "quiet";
         return { room, level, recentScans: count, capacity, percentage };
       }) };
