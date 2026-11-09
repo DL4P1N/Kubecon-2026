@@ -18,6 +18,9 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { FetchInstrumentation } from "@opentelemetry/instrumentation-fetch";
 import { DocumentLoadInstrumentation } from "@opentelemetry/instrumentation-document-load";
+import { MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
+import { registerVitals } from "./vitals.js";
 
 const SERVICE_NAME = "companion-web";
 
@@ -44,6 +47,19 @@ function start(): void {
   propagation.setGlobalPropagator(new W3CTraceContextPropagator());
   trace.setGlobalTracerProvider(provider);
 
+  const meterProvider = new MeterProvider({
+    resource: resourceFromAttributes({
+      "service.name": SERVICE_NAME,
+      "service.namespace": "conference-companion",
+      "deployment.environment": import.meta.env.MODE,
+    }),
+    readers: [new PeriodicExportingMetricReader({
+      exporter: new OTLPMetricExporter({ url: `${base}/v1/metrics` }),
+      exportIntervalMillis: 30_000,
+    })],
+  });
+  registerVitals(meterProvider.getMeter(SERVICE_NAME), window.location.pathname, () => meterProvider.forceFlush());
+
   registerInstrumentations({
     instrumentations: [
       new DocumentLoadInstrumentation(),
@@ -69,7 +85,10 @@ function start(): void {
 
   // Flush buffered spans when the tab is hidden or closed.
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") void provider.forceFlush();
+    if (document.visibilityState === "hidden") {
+      void provider.forceFlush().catch(() => {});
+      void meterProvider.forceFlush().catch(() => {});
+    }
   });
 }
 
