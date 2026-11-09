@@ -139,8 +139,12 @@ export async function onboardingSearch(
 }
 
 /** Fetch talks by id, keeping the caller's order; unknown ids are omitted. */
-export async function getTalksByIds(es: EsClient, ids: string[]): Promise<Talk[]> {
-  if (ids.length === 0) return [];
+export function getTalksByIds(es: EsClient, ids: string[]): Promise<Talk[]> {
+  if (ids.length === 0) return Promise.resolve([]);
+  return withSpan("talks.fetch", {}, () => fetchTalksByIds(es, ids));
+}
+
+async function fetchTalksByIds(es: EsClient, ids: string[]): Promise<Talk[]> {
   const res = await es.request<EsSearchResponse>("POST", `/${TALKS_INDEX}/_search`, {
     size: ids.length,
     _source: SOURCE_FIELDS,
@@ -155,7 +159,8 @@ export async function getTalksByIds(es: EsClient, ids: string[]): Promise<Talk[]
 
 export interface ScheduleStore {
   save(attendeeId: string, talkIds: string[], now: Date): Promise<void>;
-  load(attendeeId: string): Promise<{ talkIds: string[]; updatedAt: string } | undefined>;
+  /** Returns undefined when nothing is saved or the saved schedule has expired. */
+  load(attendeeId: string, now?: Date): Promise<{ talkIds: string[]; updatedAt: string } | undefined>;
 }
 
 /** `schedules` index store, one document per attendee (doc id = attendee id). */
@@ -170,7 +175,7 @@ export function createScheduleStore(es: EsClient): ScheduleStore {
         expires_at: new Date(now.getTime() + SCHEDULE_TTL_MS).toISOString(),
       });
     },
-    async load(attendeeId) {
+    async load(attendeeId, now = new Date()) {
       const res = await es.request<{ found?: boolean; _source?: Record<string, unknown> }>(
         "GET",
         path(attendeeId),
@@ -178,7 +183,11 @@ export function createScheduleStore(es: EsClient): ScheduleStore {
         [404],
       );
       if (res.status === 404 || !res.body.found || !res.body._source) return undefined;
-      return { talkIds: strList(res.body._source.talk_ids), updatedAt: str(res.body._source.updated_at) };
+      const src = res.body._source;
+      // Expired schedules are treated as missing; the real purge is a separate task.
+      const expires = Date.parse(str(src.expires_at));
+      if (Number.isFinite(expires) && expires <= now.getTime()) return undefined;
+      return { talkIds: strList(src.talk_ids), updatedAt: str(src.updated_at) };
     },
   };
 }
@@ -220,8 +229,14 @@ function reasonFor(c: ScoredTalk): string | undefined {
   return c.matched && c.matched.length > 0 ? `Matched ${c.matched.join(" + ")}` : undefined;
 }
 
-export async function loadSchedule(es: EsClient, store: ScheduleStore, attendeeId: string): Promise<ScheduleResponse> {
-  const saved = await store.load(attendeeId);
+export async function loadSchedule(
+  es: EsClient,
+  store: ScheduleStore,
+  attendeeId: string,
+  now: Date = new Date(),
+): Promise<ScheduleResponse> {
+  // No attributes: the attendee id must never appear on spans.
+  const saved = await withSpan("schedule.load", {}, () => store.load(attendeeId, now));
   if (!saved) return { items: [], updatedAt: new Date(0).toISOString() };
   const talks = await getTalksByIds(es, saved.talkIds);
   return { items: talks.map((talk) => ({ talk })), updatedAt: saved.updatedAt };
