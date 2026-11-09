@@ -11,7 +11,9 @@ import {
 } from "@cc/shared";
 import { requireAttendee, type TokenService } from "../auth/token.js";
 import { EsError, isEsOverload, type EsClient } from "../es/client.js";
+import type { StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
+import { onboardingText } from "../search/queries.js";
 import { DEFAULT_MAX_TALKS, type ScoredTalk } from "../search/schedule.js";
 import {
   buildAndSaveSchedule,
@@ -45,6 +47,8 @@ export interface SearchRouteDeps {
   resolveAttendee?: AttendeeResolver;
   scheduleStore?: ScheduleStore;
   now?: () => Date;
+  /** Records search outcomes for GET /api/status (counts and timings only). */
+  tracker?: StatusTracker;
 }
 
 /** Attendee from a valid signed `Authorization: Bearer <token>`; 401 otherwise. */
@@ -103,6 +107,19 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
   const store = deps.scheduleStore ?? createScheduleStore(es);
   const now = deps.now ?? (() => new Date());
 
+  /** Runs a search and tells the status tracker how it went (never what it was). */
+  async function observed<T>(mode: SearchMode, fn: () => Promise<T>): Promise<T> {
+    const start = performance.now();
+    try {
+      const out = await fn();
+      deps.tracker?.recordSearch(mode, performance.now() - start, "ok");
+      return out;
+    } catch (err) {
+      deps.tracker?.recordSearch(mode, performance.now() - start, err instanceof EsError && isEsOverload(err) ? "overloaded" : "error");
+      throw err;
+    }
+  }
+
   app.setErrorHandler((err: Error, req, reply) => {
     if (err instanceof EsError) {
       const overloaded = isEsOverload(err);
@@ -145,7 +162,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       if (!Number.isInteger(size) || size < 1 || size > MAX_SIZE) {
         return reply.code(400).send(bad(`size must be an integer from 1 to ${MAX_SIZE}`));
       }
-      return searchTalks(es, q, mode, size, req.query.debug === "1");
+      return observed(mode, () => searchTalks(es, q, mode, size, req.query.debug === "1"));
     },
   );
 
@@ -154,7 +171,9 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
     async (req, reply): Promise<OnboardingResponse | void> => {
       const parsed = parseAnswers(req.body?.answers);
       if ("error" in parsed) return reply.code(400).send(bad(parsed.error));
-      return onboardingSearch(es, parsed.answers, req.query.debug === "1");
+      const run = () => onboardingSearch(es, parsed.answers, req.query.debug === "1");
+      // An empty answer set returns without querying Elasticsearch, so it says nothing about hybrid health.
+      return onboardingText(parsed.answers) === "" ? run() : observed("hybrid", run);
     },
   );
 

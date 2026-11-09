@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type { SearchMode, SearchResponse } from "@cc/shared";
-import { api } from "../api.js";
+import { ApiError, api } from "../api.js";
 import "./discovery.css";
 
 type Result = SearchResponse & { debug?: unknown };
@@ -11,12 +11,15 @@ export function Search() {
   const [results, setResults] = useState<Partial<Record<SearchMode, Result>>>({});
   const [errors, setErrors] = useState<Partial<Record<SearchMode, string>>>({});
   const [pending, setPending] = useState(false);
+  // Hybrid was overloaded (503) or failing in Elasticsearch (502): keyword results are shown in its place.
+  const [hybridFellBack, setHybridFellBack] = useState(false);
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (pending) return;
     setPending(true);
     setResults({});
     setErrors({});
+    setHybridFellBack(false);
     const responses = await Promise.allSettled(modes.map((mode) => api.search(q.trim(), mode, debug)));
     const next: Partial<Record<SearchMode, Result>> = {};
     const failures: Partial<Record<SearchMode, string>> = {};
@@ -25,6 +28,16 @@ export function Search() {
       if (response.status === "fulfilled") next[mode] = response.value;
       else failures[mode] = "Search failed. Please try again.";
     });
+    // Attendees should not see an error because the semantic model is warming up.
+    const hybridFailure = responses[1]!;
+    const fallback = hybridFailure.status === "rejected" && hybridFailure.reason instanceof ApiError
+      && (hybridFailure.reason.status === 503 || hybridFailure.reason.status === 502) && next.keyword !== undefined;
+    if (fallback) {
+      const { debug: _keywordDebug, ...keywordOnly } = next.keyword!;
+      next.hybrid = { ...keywordOnly, mode: "hybrid" };
+      delete failures.hybrid;
+    }
+    setHybridFellBack(fallback);
     setResults(next);
     setErrors(failures);
     setPending(false);
@@ -42,6 +55,7 @@ export function Search() {
     <div className="search-comparison">{modes.map((mode) => <section key={mode} aria-labelledby={`heading-${mode}`}>
       <h2 id={`heading-${mode}`}>{mode === "keyword" ? "Keyword" : "Hybrid"}</h2>
       {errors[mode] && <p role="alert">{errors[mode]}</p>}
+      {mode === "hybrid" && hybridFellBack && <p role="status">Hybrid search is warming up, so keyword results are shown here instead. Try again in a few seconds.</p>}
       {results[mode] && <>
         <p>{results[mode]!.hits.length} results · {results[mode]!.tookMs} ms</p>
         {results[mode]!.hits.length === 0 && <p>No matching talks. Try a broader query.</p>}
@@ -49,7 +63,7 @@ export function Search() {
           <h3>{talk.title}</h3><p>{talk.speaker} · {talk.room}</p><p>{talk.abstract}</p>
           <p>Score: {score.toFixed(2)}</p>
         </li>)}</ol>
-        {debug && <details><summary>Elasticsearch query</summary>
+        {debug && !(mode === "hybrid" && hybridFellBack) && <details><summary>Elasticsearch query</summary>
           {results[mode]!.debug === undefined ? <p>Query details are unavailable from this server. Enable details and search again.</p>
             : <pre>{JSON.stringify(results[mode]!.debug, null, 2)}</pre>}
         </details>}
