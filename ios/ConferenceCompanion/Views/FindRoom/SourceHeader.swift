@@ -6,7 +6,12 @@ struct SourceHeader: View {
 
     var body: some View {
         HStack {
-            Tag(text: engine.tag, tone: engine.isLive ? .accent : .warn)
+            Text(engine.tag.uppercased())
+                .font(.mono(.caption2, weight: .semibold))
+                .foregroundStyle(engine.isLive ? Theme.accent : Theme.muted)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .overlay { Rectangle().strokeBorder(engine.isLive ? Theme.accent : Theme.lineStrong, lineWidth: 1) }
             Spacer()
             Text("\(engine.scanner.visible().count) devices nearby")
                 .font(.mono(.caption))

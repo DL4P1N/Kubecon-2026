@@ -25,8 +25,8 @@ struct RegisterView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("\(step) of 2").ccLabel().monospacedDigit()
-                    Text(step == 1 ? "Who are you?" : "What do you want to hear about?").ccDisplay()
+                    Text("\(step) of 2").ccLabel().monospacedDigit().accessibilityLabel("Step \(step) of 2")
+                    Text(step == 1 ? "Who you are" : "What you want to hear about").ccDisplay()
                     Text("\(conference.name) · \(conference.dateRange) · \(conference.place)")
                         .font(.footnote)
                         .monospacedDigit()
@@ -62,8 +62,7 @@ struct RegisterView: View {
                 Rectangle().fill(Theme.line).frame(height: Theme.hairline)
                 field("Role (optional)", text: $role, content: .jobTitle, focus: .role, next: nil)
             }
-            .background(Theme.surface)
-            .overlay { Rectangle().strokeBorder(Theme.line, lineWidth: Theme.hairline) }
+            .ccCard(padding: 0)
             if showNameError {
                 Text("Add your name so the ticket can show it.")
                     .font(.footnote)
@@ -76,28 +75,28 @@ struct RegisterView: View {
     private var interestsStep: some View {
         VStack(alignment: .leading, spacing: 24) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Interests").ccLabel()
+                Text("Interests").ccLabel().accessibilityAddTraits(.isHeader)
                 InterestChips(options: conference.topics + custom, selected: $selected)
             }
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 12) {
                     TextField("Add your own", text: $customText)
-                        .font(.mono(.body))
+                        .font(.body)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused($focus, equals: .custom)
                         .submitLabel(.done)
                         .onSubmit(addCustom)
                     Button("Add", action: addCustom)
-                        .font(.mono(.subheadline, weight: .semibold))
-                        .foregroundStyle(Theme.ink)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(minWidth: 44, minHeight: 44)
                         .disabled(customText.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 .padding(.horizontal, 16)
                 .frame(minHeight: 52)
             }
-            .background(Theme.surface)
-            .overlay { Rectangle().strokeBorder(Theme.line, lineWidth: Theme.hairline) }
+            .ccCard(padding: 0)
             Text(serverURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                  ? "No server set. You will get a ticket labelled Demo ticket."
                  : "Registers with \(serverURL). If it is unreachable you get a Demo ticket instead.")
@@ -110,9 +109,7 @@ struct RegisterView: View {
         VStack(spacing: 8) {
             if step == 2 {
                 Button("Back") { focus = nil; step = 1 }
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.muted)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .buttonStyle(.ccSecondary)
                     .disabled(isWorking)
             }
             Button {
@@ -120,7 +117,7 @@ struct RegisterView: View {
             } label: {
                 if isWorking { ProgressView().tint(Theme.background) } else { Text(step == 1 ? "Continue" : "Get my ticket") }
             }
-            .buttonStyle(.cc)
+            .buttonStyle(.ccPrimary)
             .disabled(isWorking)
             .accessibilityLabel(isWorking ? "Registering" : (step == 1 ? "Continue" : "Get my ticket"))
         }
@@ -144,7 +141,7 @@ struct RegisterView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).ccLabel()
             TextField(title, text: text)
-                .font(.mono(.body))
+                .font(.body)
                 .textContentType(content)
                 .focused($focus, equals: field)
                 .submitLabel(next == nil ? .done : .next)

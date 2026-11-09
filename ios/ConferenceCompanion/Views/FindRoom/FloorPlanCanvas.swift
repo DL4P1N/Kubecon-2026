@@ -34,6 +34,12 @@ struct FloorPlanCanvas: View {
 
     /// Text equivalent of the plan for VoiceOver.
     private func summary(crowdCount: Int) -> String {
+        guard engine.sharing else {
+            var parts = ["Location sharing is off, so your position is not shown."]
+            if let destination = engine.destination { parts.append("Destination: \(destination.name).") }
+            if crowdCount > 0 { parts.append("\(crowdCount) other attendees shown (simulated).") }
+            return parts.joined(separator: " ")
+        }
         var parts = [engine.currentRoom.map { "You are in \($0.name)." } ?? "Position unknown."]
         if let destination = engine.destination { parts.append("Destination: \(destination.name).") }
         if let next = engine.nextLine { parts.append(next.hasSuffix(".") ? next : next + ".") }

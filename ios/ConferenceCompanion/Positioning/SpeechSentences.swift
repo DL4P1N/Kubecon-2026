@@ -2,8 +2,9 @@ import Foundation
 
 /// Pure, deterministic wording for spoken directions. Steps come from `Router` ("Walk east 13 m along ...").
 enum SpeechSentences {
-    static func start(room: String, firstStep: String) -> String {
-        "Starting route to \(room). \(spoken(step: firstStep))"
+    static func start(room: String, talk: String? = nil, firstStep: String) -> String {
+        let target = talk.map { "\($0) in \(room)" } ?? room
+        return "Starting route to \(target). \(spoken(step: firstStep))"
     }
 
     static func reroute(firstStep: String) -> String {
@@ -15,8 +16,8 @@ enum SpeechSentences {
         return "Next, \(text.prefix(1).lowercased())\(text.dropFirst())"
     }
 
-    static func arrival(room: String) -> String {
-        "You have arrived at \(room)."
+    static func arrival(room: String, talk: String? = nil) -> String {
+        talk.map { "You have arrived at \(room) for \($0)." } ?? "You have arrived at \(room)."
     }
 
     /// "Walk east 13 m along the hallway" becomes "Walk east about 15 metres along the hallway".

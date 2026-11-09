@@ -3,6 +3,8 @@ import SwiftUI
 struct FindRoomView: View {
     /// Room id passed from a ticket ("Find my room"); nil keeps whatever is chosen already.
     var initialDestinationID: String?
+    /// Talk being navigated to; shown as the header and spoken with the room.
+    var talkTitle: String?
 
     @Environment(AppStore.self) private var store
     @Environment(PositionEngine.self) private var engine
@@ -13,8 +15,9 @@ struct FindRoomView: View {
     @AppStorage("advertiseEnabled") private var advertise = false
     @AppStorage("voiceGuidance") private var voiceOn = true
 
-    init(initialDestinationID: String? = nil) {
+    init(initialDestinationID: String? = nil, talkTitle: String? = nil) {
         self.initialDestinationID = initialDestinationID
+        self.talkTitle = talkTitle
     }
 
     var body: some View {
@@ -25,14 +28,14 @@ struct FindRoomView: View {
                     SourceHeader()
                     FloorPlanCanvas(avatar: store.avatar)
                         .overlay { Rectangle().strokeBorder(Theme.line, lineWidth: 1) }
-                    GuidancePanel()
+                    GuidancePanel(turnOnLocation: { advertise = true })
                     BluetoothStatusBanner(state: engine.scanner.state, authorization: engine.scanner.authorization)
                     beaconToggle
                     calibrateLink
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
-                .padding(.bottom, 16)
+                .padding(.bottom, 32)
             }
             .screenBackground()
             .navigationTitle("Find my room")
@@ -41,14 +44,15 @@ struct FindRoomView: View {
             .scrollEdgeEffectStyle(.soft, for: .bottom)
         }
         .task(id: reduceMotion) { await engine.run(reduceMotion: reduceMotion) }
-        .task(id: initialDestinationID) {
+        .task(id: [initialDestinationID, talkTitle]) {
             // `-findDestination <room id>` launch argument is used for screenshots.
             let id = initialDestinationID ?? UserDefaults.standard.string(forKey: "findDestination")
-            if let id, !id.isEmpty { engine.setDestination(id) }
+            if let id, !id.isEmpty { engine.setDestination(id, talkTitle: initialDestinationID == nil ? nil : talkTitle) }
         }
         .task(id: advertise) { updateAdvertising() }
         .onChange(of: store.activeTicket?.beaconUUID) { updateAdvertising() }
         .onChange(of: engine.currentRoomID) { _, roomID in announceRoom(roomID) }
+        .onChange(of: advertise, initial: true) { engine.setSharing(advertise) }
         .onChange(of: voiceOn, initial: true) {
             engine.voiceEnabled = voiceOn
             if !voiceOn { engine.voice.stop() }
@@ -88,21 +92,24 @@ struct FindRoomView: View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
                 Menu {
+                    if let talk = engine.talkTitle, let room = engine.destination {
+                        Button(talk, systemImage: "checkmark") { engine.setDestination(room.id, talkTitle: talk) }
+                    }
                     Button("No destination", systemImage: engine.destinationID.isEmpty ? "checkmark" : "circle.slash") {
                         engine.setDestination("")
                     }
                     ForEach(FloorPlan.destinations) { room in
-                        Button(room.name, systemImage: room.id == engine.destinationID ? "checkmark" : "mappin") {
+                        Button(room.name, systemImage: room.id == engine.destinationID && engine.talkTitle == nil ? "checkmark" : "mappin") {
                             engine.setDestination(room.id)
                         }
                     }
                 } label: {
-                    Label(engine.destination?.shortName ?? "Choose a room", systemImage: "mappin.and.ellipse")
+                    Label(engine.talkTitle ?? engine.destination?.shortName ?? "Choose a room", systemImage: "mappin.and.ellipse")
                         .font(.mono(.subheadline, weight: .semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(Theme.background)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glassProminent)
                 .tint(Theme.accent)
@@ -116,22 +123,20 @@ struct FindRoomView: View {
                     .font(.mono(.subheadline, weight: .semibold))
                     .labelStyle(.titleAndIcon)
                     .buttonStyle(.glass)
-                    .frame(minHeight: 44)
                     .accessibilityLabel(engine.paused ? "Start simulated walk" : "Pause simulated walk")
 
                     Button("Reset", systemImage: "arrow.counterclockwise") { engine.reset() }
                         .labelStyle(.iconOnly)
                         .buttonStyle(.glass)
-                        .frame(minWidth: 44, minHeight: 44)
                         .accessibilityLabel("Reset simulated walk")
                 }
 
                 Button("Voice guidance", systemImage: voiceOn ? "speaker.wave.2.fill" : "speaker.slash.fill") { voiceOn.toggle() }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.glass)
-                    .frame(minWidth: 44, minHeight: 44)
                     .accessibilityValue(voiceOn ? "on" : "off")
             }
+            .controlSize(.large)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -144,7 +149,6 @@ struct FindRoomView: View {
             Toggle("Let venue receivers locate this phone", isOn: $advertise)
                 .font(.mono(.body))
                 .frame(minHeight: 44)
-                .disabled(store.activeTicket == nil)
             Text("Broadcasts a random ID tied to this ticket over Bluetooth: no name, no attendee ID.")
                 .font(.mono(.footnote))
                 .foregroundStyle(Theme.muted)
@@ -154,7 +158,7 @@ struct FindRoomView: View {
                     .foregroundStyle(Theme.warn)
             }
             if store.activeTicket == nil {
-                Text("Register for a conference to enable this.").font(.mono(.footnote)).foregroundStyle(Theme.warn)
+                Text("Register for a conference so receivers can recognise this phone.").font(.mono(.footnote)).foregroundStyle(Theme.muted)
             }
         }
         .panel()

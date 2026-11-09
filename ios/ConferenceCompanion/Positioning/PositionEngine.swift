@@ -11,6 +11,10 @@ final class PositionEngine {
     private(set) var isLive = false
     private(set) var crowd: [CrowdPerson] = []
     private(set) var paused = false
+    /// Whether this phone is shared with venue receivers. Without it there is no position, so no marker or guidance.
+    private(set) var sharing = false
+    /// Talk being navigated to, shown instead of the bare room name.
+    private(set) var talkTitle: String?
     /// Whether directions are spoken aloud (set from the view's persisted toggle).
     var voiceEnabled = true
     @ObservationIgnored let voice = VoiceGuide()
@@ -52,8 +56,18 @@ final class PositionEngine {
         if paused { voice.stop() }
     }
 
-    func setDestination(_ id: String) {
+    func setSharing(_ on: Bool) {
+        guard on != sharing else { return }
+        sharing = on
+        if !on { voice.stop() }
+        lastTick = nil
+        tick(reduceMotion: false)
+    }
+
+    func setDestination(_ id: String, talkTitle: String? = nil) {
         let valid = FloorPlan.destinations.contains { $0.id == id } ? id : ""
+        let title = valid.isEmpty || talkTitle?.isEmpty == true ? nil : talkTitle
+        if title != self.talkTitle { self.talkTitle = title }
         guard valid != destinationID else { return }
         destinationID = valid
         if valid.isEmpty { simulated.follow(nil); voice.stop() }
@@ -79,15 +93,15 @@ final class PositionEngine {
         let now = Date.now
         let delta = min(lastTick.map { now.timeIntervalSince($0) } ?? 0, 3)
         lastTick = now
-        if let liveFix = live.fix(at: now) {
+        if sharing, let liveFix = live.fix(at: now) {
             fix = liveFix
             if !isLive { isLive = true }
             if !crowd.isEmpty { crowd = [] }
         } else {
             if isLive { isLive = false }
-            if !paused || fix == nil || crowd.isEmpty {
-                if !paused { clock += delta; simulated.advance(by: delta) }
-                fix = simulated.fix(at: now)
+            if !paused || crowd.isEmpty || (sharing && fix == nil) || (!sharing && fix != nil) {
+                if !paused { clock += delta; if sharing { simulated.advance(by: delta) } }
+                fix = sharing ? simulated.fix(at: now) : nil
                 crowd = crowdSimulation.people(clock: clock, reduceMotion: reduceMotion)
             }
         }
@@ -136,7 +150,7 @@ final class PositionEngine {
             if needsRoute {
                 let first = next.currentStep
                 voice.speak(
-                    isNewDestination ? SpeechSentences.start(room: destination.name, firstStep: first) : SpeechSentences.reroute(firstStep: first),
+                    isNewDestination ? SpeechSentences.start(room: destination.name, talk: talkTitle, firstStep: first) : SpeechSentences.reroute(firstStep: first),
                     enabled: voiceEnabled
                 )
             } else if let previousProgress, previousProgress != next.progress {
@@ -150,7 +164,7 @@ final class PositionEngine {
             hasArrived = arrivedNow
             if arrivedNow {
                 arrivals += 1
-                voice.speak(SpeechSentences.arrival(room: destination.name), enabled: voiceEnabled)
+                voice.speak(SpeechSentences.arrival(room: destination.name, talk: talkTitle), enabled: voiceEnabled)
             }
         }
     }

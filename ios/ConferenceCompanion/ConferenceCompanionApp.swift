@@ -7,7 +7,10 @@ struct ConferenceCompanionApp: App {
     @State private var advertiser = PhoneAdvertiser()
     @State private var nav = AppNavigation()
 
-    init() { NotificationService.install() }
+    init() {
+        ServerDefaults.apply()
+        NotificationService.install()
+    }
 
     var body: some Scene {
         WindowGroup {

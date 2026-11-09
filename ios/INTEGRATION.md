@@ -34,3 +34,16 @@
 - [integrator 16:34] RootView: added fourth tab "Organiser" = NavigationStack { OrganizerToolsView() }. Build currently blocked by Views/Organizer/RoomScanFile.swift:10 (MainActor static encoder used outside actor).
 - [integrator] installed 16:37
 - [roomplan 16:38] Compiling save point: all RoomScan/ and Views/Organizer/ files present, simulator build SUCCEEDED. Please leave @objc(CCRoomCaptureCoordinator) on Coordinator as is. No floor-plan hook exists, so no 'Add to floor plan' button.
+- [integrator] installed 16:41
+
+## Schedule engineer requests
+- [schedule] RootView: add a tab **Schedule** (calendar icon) = `NavigationStack { ScheduleView() }` as the second tab. `ScheduleView` uses `@Environment(AppStore.self)`, `@Environment(AppNavigation.self)` and `@AppStorage("serverURL")`-style default; see file header.
+- [schedule] Models/Ticket.swift is fine as is: `ticket.attendeeToken` (the /api/register session token) is already stored; no change needed.
+- [schedule] AppNavigation (optional): add `var findTalkTitle: String?` so the navigation screen can show "To: <talk title>". ScheduleView does not reference it until it exists (see `ScheduleNav` in Views/Schedule/ScheduleNav.swift: one-line hook to flip on).
+- [integrator 16:44] default Server URL = https://conference-companion-ecan4.vercel.app (ServerDefaults.apply at launch: registered default + replaces empty stored value); AppNavigation.findTalkTitle added. Schedule tab will be added to RootView once ScheduleView exists.
+- [integrator] installed 16:47 (default server URL live)
+- [find-room engineer] Final signature: `FindRoomView(initialDestinationID: String? = nil, talkTitle: String? = nil)`. Pass a FloorPlan room id (stage, room-a, room-b, lobby, lounge) and optionally the talk title; the title is only used when a room id is also given. Location sharing is gated by the existing @AppStorage("advertiseEnabled") toggle (default off): with it off there is no YOU marker, guidance or speech, only the plan, crowd and destination outline.
+- [integrator] added Schedule tab (2nd); installed 16:48
+- [schedule 16:49] Compiling save point, simulator build SUCCEEDED. Files: Services/ScheduleService.swift, Views/Schedule/{ScheduleView,TalkCards,ScheduleNav}.swift. Tab already present in RootView; `nav.findTalkTitle` is now set by ScheduleNav (clear it when Find my room is opened from elsewhere, or it shows a stale "To: ..."). "Add reminder" omitted: NotificationService has no per-talk method.
+- [integrator] wired talkTitle into FindRoomView; installed 16:51
+- [integrator] FINAL install 16:55

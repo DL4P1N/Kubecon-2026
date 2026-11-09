@@ -30,8 +30,12 @@ enum Router {
             let direction = compass(from.point, to.point)
             let metres = Int(distance.rounded())
             switch (from.isRoom, to.isRoom) {
-            case (true, false): steps.append("Leave \(from.name) and head \(direction) \(metres) m to the \(to.name).")
-            case (false, false): steps.append("Walk \(direction) \(metres) m along the hallway to the \(to.name).")
+            case (true, false): steps.append("Leave \(from.name) and head \(direction) \(metres) m into the hallway.")
+            case (false, false):
+                let entersRoomNext = index + 2 < nodes.count && nodes[index + 2].isRoom
+                steps.append(entersRoomNext
+                    ? "Walk \(direction) \(metres) m along the hallway to the \(to.name)."
+                    : "Walk \(direction) \(metres) m along the hallway past the \(to.name).")
             case (false, true): steps.append("Go \(direction) \(metres) m into \(to.name).")
             case (true, true): steps.append("Walk \(direction) \(metres) m to \(to.name).")
             }

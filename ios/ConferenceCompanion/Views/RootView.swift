@@ -9,7 +9,8 @@ struct RootView: View {
         @Bindable var nav = nav
         TabView(selection: $nav.tab) {
             Tab("Tickets", systemImage: "qrcode", value: AppTab.tickets) { TicketsView() }
-            Tab("Find my room", systemImage: "map", value: AppTab.find) { FindRoomView(initialDestinationID: nav.findRoomID) }
+            Tab("Schedule", systemImage: "calendar", value: AppTab.schedule) { NavigationStack { ScheduleView() } }
+            Tab("Find my room", systemImage: "map", value: AppTab.find) { FindRoomView(initialDestinationID: nav.findRoomID, talkTitle: nav.findTalkTitle) }
             Tab("Profile", systemImage: "person", value: AppTab.profile) { ProfileView() }
             Tab("Organiser", systemImage: "viewfinder", value: AppTab.organizer) { NavigationStack { OrganizerToolsView() } }
         }

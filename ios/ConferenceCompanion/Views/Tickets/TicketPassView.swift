@@ -7,7 +7,7 @@ struct TicketPassView: View {
     let stateLine: String
     var statusWarning: String?
 
-    @ScaledMetric(relativeTo: .body) private var qrSize: CGFloat = 188
+    @ScaledMetric(relativeTo: .body) private var qrSize: CGFloat = 164
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,10 +23,10 @@ struct TicketPassView: View {
     }
 
     private var eventPart: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Conference").ccLabel()
             Text(ticket.conference.name)
-                .font(.system(.title, weight: .semibold))
+                .font(.system(.title2, weight: .semibold))
                 .tracking(-0.7)
                 .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -51,7 +51,7 @@ struct TicketPassView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
-        .padding(.bottom, 24)
+        .padding(.bottom, 20)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -76,7 +76,7 @@ struct TicketPassView: View {
     }
 
     private var admitPart: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Door ticket").ccLabel()
                 Spacer(minLength: 8)
@@ -95,7 +95,7 @@ struct TicketPassView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 24)
+        .padding(.top, 20)
         .padding(.bottom, 20)
         .frame(maxWidth: .infinity, alignment: .leading)
     }

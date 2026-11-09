@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 enum AppTab: Hashable {
-    case tickets, find, profile, organizer
+    case tickets, schedule, find, profile, organizer
 }
 
 @MainActor @Observable
@@ -13,6 +13,8 @@ final class AppNavigation {
     var findSlug: String?
     /// FloorPlan room id preselected as the destination in Find my room.
     var findRoomID: String?
+    /// Talk title shown as "To: <title>" in Find my room.
+    var findTalkTitle: String?
 
     init() {
         // Launch argument `-startTab find|profile` (used for screenshots).
