@@ -74,3 +74,10 @@ test("typing on the same page does not move focus", async ({ page }) => {
   await page.keyboard.type("Demo");
   await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
 });
+
+test("initial root redirect preserves skip-link-first tab order", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/register$/);
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
+});
