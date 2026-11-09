@@ -13,7 +13,7 @@ entry only after a real review finding is acted on.
 | --- | --- | --- |
 | Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | Gitar review findings acted on, including verified PR #6 probe fix below. CI diagnosis and project-rule evaluation still need evidence. No Sonar tooling claim. |
 | Dash0: Stop Flying Blind | Browser → API → ES trace, search/embedding/access spans, p95 SLO, dashboard, scrubbing proof, real issue investigation | Collector-to-Dash0 export and synthetic attribute scrubbing verified live. Browser/API/ES trace, full privacy test, SLO and issue evidence remain pending. |
-| Radar: AI SRE | Ready Kubernetes workloads, UI and MCP used, real investigation with remediation | Live: kind cluster, Radar UI + read-only MCP (28 tools) connected, api/web/ES Ready. Real-investigation story still to be captured (see Radar section). |
+| Radar: AI SRE | Ready Kubernetes workloads, UI and MCP used, real investigation with remediation | Live UI/MCP and an actual safeguarded Codex AI investigation captured below, with evidence, verified follow-up and linked fix. Human review of #30 pending. |
 | Elasticsearch: Find the Right Talk | Real catalog and ES inference per human decisions; BM25 vs hybrid results and query comparison | Live: 417 real talks indexed with ES E5, keyword and hybrid APIs return 200. All five planned comparisons measured; they do not establish a consistent relevance win. Results in `docs/demo/search-comparison-measured.json`; quality work is #36. |
 
 Do not substitute scaffold/mock routes for end-to-end acceptance. A `/healthz`
@@ -64,6 +64,17 @@ The fix commit is the PR link until the merge hash is known.
   Verified live (CONTROLLED API outage, ~40s): `/index.html` stayed 200, `/healthz` returned 504, web `Ready=False`, nginx restarts 0 to 0; API restored and `/healthz` back to 200.
 
 Still pending: CI-failure diagnosis and the review link for the demo.
+
+Task #44 audited the two real failed Actions runs (PR14 Docker build and PR22
+schedule browser tests). Their current Gitar dashboards contain Code Review,
+without retained CI-analysis output. PR14's missing-fixture finding predates
+the actual failure, so it proves useful review, not CI-log analysis. The fix
+and subsequent green run are linked in the [CI evidence audit](gitar-ci-diagnosis.md).
+A read-only retrospective diagnosis was requested; its bot reply gave no CI
+root cause or log analysis, so it is not diagnosis evidence. Admin settings
+confirmation is pending on board question #15. CI diagnosis and auto-apply
+remain unproven; no separate enable toggle or unavailable-plan explanation
+is invented.
 
 ### Repository-rule verification (task #34)
 
@@ -135,7 +146,51 @@ failure-analysis evidence. No claim is made that either was demonstrated.
 - The first deployed hybrid request returned 502 during indexing; it succeeded
   after seed completion. Its original backend error was not retained, so the
   cause of that transient request is unconfirmed (diagnostics work tracked in #35).
-- Honesty note: Radar surfaced the failed Job/pod state, but the root cause came from ES.
+- Evidence boundary: the initial memory-budget diagnosis used the ES API. The later
+  Radar AI investigation independently identified a retained model-scaling capacity
+  failure in the application's logs; it did not claim that inference was still down.
+
+### Actual Radar AI investigation (task #30)
+
+Request: diagnose the real `StatefulSet.apps conference-companion/elasticsearch`.
+This was a read-only investigation of a naturally occurring application problem,
+not the controlled API outage described below.
+
+```sh
+kubectl radar diagnose statefulset/elasticsearch \
+  --namespace conference-companion --agent codex --profile safeguarded \
+  --server http://127.0.0.1:9280 --yes --json
+```
+
+- Durable local run: [`run-cc6b489d18`](http://127.0.0.1:9280/?ai-run=run-cc6b489d18).
+  [Actual AI verdict and evidence references](demo/radar-ai-investigation.json),
+  [UI screenshot](demo/radar-ai-investigation.png), and
+  [operator follow-up measurements](demo/radar-ml-verification.json) are committed.
+- Radar used `diagnose`, filtered `get_pod_logs`, and `get_cluster_audit`.
+  It found a real ES log entry at 19:07:29 UTC: the multilingual model could not
+  scale to two allocations because of insufficient resources, even though the
+  Kubernetes replica was Ready. Its verdict was **likely**, not proof of a
+  continuing outage.
+- What we learned: the HTTPS root readiness probe proves the ES process responds,
+  not that ML inference can allocate. A missing liveness probe and hardening
+  findings were correctly kept separate from the capacity diagnosis.
+- Radar explicitly requested current model-allocation and ML-memory checks rather
+  than claiming the old log established present-day failure. We ran those checks
+  through authenticated, CA-verified ES admin APIs: model `started`,
+  `fully_allocated`, allocation **1 / target 1**, 842 completed inference calls
+  and one historical timeout. Native inference memory was **1,497,914,672 bytes**
+  plus **31,457,280 bytes** native overhead under a **2,147,483,648-byte** ML budget.
+  These measurements are operator-collected, not falsely attributed to Radar.
+- Linked remediation: [PR #6](https://github.com/DL4P1N/Kubecon-2026/pull/6),
+  merged as `7d4a704`, persists the
+  [50% ML budget](https://github.com/DL4P1N/Kubecon-2026/blob/7d4a704/deploy/k8s/elasticsearch/statefulset.yaml).
+  The initial seed failed at the default 30%; after correction it indexed 417
+  real talks in 7m57s, and real keyword/RRF API requests succeeded.
+- Limits: the deleted first failed seed pod's original logs were not re-created.
+  The later two-allocation log does not by itself prove why that allocation
+  failed or that all future scaling will fit; the verified serving target is one
+  allocation. The controlled outage remains explicitly labelled below.
+
 
 ### Controlled fault (labelled controlled)
 
@@ -146,7 +201,7 @@ failure-analysis evidence. No claim is made that either was demonstrated.
 
 - Screenshots: [Radar overview](demo/radar-overview.png) and
   [actual topology](demo/radar-topology.png) show the live namespace.
-  Radar AI investigation is tracked separately in #30.
+  The actual AI run, screenshot, source fix and follow-up are recorded above (#30).
 - Dash0 credentials provisioned privately in `dash0-credentials`; collector rollout succeeded.
   An actual OTLP probe returned HTTP 200. Collector metrics showed
   `otlphttp/dash0` sent spans = 1, failed spans = 0, queue = 0.
@@ -162,12 +217,24 @@ failure-analysis evidence. No claim is made that either was demonstrated.
 
 - End-to-end trace (browser -> api -> Elasticsearch) for one `/api/search`
   request: screenshot goes here (`docs/evidence/dash0-search-trace.png`),
-  with the trace id. Pending: needs the deployed collector with Dash0 credentials.
+  with the trace id. Collector credentials/export are verified; full app-trace proof
+  awaits deployment of the production-image dependency fix (#39).
 - Allowlist proof: the same trace's span attributes show `search.mode` and no
   `attendee.id` (unit test: `api/test/telemetry.test.ts`). Screenshot: pending.
 - Metrics: `http.server.request.duration` by `http.route`,
   `companion.search.duration`, `access.scans` dashboard. Screenshot: pending.
 - SLO (p95 search latency) and Agent0 / Dash0 MCP investigation: pending.
+- Dashboard, SLOs and check rules as code (#14, PR [#33](https://github.com/DL4P1N/Kubecon-2026/pull/33)):
+  **pending live verification**. `deploy/dash0/dashboard.yaml` (PersesDashboard:
+  SLO tiles, burn rate, rate/p95/5xx by route, search p95 by mode, access scans,
+  browser page load), `deploy/dash0/check-rules.yaml` (PrometheusRule: p95 of
+  `/api/search` + `/api/onboarding` < 500 ms over 1h, non-5xx >= 99% over 1h,
+  multi-window burn rates) and `deploy/dash0/slos/` (native Dash0 OpenSLO SLOs,
+  28d). Offline checks only: YAML parses and all 29 PromQL expressions parse.
+  The same PR fixes `companion.search.duration` buckets, which had made every
+  p95 read about 4.75 s. Apply steps and screenshot list: `docs/dash0.md`.
+  Screenshots pending: `docs/evidence/dash0-health-dashboard.png`,
+  `dash0-search-p95-by-mode.png`, `dash0-check-rules.png`, `dash0-slo.png`.
 - How to reproduce locally: `docs/observability.md`.
 
 ## Accessibility

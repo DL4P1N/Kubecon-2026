@@ -11,6 +11,9 @@ import { METRIC_ATTRIBUTE_ALLOWLIST, pickAllowed } from "./allowlist.js";
  */
 const METER_NAME = "companion-api";
 
+/** Histogram boundaries in seconds (OTel HTTP semconv advice). 0.5 is the SLO threshold. */
+export const SECONDS_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10];
+
 let searchDuration: Histogram | undefined;
 let accessScans: Counter | undefined;
 
@@ -23,6 +26,10 @@ export function recordSearchLatency(seconds: number, mode: string): void {
   searchDuration ??= meter().createHistogram("companion.search.duration", {
     description: "Search request latency (API side, including Elasticsearch)",
     unit: "s",
+    // Same boundaries as http.server.request.duration. The SDK default
+    // (0, 5, 10, ... 10000) is meant for milliseconds and would put every
+    // search into the 0-5 s bucket, making p95 and the 500 ms SLO meaningless.
+    advice: { explicitBucketBoundaries: SECONDS_BUCKETS },
   });
   searchDuration.record(seconds, pickAllowed({ "search.mode": mode }, METRIC_ATTRIBUTE_ALLOWLIST));
 }

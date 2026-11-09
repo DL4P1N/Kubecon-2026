@@ -1,0 +1,43 @@
+# Native Dash0 SLO (OpenSLO v1, Dash0 subset). Apply: dash0 apply -f deploy/dash0/slos/
+# Dash0 only supports a rolling 28d window with Occurrences budgeting, so this
+# is the long-window view of the same SLI; the 1h view is the p95 check rule
+# in deploy/dash0/check-rules.yaml.
+# Reference: https://www.dash0.com/docs/dash0/monitoring/alerting/create-slos
+# and https://www.dash0.com/docs/dash0/miscellaneous/tooling/terraform-provider-dash0/resources/slo
+apiVersion: openslo.com/v1
+kind: SLO
+metadata:
+  name: companion-search-latency
+  labels:
+    dash0.com/origin: conference-companion-search-latency
+    slo: companion-search-latency
+    team: conference-companion
+  annotations:
+    dash0.com/display-name: Search + onboarding latency (p95 < 500 ms)
+    dash0.com/enabled: "true"
+spec:
+  description: 95 percent of /api/search and /api/onboarding requests complete within 500 ms (equivalent to p95 < 500 ms).
+  service: companion-api
+  budgetingMethod: Occurrences
+  timeWindow:
+    - duration: 28d
+      isRolling: true
+  indicator:
+    metadata:
+      name: companion-search-latency-ratio
+    spec:
+      ratioMetric:
+        counter: true
+        good:
+          metricSource:
+            type: Prometheus
+            spec:
+              query: 'http_server_request_duration_seconds_bucket{service_name="companion-api",http_route=~"/api/search|/api/onboarding",le="0.5"}'
+        total:
+          metricSource:
+            type: Prometheus
+            spec:
+              query: 'http_server_request_duration_seconds_count{service_name="companion-api",http_route=~"/api/search|/api/onboarding"}'
+  objectives:
+    - displayName: 95% under 500 ms
+      target: 0.95

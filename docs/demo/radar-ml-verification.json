@@ -1,0 +1,153 @@
+{
+  "observation": "Follow-up checks requested by Radar AI; actual ES admin API, not Radar-collected data",
+  "model_status": 200,
+  "model": {
+    "count": 1,
+    "trained_model_stats": [
+      {
+        "model_id": ".multilingual-e5-small",
+        "model_size_stats": {
+          "model_size_bytes": 470097544,
+          "required_native_memory_bytes": 1497914672
+        },
+        "pipeline_count": 0,
+        "inference_stats": {
+          "failure_count": 1,
+          "inference_count": 842,
+          "cache_miss_count": 0,
+          "missing_all_fields_count": 0,
+          "timestamp": 1794252740647
+        },
+        "deployment_stats": {
+          "deployment_id": ".multilingual-e5-small-elasticsearch",
+          "model_id": ".multilingual-e5-small",
+          "threads_per_allocation": 1,
+          "number_of_allocations": 1,
+          "adaptive_allocations": {
+            "enabled": true,
+            "min_number_of_allocations": 0,
+            "max_number_of_allocations": 32
+          },
+          "queue_capacity": 10000,
+          "state": "started",
+          "allocation_status": {
+            "allocation_count": 1,
+            "target_allocation_count": 1,
+            "state": "fully_allocated"
+          },
+          "cache_size": "448.3mb",
+          "priority": "normal",
+          "start_time": 1794251229491,
+          "timeout_count": 1,
+          "inference_count": 842,
+          "peak_throughput_per_minute": 118,
+          "nodes": [
+            {
+              "node": {
+                "HTPGn2zyTYShzFcwO0Tshw": {
+                  "name": "elasticsearch-0",
+                  "ephemeral_id": "dS_il9TLRG2WwAw2T1b0tw",
+                  "transport_address": "10.244.0.10:9300",
+                  "external_id": "elasticsearch-0",
+                  "attributes": {
+                    "ml.machine_memory": "4294967296",
+                    "transform.config_version": "10.0.0",
+                    "xpack.installed": "true",
+                    "ml.config_version": "12.0.0",
+                    "ml.max_jvm_size": "1073741824",
+                    "ml.allocated_processors_double": "2.0",
+                    "ml.allocated_processors": "2"
+                  },
+                  "roles": [
+                    "data",
+                    "data_cold",
+                    "data_content",
+                    "data_frozen",
+                    "data_hot",
+                    "data_warm",
+                    "ingest",
+                    "master",
+                    "ml",
+                    "remote_cluster_client",
+                    "transform"
+                  ],
+                  "version": "8.19.6",
+                  "min_index_version": 7000099,
+                  "max_index_version": 8536000
+                }
+              },
+              "routing_state": {
+                "routing_state": "started"
+              },
+              "inference_count": 842,
+              "average_inference_time_ms": 551.9667458432305,
+              "average_inference_time_ms_excluding_cache_hits": 556.5940119760479,
+              "inference_cache_hit_count": 7,
+              "last_access": 1794251843742,
+              "number_of_pending_requests": 0,
+              "timeout_count": 1,
+              "start_time": 1794251230696,
+              "threads_per_allocation": 1,
+              "number_of_allocations": 1,
+              "peak_throughput_per_minute": 118,
+              "throughput_last_minute": 0,
+              "inference_cache_hit_count_last_minute": 0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "memory_status": 200,
+  "memory": {
+    "_nodes": {
+      "total": 1,
+      "successful": 1,
+      "failed": 0
+    },
+    "cluster_name": "docker-cluster",
+    "nodes": {
+      "HTPGn2zyTYShzFcwO0Tshw": {
+        "name": "elasticsearch-0",
+        "ephemeral_id": "dS_il9TLRG2WwAw2T1b0tw",
+        "transport_address": "10.244.0.10:9300",
+        "attributes": {
+          "ml.machine_memory": "4294967296",
+          "ml.config_version": "12.0.0",
+          "ml.max_jvm_size": "1073741824",
+          "ml.allocated_processors_double": "2.0",
+          "ml.allocated_processors": "2"
+        },
+        "roles": [
+          "data",
+          "data_cold",
+          "data_content",
+          "data_frozen",
+          "data_hot",
+          "data_warm",
+          "ingest",
+          "master",
+          "ml",
+          "remote_cluster_client",
+          "transform"
+        ],
+        "mem": {
+          "total_in_bytes": 4294967296,
+          "adjusted_total_in_bytes": 4294967296,
+          "ml": {
+            "max_in_bytes": 2147483648,
+            "native_code_overhead_in_bytes": 31457280,
+            "anomaly_detectors_in_bytes": 0,
+            "data_frame_analytics_in_bytes": 0,
+            "native_inference_in_bytes": 1497914672
+          }
+        },
+        "jvm": {
+          "heap_max_in_bytes": 1073741824,
+          "java_inference_max_in_bytes": 429496729,
+          "java_inference_in_bytes": 0
+        }
+      }
+    }
+  }
+}
