@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+spec:
+  selector:
+    app: elasticsearch
+  ports:
+    - name: https
+      port: 9200
+      targetPort: 9200
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+spec:
+  serviceName: elasticsearch
+  replicas: 1
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: elasticsearch
+          image: docker.elastic.co/elasticsearch/elasticsearch:8.19.6
+          ports:
+            - containerPort: 9200
+          startupProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - 'curl --silent --fail --cacert config/certs/tls.crt --user "elastic:$ELASTIC_PASSWORD" https://localhost:9200/ >/dev/null'
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - 'curl --silent --fail --cacert config/certs/tls.crt --user "elastic:$ELASTIC_PASSWORD" https://localhost:9200/ >/dev/null'
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests: {cpu: "500m", memory: 4Gi}
+            limits: {cpu: "2", memory: 4Gi}
+          env:
+            - {name: discovery.type, value: single-node}
+            - {name: ES_JAVA_OPTS, value: "-Xms1g -Xmx1g"}
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: elasticsearch-admin, key: password}
+            - {name: xpack.security.enabled, value: "true"}
+            - {name: xpack.security.http.ssl.enabled, value: "true"}
+            - {name: xpack.security.http.ssl.key, value: certs/tls.key}
+            - {name: xpack.security.http.ssl.certificate, value: certs/tls.crt}
+            - {name: xpack.security.transport.ssl.enabled, value: "true"}
+            - {name: xpack.security.transport.ssl.key, value: certs/tls.key}
+            - {name: xpack.security.transport.ssl.certificate, value: certs/tls.crt}
+            - {name: xpack.security.transport.ssl.certificate_authorities, value: certs/tls.crt}
+            - {name: xpack.security.transport.ssl.verification_mode, value: certificate}
+          volumeMounts:
+            - {name: data, mountPath: /usr/share/elasticsearch/data}
+            - {name: certs, mountPath: /usr/share/elasticsearch/config/certs, readOnly: true}
+      volumes:
+        - name: certs
+          secret:
+            secretName: elasticsearch-tls
+            defaultMode: 0440
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 10Gi

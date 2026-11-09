@@ -63,5 +63,13 @@ describe("config", () => {
     expect(c.esUrl).toBe("https://es:9200");
     expect(c.port).toBe(8080);
     expect(c.otelExporterOtlpEndpoint).toBe("http://otel:4318");
+    expect(c.registerRateLimitPerMinute).toBe(60);
+  });
+
+  it("refuses to start in production with a placeholder signing key", () => {
+    const prod = { NODE_ENV: "production", ES_URL: "https://es:9200", ES_USERNAME: "svc", ES_PASSWORD: "pw" };
+    expect(() => buildServer(loadConfig({ ...prod, TOKEN_SIGNING_KEY: "change-me" }))).toThrow(/placeholder/);
+    expect(() => buildServer(loadConfig({ ...prod, TOKEN_SIGNING_KEY: "too-short" }))).toThrow(/at least/);
+    expect(() => loadConfig({ ...prod })).toThrow(/TOKEN_SIGNING_KEY/);
   });
 });
