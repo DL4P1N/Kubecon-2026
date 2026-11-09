@@ -6,7 +6,9 @@ const talk = { id: "synthetic", title: "Kubernetes security", speaker: "Demo", a
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    const response = path === "/api/search" ? { q: "", mode: "hybrid", tookMs: 1, hits: [{ talk, score: 1 }] }
+    const response = path === "/api/rooms/occupancy" ? { source: "in-process-scan-activity", windowMinutes: 10,
+      rooms: [{ room: talk.room, level: "almost full", recentScans: 8, capacity: 10, percentage: 80 }] }
+      : path === "/api/search" ? { q: "", mode: "hybrid", tookMs: 1, hits: [{ talk, score: 1 }] }
       : path === "/api/schedule" ? { items: [{ talk, reason: "Matches your interests" }], updatedAt: "" }
       : path === "/api/register" ? { token: "synthetic-token", attendeeId: "synthetic", expiresAt: "" }
       : path === "/api/onboarding" ? { query: { text: "kubernetes", topics: [], mode: "hybrid" } }

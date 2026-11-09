@@ -1,6 +1,7 @@
 import { routes, type RouteDef } from "@cc/shared";
 import type {
   AccessTokenResponse,
+  RoomOccupancyResponse,
   InterestAggregateResponse,
   InterestClustersResponse,
   OnboardingRequest,
@@ -79,6 +80,7 @@ async function scanRoom(body: ScanRequest): Promise<ScanResponse> {
 }
 
 export const api = {
+  roomOccupancy: () => call<RoomOccupancyResponse>(routes.roomOccupancy),
   register: (body: RegisterRequest) => call<RegisterResponse>(routes.register, { body }),
   onboarding: (body: OnboardingRequest) => call<OnboardingResponse>(routes.onboarding, { body }),
   search: (q: string, mode: SearchMode, debug = false) => call<SearchResponse & { debug?: unknown }>(routes.search, {

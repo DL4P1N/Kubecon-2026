@@ -25,6 +25,19 @@ export interface ApiError {
 /** Minimum number of attendees in a cluster before it may be displayed. */
 export const MIN_CLUSTER_SIZE = 5;
 
+export interface RoomActivity {
+  room: string;
+  level: "quiet" | "busy" | "almost full";
+  recentScans: number | null;
+  capacity: number | null;
+  percentage: number | null;
+}
+export interface RoomOccupancyResponse {
+  source: "in-process-scan-activity";
+  windowMinutes: number;
+  rooms: RoomActivity[];
+}
+
 // ---------------------------------------------------------------- health
 
 export interface HealthResponse {
@@ -249,6 +262,7 @@ export interface InterestClustersResponse {
 // ---------------------------------------------------------------- route table
 
 export const routes = {
+  roomOccupancy: { method: "GET", path: "/api/rooms/occupancy" },
   health: { method: "GET", path: "/healthz" },
   register: { method: "POST", path: "/api/register" },
   me: { method: "GET", path: "/api/me" },

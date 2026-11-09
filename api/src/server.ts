@@ -14,6 +14,8 @@ import { registerInterestRoutes } from "./routes/interests.js";
 import { registerRoutes } from "./routes/register.js";
 import { registerClusterRoutes } from "./routes/clusters.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
+import { RoomActivityCounter, roomCapacities } from "./rooms/activity.js";
+import { registerRoomRoutes } from "./routes/rooms.js";
 
 const VERSION = "0.1.0";
 
@@ -24,6 +26,7 @@ export interface ServerDeps {
   search?: Omit<SearchRouteDeps, "es">;
   /** Attendee token service; defaults to HS256 with TOKEN_SIGNING_KEY. */
   tokens?: TokenService;
+  roomActivity?: RoomActivityCounter;
 }
 
 /**
@@ -37,6 +40,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   const tokens = deps.tokens ?? createTokenService({ key: config.tokenSigningKey, nodeEnv: config.nodeEnv });
   const es = deps.es ?? createEsClient(config);
   const embedder = createEmbedder(process.env, es);
+  const roomActivity = deps.roomActivity ?? new RoomActivityCounter(roomCapacities(process.env.ROOM_CAPACITIES_JSON));
   const app = Fastify({
     ...(config.apiTlsCertFile ? { https: {
       cert: readFileSync(config.apiTlsCertFile),
@@ -67,7 +71,8 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   registerClusterRoutes(app, { es }); // Module 4: GET /api/interests/clusters
 
   // Module 3: POST /api/access/token + POST /api/access/scan (routes/access.ts).
-  app.register(accessRoutes, { es, tokens });
+  app.register(accessRoutes, { es, tokens, roomActivity });
+  registerRoomRoutes(app, es, roomActivity);
 
   registerInterestRoutes(app, { es, now: deps.search?.now });
 
