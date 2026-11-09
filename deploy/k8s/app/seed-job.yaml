@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-talks
+  labels:
+    app.kubernetes.io/name: seed-talks
+    app.kubernetes.io/part-of: conference-companion
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seed-talks
+        app.kubernetes.io/part-of: conference-companion
+    spec:
+      restartPolicy: Never
+      serviceAccountName: companion-app
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: seed
+          image: cc-api:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "dist/es/seed.js"]
+          envFrom:
+            - configMapRef:
+                name: companion-app-config
+            - secretRef:
+                name: companion-app-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: es-ca
+              mountPath: /etc/elasticsearch
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: es-ca
+          secret:
+            secretName: elasticsearch-http-ca
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
