@@ -13,7 +13,7 @@ artifacts; the committed screenshots/JSON and PRs below are the portable evidenc
 | --- | --- | --- |
 | Elasticsearch | [417-talk live 12-query report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162): hybrid 5 wins / 7 ties / 0 losses, hit@3 5/12 vs 0/12, MRR@10 0.306 vs 0.017 | Majority-win criterion not met; [report/docs PR40](https://github.com/DL4P1N/Kubecon-2026/pull/40) is separate from merged evaluator PR27 |
 | Radar | [Actual AI run + follow-up](#actual-radar-ai-investigation-task-30), [merged PR37](https://github.com/DL4P1N/Kubecon-2026/pull/37), committed verdict/screenshot | Original capacity diagnosis was via ES APIs; controlled outage is not a natural incident |
-| Dash0 | [Real MCP/Agent0 finding and collector correction](evidence/dash0-agent0-investigation.md), browser/API trace and sampled after export; [dashboard definitions persisted](evidence/dash0-live-definitions.json) | Complete browser/API/ES trace, live dashboard/SLO data screenshots and full privacy-flow validation remain pending; raw log-path fix is [PR52](https://github.com/DL4P1N/Kubecon-2026/pull/52) |
+| Dash0 | [Real MCP/Agent0 finding and collector correction](evidence/dash0-agent0-investigation.md), browser/API trace and sampled after export | Complete browser/API/ES trace, live dashboard/SLO data screenshots and full privacy-flow validation remain pending; raw log-path fix is [PR52](https://github.com/DL4P1N/Kubecon-2026/pull/52) |
 | Gitar | [Rules 1/1](#repository-rule-verification-task-34), [fix PR8](https://github.com/DL4P1N/Kubecon-2026/pull/8), [probe fix PR6](https://github.com/DL4P1N/Kubecon-2026/pull/6), [requested retrospective CI diagnosis](gitar-ci-diagnosis.md#verified-diagnosis-after-an-explicit-request-on-an-open-pr) | Automatic CI-failure triggering and auto-apply remain unproven; functional validation not enabled; no Sonar tooling claim |
 | TLS | [TLS overlay PR31](https://github.com/DL4P1N/Kubecon-2026/pull/31) and trust/hostname tests merged | [Live overlay/browser trust validation](../deploy/k8s/tls/README.md) pending; current app/collector transport must not be called verified end-to-end TLS |
 | Demo | [Labelled mock-API UI fallback](demo/recording.md), [runbook/seed PR34](https://github.com/DL4P1N/Kubecon-2026/pull/34) | Real deployed attendee-flow recording and presenter review remain separate gates |
@@ -288,9 +288,7 @@ kubectl radar diagnose statefulset/elasticsearch \
   `companion.search.duration`, `access.scans` dashboard. Screenshot: pending.
 - Live SLO data screenshots remain pending; Agent0/MCP investigation is captured above.
 - Dashboard, SLOs and check rules as code (#14, PR [#33](https://github.com/DL4P1N/Kubecon-2026/pull/33)):
-  [Definitions persisted by the official CLI](evidence/dash0-live-definitions.json):
-  one dashboard, six check rules and two SLOs confirmed by list calls. This
-  does not verify panel data/correctness. `deploy/dash0/dashboard.yaml` (PersesDashboard:
+  **pending live verification**. `deploy/dash0/dashboard.yaml` (PersesDashboard:
   SLO tiles, burn rate, rate/p95/5xx by route, search p95 by mode, access scans,
   browser page load), `deploy/dash0/check-rules.yaml` (PrometheusRule: p95 of
   `/api/search` + `/api/onboarding` < 500 ms over 1h, non-5xx >= 99% over 1h,
