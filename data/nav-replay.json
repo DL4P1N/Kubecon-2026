@@ -1,0 +1,12 @@
+{
+  "description": "Synthetic offline signals. Not measured at the venue.",
+  "fingerprints": [
+    { "room": "Demo Room A", "signals": [-40, -75, -85] },
+    { "room": "Demo Room B", "signals": [-75, -40, -75] },
+    { "room": "Demo Room C", "signals": [-85, -75, -40] }
+  ],
+  "frames": [
+    [-42, -73, -84], [-55, -65, -80], [-74, -43, -76],
+    [-79, -57, -58], [-84, -76, -42]
+  ]
+}

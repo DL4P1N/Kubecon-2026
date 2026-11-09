@@ -4,8 +4,11 @@ import { Onboarding } from "./pages/Onboarding.js";
 import { Register } from "./pages/Register.js";
 import { Schedule } from "./pages/Schedule.js";
 import { Search } from "./pages/Search.js";
+import { lazy, Suspense } from "react";
 
-export function App() {
+const NavDemo = lazy(() => import("./pages/NavDemo.js"));
+
+export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { navEnabled?: boolean } = {}) {
   return (
     <>
       <header>
@@ -25,6 +28,7 @@ export function App() {
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/search" element={<Search />} />
           <Route path="/kiosk" element={<Kiosk />} />
+          {navEnabled && <Route path="/nav-demo" element={<Suspense fallback={<p role="status">Loading replay…</p>}><NavDemo /></Suspense>} />}
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>
       </main>
