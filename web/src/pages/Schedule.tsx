@@ -6,17 +6,21 @@ import { api, ApiError, getToken } from "../api.js";
 import { SkippedTalks } from "../components/SkippedTalks.js";
 import { recallSkipped, rememberSkipped } from "../skippedTalks.js";
 import "./discovery.css";
+import { RoomActivityBadge, useRoomActivity } from "./RoomActivity.js";
 
 export function Schedule() {
+  const { activity } = useRoomActivity();
   const [schedule, setSchedule] = useState<(ScheduleResponse & { offlineSavedAt?: string }) | null>(null);
   const [online, setOnline] = useState(() => navigator.onLine);
   useEffect(() => {
-    const connected = () => setOnline(true);
+    const connected = () => { setOnline(true); setRetry(0); };
     const disconnected = () => { setOnline(false); setAccess(null); };
     window.addEventListener("online", connected);
     window.addEventListener("offline", disconnected);
     return () => { window.removeEventListener("online", connected); window.removeEventListener("offline", disconnected); };
   }, []);
+  // Bumped to re-request the schedule while a worker-saved copy is shown although the browser reports being online.
+  const [retry, setRetry] = useState(0);
   const [error, setError] = useState("");
   // Schedules are personal: without a session token from /register there is nothing to load.
   const [needsRegistration, setNeedsRegistration] = useState(() => !getToken());
@@ -54,7 +58,14 @@ export function Schedule() {
   useEffect(() => {
     if (needsRegistration) return;
     let active = true;
-    api.getSchedule().then((result) => { if (active) { setSchedule(result); setError(""); } }, (err: unknown) => {
+    let timer: number | undefined;
+    api.getSchedule().then((result) => {
+      if (!active) return;
+      setSchedule(result); setError("");
+      // The worker's network can lag the page's "online" event and answer from its saved copy; keep asking
+      // (with backoff) so a rejected session or fresh data replaces the offline view without a manual reload.
+      if (result.offlineSavedAt && online) timer = window.setTimeout(() => setRetry((n) => n + 1), Math.min(1000 * 2 ** Math.min(retry, 4), 15000));
+    }, (err: unknown) => {
       if (!active) return;
       // Discard personal state when the server rejects this session.
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
@@ -64,8 +75,8 @@ export function Schedule() {
       }
       else setError("Your schedule could not be loaded. Please reload or register again if your session expired.");
     });
-    return () => { active = false; };
-  }, [needsRegistration, online]);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [needsRegistration, online, retry]);
   useEffect(() => {
     if (!access) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -94,6 +105,7 @@ export function Schedule() {
     {schedule?.offlineSavedAt && <p role="status">Offline: showing schedule saved at {new Date(schedule.offlineSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.</p>}
     {!online && <p role="status">QR needs a connection. Reconnect to create a fresh check-in code.</p>}
     <p>All session times use your device’s local time zone.</p>
+    <p>Room activity reflects recent check-ins, not a headcount.</p>
     {needsRegistration && <p role="status">Register to build your personal schedule. <Link to="/register">Register now</Link>.</p>}
     {error && <p role="alert">{error}</p>}
     {!schedule && !error && !needsRegistration && <p role="status">Loading your schedule…</p>}
@@ -110,6 +122,7 @@ export function Schedule() {
         <p><time dateTime={talk.start}>{new Date(talk.start).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</time>
           {" – "}<time dateTime={talk.end}>{new Date(talk.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></p>
         <h2>{talk.title}</h2><p>{talk.room} · {talk.speaker}</p>
+        <p><RoomActivityBadge room={talk.room} activity={activity} /></p>
         {reason && <p><strong>Why recommended:</strong> {reason}</p>}
         <button type="button" disabled={calendarPending} aria-label={`Add ${talk.title} to calendar`}
           onClick={() => void exportCalendar(talk.id)}>Add this talk to calendar</button>

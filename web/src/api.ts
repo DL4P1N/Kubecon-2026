@@ -2,6 +2,7 @@ import { routes, type RouteDef } from "@cc/shared";
 import { offlineExpiry, offlineSession, resetOfflineSession } from "./offline.js";
 import type {
   AccessTokenResponse,
+  RoomOccupancyResponse,
   CatalogTopicsResponse,
   InterestAggregateResponse,
   InterestClustersResponse,
@@ -87,6 +88,7 @@ async function scanRoom(body: ScanRequest): Promise<ScanResponse> {
 }
 
 export const api = {
+  roomOccupancy: () => call<RoomOccupancyResponse>(routes.roomOccupancy),
   catalogTopics: () => call<CatalogTopicsResponse>(routes.catalogTopics),
   status: () => call<StatusResponse>(routes.status),
   register: (body: RegisterRequest) => call<RegisterResponse>(routes.register, { body }),

@@ -83,9 +83,20 @@ for (const failure of ["expired cache", "authentication rejected"] as const) {
       await context.setOffline(true);
       await page.reload();
       await expect(page.getByText(/Offline: showing schedule saved at/)).toBeVisible();
+      // Record what the page asked for and how it was answered, so a failure shows whether the online event
+      // fired and whether the worker answered from its saved copy or from the network.
+      const trace: string[] = [];
+      page.on("response", (res) => { if (new URL(res.url()).pathname === "/api/schedule") trace.push(`${res.status()} fromServiceWorker=${res.fromServiceWorker()} savedAt=${res.headers()["x-cc-offline-saved-at"] ?? "-"}`); });
+      await page.evaluate(() => { (window as unknown as { onlineEvents: number }).onlineEvents = 0; window.addEventListener("online", () => { (window as unknown as { onlineEvents: number }).onlineEvents++; }); });
       await page.evaluate(() => sessionStorage.setItem("cc.token", "expired"));
       await context.setOffline(false);
-      await expect(page.getByRole("link", { name: "Register now" })).toBeVisible();
+      try {
+        await expect(page.getByRole("link", { name: "Register now" })).toBeVisible();
+      } catch (error) {
+        const state = await page.evaluate(() => ({ onLine: navigator.onLine, onlineEvents: (window as unknown as { onlineEvents: number }).onlineEvents }));
+        await test.info().attach("schedule-requests", { body: JSON.stringify({ ...state, trace }, null, 2), contentType: "application/json" });
+        throw new Error(`${(error as Error).message}\nnavigator.onLine=${state.onLine} onlineEvents=${state.onlineEvents} /api/schedule responses: ${trace.join(" | ") || "none"}`);
+      }
       await expect(page.getByRole("heading", { name: "Synthetic offline schedule" })).toHaveCount(0);
       await expect(page.getByText(/Offline: showing schedule saved at/)).toHaveCount(0);
       expect(await page.evaluate(async () => (await (await caches.open("cc-schedules-v1")).keys()).length)).toBe(0);
