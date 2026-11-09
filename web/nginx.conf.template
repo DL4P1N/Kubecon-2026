@@ -9,6 +9,12 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
   }
 
+  # Browser RUM: OTLP/HTTP to the collector (/otlp/v1/traces -> /v1/traces).
+  location /otlp/ {
+    proxy_pass ${OTLP_UPSTREAM}/;
+    client_max_body_size 2m;
+  }
+
   location = /healthz {
     proxy_pass ${API_UPSTREAM};
   }
