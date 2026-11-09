@@ -13,6 +13,7 @@ import type {
   ScheduleResponse,
   SearchMode,
   SearchResponse,
+  StatusResponse,
 } from "@cc/shared";
 
 const TOKEN_KEY = "cc.token";
@@ -79,6 +80,7 @@ async function scanRoom(body: ScanRequest): Promise<ScanResponse> {
 }
 
 export const api = {
+  status: () => call<StatusResponse>(routes.status),
   register: (body: RegisterRequest) => call<RegisterResponse>(routes.register, { body }),
   onboarding: (body: OnboardingRequest) => call<OnboardingResponse>(routes.onboarding, { body }),
   search: (q: string, mode: SearchMode, debug = false) => call<SearchResponse & { debug?: unknown }>(routes.search, {
