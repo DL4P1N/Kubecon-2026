@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import type { AccessTokenResponse, ScheduleResponse } from "@cc/shared";
 import { api, getToken } from "../api.js";
 import { Alternatives } from "../components/Alternatives.js";
+import { talkHref } from "../talksApi.js";
 import "./discovery.css";
 
 export function Schedule() {
@@ -59,7 +60,7 @@ export function Schedule() {
       <li key={talk.id}>
         <p><time dateTime={talk.start}>{new Date(talk.start).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</time>
           {" – "}<time dateTime={talk.end}>{new Date(talk.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></p>
-        <h2>{talk.title}</h2><p>{talk.room} · {talk.speaker}</p>
+        <h2><Link to={talkHref(talk.id)}>{talk.title}</Link></h2><p>{talk.room} · {talk.speaker}</p>
         {reason && <p><strong>Why recommended:</strong> {reason}</p>}
         <Alternatives talk={talk} />
       </li>)}</ol>

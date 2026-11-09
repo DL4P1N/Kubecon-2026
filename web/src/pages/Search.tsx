@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import type { SearchMode, SearchResponse } from "@cc/shared";
 import { ApiError, api } from "../api.js";
+import { talkHref } from "../talksApi.js";
 import "./discovery.css";
 
 type Result = SearchResponse & { debug?: unknown };
@@ -60,7 +61,7 @@ export function Search() {
         <p>{results[mode]!.hits.length} results · {results[mode]!.tookMs} ms</p>
         {results[mode]!.hits.length === 0 && <p>No matching talks. Try a broader query.</p>}
         <ol className="talk-results">{results[mode]!.hits.map(({ talk, score }) => <li key={talk.id}>
-          <h3>{talk.title}</h3><p>{talk.speaker} · {talk.room}</p><p>{talk.abstract}</p>
+          <h3><a href={talkHref(talk.id)}>{talk.title}</a></h3><p>{talk.speaker} · {talk.room}</p><p>{talk.abstract}</p>
           <p>Score: {score.toFixed(2)}</p>
         </li>)}</ol>
         {debug && !(mode === "hybrid" && hybridFellBack) && <details><summary>Elasticsearch query</summary>

@@ -7,6 +7,7 @@ import { Register } from "./pages/Register.js";
 import { Schedule } from "./pages/Schedule.js";
 import { Search } from "./pages/Search.js";
 import { Status } from "./pages/Status.js";
+import { TalkDetail } from "./pages/TalkDetail.js";
 import { StatusBadge } from "./components/StatusBadge.js";
 import { lazy, Suspense } from "react";
 
@@ -38,6 +39,7 @@ export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { n
           <Route path="/kiosk" element={<Kiosk />} />
           <Route path="/map" element={<InterestMap />} />
           <Route path="/clusters" element={<ClusterMap />} />
+          <Route path="/talks/:id" element={<TalkDetail />} />
           <Route path="/status" element={<Status />} />
           {navEnabled && <Route path="/nav-demo" element={<Suspense fallback={<p role="status">Loading replay…</p>}><NavDemo /></Suspense>} />}
           <Route path="*" element={<p>Page not found.</p>} />

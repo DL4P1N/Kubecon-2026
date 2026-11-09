@@ -11,3 +11,12 @@
 .discovery summary { cursor: pointer; padding: .5rem 0; }
 .checkin-token { overflow-wrap: anywhere; }
 @media (max-width: 600px) { .search-comparison { grid-template-columns: 1fr; } }
+
+.talk-detail .talk-speaker { font-size: 1.15rem; margin-block: 0 1rem; }
+.talk-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
+.talk-facts dt { font-weight: 600; }
+.talk-facts dd { margin: 0; }
+.talk-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; list-style: none; padding: 0; }
+.talk-tags li { border: 1px solid currentColor; border-radius: 999px; padding: 0.1rem 0.6rem; }
+.related-list { padding-left: 1.25rem; }
+.related-list li { margin-block: 0.75rem; }
