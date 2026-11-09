@@ -1,5 +1,5 @@
 import type { Talk } from "@cc/shared";
-import { EsError, type EsClient } from "../src/es/client.js";
+import { EsError, esErrorType, type EsClient } from "../src/es/client.js";
 
 export interface RecordedCall {
   method: string;
@@ -19,7 +19,7 @@ export function fakeEs(handler: FakeHandler): EsClient & { calls: RecordedCall[]
       calls.push(call);
       const res = handler(call) ?? { status: 404, body: { found: false } };
       const status = res.status ?? 200;
-      if (status >= 400 && !allow.includes(status)) throw new EsError(status, `fake ES ${status}`);
+      if (status >= 400 && !allow.includes(status)) throw new EsError(status, `fake ES ${status} ${JSON.stringify(res.body)}`, esErrorType(res.body));
       return { status, body: res.body as T };
     },
     async bulk() {

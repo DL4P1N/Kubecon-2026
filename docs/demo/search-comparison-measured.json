@@ -1,0 +1,1013 @@
+{
+  "catalog_count": 417,
+  "elasticsearch_version": "8.19.6",
+  "inference_endpoint": ".multilingual-e5-small-elasticsearch",
+  "observation": "All ten requests succeeded. These queries do not establish a consistent relevance win for hybrid; expected claims remain unproven.",
+  "results": [
+    {
+      "label": "Supply chain",
+      "query": "make sure nobody can tamper with the software I ship to customers",
+      "modes": {
+        "keyword": {
+          "http": 200,
+          "elapsed_ms": 38,
+          "hits": [
+            {
+              "id": "kcna26-1336100",
+              "title": "The Sidecar-to-Ambient Migration Nobody Warned Us About (AI Edition)",
+              "score": 22.959352,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1353351",
+              "title": "Celebrating the People Who Make Cloud Native Possible",
+              "score": 20.35498,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1250299",
+              "title": "Dashboards-as-Code: Easy to Ship, Easy to Get Wrong",
+              "score": 19.604143,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1241128",
+              "title": "GitOps for AI Infrastructure: The Operational Gaps Nobody Talks About",
+              "score": 18.666119,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1289694",
+              "title": "Steering the Ship: Ask the Kubernetes Steering Committee",
+              "score": 18.54752,
+              "matched": [
+                "keyword"
+              ]
+            }
+          ],
+          "debug": {
+            "size": 5,
+            "_source": [
+              "id",
+              "title",
+              "abstract",
+              "speaker",
+              "speakers",
+              "track",
+              "level",
+              "room",
+              "start",
+              "end",
+              "tags"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "multi_match": {
+                      "query": "make sure nobody can tamper with the software I ship to customers",
+                      "fields": [
+                        "title^3",
+                        "tags^2",
+                        "abstract"
+                      ],
+                      "type": "best_fields",
+                      "_name": "keyword"
+                    }
+                  }
+                ],
+                "filter": []
+              }
+            }
+          }
+        },
+        "hybrid": {
+          "http": 200,
+          "elapsed_ms": 159,
+          "hits": [
+            {
+              "id": "kcna26-1307005",
+              "title": "Meshery Contribfest: Ship Your First PR to a CNCF Cloud Native Manager",
+              "score": 0.029437229,
+              "matched": [
+                "keyword",
+                "semantic"
+              ]
+            },
+            {
+              "id": "kcna26-1202627",
+              "title": "I Packaged My Application in a Container Image, and Now What?",
+              "score": 0.028624002,
+              "matched": [
+                "keyword",
+                "semantic"
+              ]
+            },
+            {
+              "id": "kcna26-1250973",
+              "title": "Follow the GPUs: How a Regulated Fortune 100 Serves Customers When No Single Cloud Has Enough",
+              "score": 0.02857726,
+              "matched": [
+                "keyword",
+                "semantic"
+              ]
+            },
+            {
+              "id": "kcna26-1250299",
+              "title": "Dashboards-as-Code: Easy to Ship, Easy to Get Wrong",
+              "score": 0.02792121,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1245937",
+              "title": "Simulate, Evolve, Validate, Ship: AI-Discovered Algorithms for LLM Serving Stacks",
+              "score": 0.026709402,
+              "matched": [
+                "keyword"
+              ]
+            }
+          ],
+          "debug": {
+            "size": 5,
+            "_source": [
+              "id",
+              "title",
+              "abstract",
+              "speaker",
+              "speakers",
+              "track",
+              "level",
+              "room",
+              "start",
+              "end",
+              "tags"
+            ],
+            "retriever": {
+              "rrf": {
+                "retrievers": [
+                  {
+                    "standard": {
+                      "_name": "keyword",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "multi_match": {
+                                "query": "make sure nobody can tamper with the software I ship to customers",
+                                "fields": [
+                                  "title^3",
+                                  "tags^2",
+                                  "abstract"
+                                ],
+                                "type": "best_fields",
+                                "_name": "keyword"
+                              }
+                            }
+                          ],
+                          "filter": []
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "standard": {
+                      "_name": "semantic",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "semantic": {
+                                "field": "content_semantic",
+                                "query": "make sure nobody can tamper with the software I ship to customers"
+                              }
+                            }
+                          ],
+                          "filter": []
+                        }
+                      }
+                    }
+                  }
+                ],
+                "rank_window_size": 50,
+                "rank_constant": 60
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "On-call",
+      "query": "my pager keeps going off at night and I want a computer to help figure out why",
+      "modes": {
+        "keyword": {
+          "http": 200,
+          "elapsed_ms": 14,
+          "hits": [
+            {
+              "id": "kcna26-1202627",
+              "title": "I Packaged My Application in a Container Image, and Now What?",
+              "score": 39.274033,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1249749",
+              "title": "So You Want to Build a Platform? You Probably Already Have One",
+              "score": 25.682081,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1289698",
+              "title": "What's New with Kubectl and Kustomize \u2026 and How You Can Help!",
+              "score": 22.288437,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1375161",
+              "title": "Your Routes, My Rules: Making Gateway API Work at Enterprise Scale",
+              "score": 21.404587,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1337241",
+              "title": "Scaling Multi-Modal Models and Computer-Use Agents on Kubernetes",
+              "score": 21.371168,
+              "matched": [
+                "keyword"
+              ]
+            }
+          ],
+          "debug": {
+            "size": 5,
+            "_source": [
+              "id",
+              "title",
+              "abstract",
+              "speaker",
+              "speakers",
+              "track",
+              "level",
+              "room",
+              "start",
+              "end",
+              "tags"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "multi_match": {
+                      "query": "my pager keeps going off at night and I want a computer to help figure out why",
+                      "fields": [
+                        "title^3",
+                        "tags^2",
+                        "abstract"
+                      ],
+                      "type": "best_fields",
+                      "_name": "keyword"
+                    }
+                  }
+                ],
+                "filter": []
+              }
+            }
+          }
+        },
+        "hybrid": {
+          "http": 200,
+          "elapsed_ms": 144,
+          "hits": [
+            {
+              "id": "kcna26-1202627",
+              "title": "I Packaged My Application in a Container Image, and Now What?",
+              "score": 0.030477948,
+              "matched": [
+                "keyword",
+                "semantic"
+              ]
+            },
+            {
+              "id": "kcna26-1247981",
+              "title": "Deep Dive Into the DRA Driver for NVIDIA GPUs: What Works Today, What\u2019s Coming and Why It Matters",
+              "score": 0.028629031,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1250567",
+              "title": "Death by a Thousand Patches: How Pod Status Updates Exhaust etcd and What to Do About It",
+              "score": 0.028042844,
+              "matched": [
+                "keyword",
+                "semantic"
+              ]
+            },
+            {
+              "id": "kcna26-1251218",
+              "title": "Feeling Lost? A Newcomer's Guide to the Gateway API",
+              "score": 0.027673192,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1243199",
+              "title": "Why Are You Still Wasting Whole GPUs? Hardware-Level Sharing, Scheduled with DRA",
+              "score": 0.026393441,
+              "matched": [
+                "keyword",
+                "semantic"
+              ]
+            }
+          ],
+          "debug": {
+            "size": 5,
+            "_source": [
+              "id",
+              "title",
+              "abstract",
+              "speaker",
+              "speakers",
+              "track",
+              "level",
+              "room",
+              "start",
+              "end",
+              "tags"
+            ],
+            "retriever": {
+              "rrf": {
+                "retrievers": [
+                  {
+                    "standard": {
+                      "_name": "keyword",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "multi_match": {
+                                "query": "my pager keeps going off at night and I want a computer to help figure out why",
+                                "fields": [
+                                  "title^3",
+                                  "tags^2",
+                                  "abstract"
+                                ],
+                                "type": "best_fields",
+                                "_name": "keyword"
+                              }
+                            }
+                          ],
+                          "filter": []
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "standard": {
+                      "_name": "semantic",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "semantic": {
+                                "field": "content_semantic",
+                                "query": "my pager keeps going off at night and I want a computer to help figure out why"
+                              }
+                            }
+                          ],
+                          "filter": []
+                        }
+                      }
+                    }
+                  }
+                ],
+                "rank_window_size": 50,
+                "rank_constant": 60
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "Cloud bill",
+      "query": "spend less money on the machines my containers run on",
+      "modes": {
+        "keyword": {
+          "http": 200,
+          "elapsed_ms": 11,
+          "hits": [
+            {
+              "id": "kcna26-1248218",
+              "title": "Agents on the Platform: Four Perspectives on the Conversation We're Already Having in Private",
+              "score": 20.587372,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1353217",
+              "title": "Code, Containers, and Clusters: The Next Chapter of Apple's Container Framework",
+              "score": 19.379688,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1245965",
+              "title": "Sandboxing on Kubernetes with WebAssembly: A Hands-on Tutorial",
+              "score": 18.708809,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1247804",
+              "title": "Untrusted Code on Secure Runtimes: Agent Sandboxes on Kubernetes",
+              "score": 18.708809,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1340074",
+              "title": "Your Voice on Stage: The Delivery + Storytelling Lab",
+              "score": 18.140263,
+              "matched": [
+                "keyword"
+              ]
+            }
+          ],
+          "debug": {
+            "size": 5,
+            "_source": [
+              "id",
+              "title",
+              "abstract",
+              "speaker",
+              "speakers",
+              "track",
+              "level",
+              "room",
+              "start",
+              "end",
+              "tags"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "multi_match": {
+                      "query": "spend less money on the machines my containers run on",
+                      "fields": [
+                        "title^3",
+                        "tags^2",
+                        "abstract"
+                      ],
+                      "type": "best_fields",
+                      "_name": "keyword"
+                    }
+                  }
+                ],
+                "filter": []
+              }
+            }
+          }
+        },
+        "hybrid": {
+          "http": 200,
+          "elapsed_ms": 102,
+          "hits": [
+            {
+              "id": "kcna26-1353217",
+              "title": "Code, Containers, and Clusters: The Next Chapter of Apple's Container Framework",
+              "score": 0.032522473,
+              "matched": [
+                "keyword",
+                "semantic"
+              ]
+            },
+            {
+              "id": "kcna26-1202627",
+              "title": "I Packaged My Application in a Container Image, and Now What?",
+              "score": 0.026500527,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1250350",
+              "title": "Saturated by Design \u2013 Maximizing Cluster Allocation in On-Premises Kubernetes",
+              "score": 0.025316456,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1241330",
+              "title": "Just Keep Swimming: Benchmarking OSS Agent Memory on Kubernetes with OpenTelemetry",
+              "score": 0.024569288,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1250326",
+              "title": "Autoscaling Reality Check: The Hands-On HTTP Optimization Challenge",
+              "score": 0.024242423,
+              "matched": [
+                "keyword"
+              ]
+            }
+          ],
+          "debug": {
+            "size": 5,
+            "_source": [
+              "id",
+              "title",
+              "abstract",
+              "speaker",
+              "speakers",
+              "track",
+              "level",
+              "room",
+              "start",
+              "end",
+              "tags"
+            ],
+            "retriever": {
+              "rrf": {
+                "retrievers": [
+                  {
+                    "standard": {
+                      "_name": "keyword",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "multi_match": {
+                                "query": "spend less money on the machines my containers run on",
+                                "fields": [
+                                  "title^3",
+                                  "tags^2",
+                                  "abstract"
+                                ],
+                                "type": "best_fields",
+                                "_name": "keyword"
+                              }
+                            }
+                          ],
+                          "filter": []
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "standard": {
+                      "_name": "semantic",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "semantic": {
+                                "field": "content_semantic",
+                                "query": "spend less money on the machines my containers run on"
+                              }
+                            }
+                          ],
+                          "filter": []
+                        }
+                      }
+                    }
+                  }
+                ],
+                "rank_window_size": 50,
+                "rank_constant": 60
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "Access control",
+      "query": "who is allowed to do what inside my cluster",
+      "modes": {
+        "keyword": {
+          "http": 200,
+          "elapsed_ms": 11,
+          "hits": [
+            {
+              "id": "kcna26-1309267",
+              "title": "The Identity Crisis: Who is the AI Agent in Your Cluster?",
+              "score": 31.294044,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1202627",
+              "title": "I Packaged My Application in a Container Image, and Now What?",
+              "score": 23.066422,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1250567",
+              "title": "Death by a Thousand Patches: How Pod Status Updates Exhaust etcd and What to Do About It",
+              "score": 20.867022,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1294245",
+              "title": "Cloud Native Without Limits: What Can AI Agents Do for Us?",
+              "score": 20.817413,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1248484",
+              "title": "What Can Your AI Agents Actually Do? Cedar Analysis for MCP Servers",
+              "score": 20.019962,
+              "matched": [
+                "keyword"
+              ]
+            }
+          ],
+          "debug": {
+            "size": 5,
+            "_source": [
+              "id",
+              "title",
+              "abstract",
+              "speaker",
+              "speakers",
+              "track",
+              "level",
+              "room",
+              "start",
+              "end",
+              "tags"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "multi_match": {
+                      "query": "who is allowed to do what inside my cluster",
+                      "fields": [
+                        "title^3",
+                        "tags^2",
+                        "abstract"
+                      ],
+                      "type": "best_fields",
+                      "_name": "keyword"
+                    }
+                  }
+                ],
+                "filter": []
+              }
+            }
+          }
+        },
+        "hybrid": {
+          "http": 200,
+          "elapsed_ms": 90,
+          "hits": [
+            {
+              "id": "kcna26-1293929",
+              "title": "Standardized Yet Adaptable: How Nutanix is Evolving Cluster API with CAREN",
+              "score": 0.029198635,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1250015",
+              "title": "Allocating Kubernetes Idle Per-Instance \u2014 Letting Scale Do What Fairness Rules Couldn't",
+              "score": 0.027972028,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1247376",
+              "title": "The Operator Calls Are Coming from Inside the Namespace",
+              "score": 0.026846848,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1295993",
+              "title": "The Harness Is the New Runtime",
+              "score": 0.026470589,
+              "matched": [
+                "keyword",
+                "semantic"
+              ]
+            },
+            {
+              "id": "kcna26-1250350",
+              "title": "Saturated by Design \u2013 Maximizing Cluster Allocation in On-Premises Kubernetes",
+              "score": 0.02243108,
+              "matched": [
+                "keyword"
+              ]
+            }
+          ],
+          "debug": {
+            "size": 5,
+            "_source": [
+              "id",
+              "title",
+              "abstract",
+              "speaker",
+              "speakers",
+              "track",
+              "level",
+              "room",
+              "start",
+              "end",
+              "tags"
+            ],
+            "retriever": {
+              "rrf": {
+                "retrievers": [
+                  {
+                    "standard": {
+                      "_name": "keyword",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "multi_match": {
+                                "query": "who is allowed to do what inside my cluster",
+                                "fields": [
+                                  "title^3",
+                                  "tags^2",
+                                  "abstract"
+                                ],
+                                "type": "best_fields",
+                                "_name": "keyword"
+                              }
+                            }
+                          ],
+                          "filter": []
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "standard": {
+                      "_name": "semantic",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "semantic": {
+                                "field": "content_semantic",
+                                "query": "who is allowed to do what inside my cluster"
+                              }
+                            }
+                          ],
+                          "filter": []
+                        }
+                      }
+                    }
+                  }
+                ],
+                "rank_window_size": 50,
+                "rank_constant": 60
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "Private documents",
+      "query": "let people ask questions about our internal documents without sending them to a third party",
+      "modes": {
+        "keyword": {
+          "http": 200,
+          "elapsed_ms": 12,
+          "hits": [
+            {
+              "id": "kcna26-1246200",
+              "title": "Ask Your Platform: Putting AI to Work Where the Questions Live",
+              "score": 35.697994,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1251145",
+              "title": "From Platform Catalog to Conversational Agent: Wiring AI Into Your Internal Developer Platform",
+              "score": 19.53931,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1250239",
+              "title": "One Workload to Rule Them All: Workload Aware Scheduling for Distributed AI Training on Kubernetes",
+              "score": 18.19663,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1250567",
+              "title": "Death by a Thousand Patches: How Pod Status Updates Exhaust etcd and What to Do About It",
+              "score": 17.84854,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1249724",
+              "title": "Ground Control to Major Tom: We Need your Public Cloud in our Private Cloud",
+              "score": 17.542526,
+              "matched": [
+                "keyword"
+              ]
+            }
+          ],
+          "debug": {
+            "size": 5,
+            "_source": [
+              "id",
+              "title",
+              "abstract",
+              "speaker",
+              "speakers",
+              "track",
+              "level",
+              "room",
+              "start",
+              "end",
+              "tags"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "multi_match": {
+                      "query": "let people ask questions about our internal documents without sending them to a third party",
+                      "fields": [
+                        "title^3",
+                        "tags^2",
+                        "abstract"
+                      ],
+                      "type": "best_fields",
+                      "_name": "keyword"
+                    }
+                  }
+                ],
+                "filter": []
+              }
+            }
+          }
+        },
+        "hybrid": {
+          "http": 200,
+          "elapsed_ms": 134,
+          "hits": [
+            {
+              "id": "kcna26-1251145",
+              "title": "From Platform Catalog to Conversational Agent: Wiring AI Into Your Internal Developer Platform",
+              "score": 0.032522473,
+              "matched": [
+                "keyword",
+                "semantic"
+              ]
+            },
+            {
+              "id": "kcna26-1226654",
+              "title": "From Consumers to Contributors: How Growing Open Source Members Transformed Our ML Platform Team",
+              "score": 0.025151515,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1250770",
+              "title": "The SRE Is Not Dead: What AI Taught Us about Missing Context in Kubernetes Incident Response",
+              "score": 0.023822792,
+              "matched": [
+                "keyword",
+                "semantic"
+              ]
+            },
+            {
+              "id": "kcna26-1250980",
+              "title": "Feeding the GPU: Streaming Data into Training, Lakehouse, and Serving without the Serialization Tax",
+              "score": 0.023268398,
+              "matched": [
+                "keyword"
+              ]
+            },
+            {
+              "id": "kcna26-1289630",
+              "title": "GitOps Without You Writing YAML: How Flux Grounds AI Agents in Real APIs",
+              "score": 0.021109637,
+              "matched": [
+                "keyword"
+              ]
+            }
+          ],
+          "debug": {
+            "size": 5,
+            "_source": [
+              "id",
+              "title",
+              "abstract",
+              "speaker",
+              "speakers",
+              "track",
+              "level",
+              "room",
+              "start",
+              "end",
+              "tags"
+            ],
+            "retriever": {
+              "rrf": {
+                "retrievers": [
+                  {
+                    "standard": {
+                      "_name": "keyword",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "multi_match": {
+                                "query": "let people ask questions about our internal documents without sending them to a third party",
+                                "fields": [
+                                  "title^3",
+                                  "tags^2",
+                                  "abstract"
+                                ],
+                                "type": "best_fields",
+                                "_name": "keyword"
+                              }
+                            }
+                          ],
+                          "filter": []
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "standard": {
+                      "_name": "semantic",
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "semantic": {
+                                "field": "content_semantic",
+                                "query": "let people ask questions about our internal documents without sending them to a third party"
+                              }
+                            }
+                          ],
+                          "filter": []
+                        }
+                      }
+                    }
+                  }
+                ],
+                "rank_window_size": 50,
+                "rank_constant": 60
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

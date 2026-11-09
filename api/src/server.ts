@@ -1,25 +1,20 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import {
-  MIN_CLUSTER_SIZE,
   routes,
-  type AccessTokenResponse,
   type HealthResponse,
-  type InterestAggregateResponse,
-  type ScanRequest,
-  type ScanResponse,
 } from "@cc/shared";
 import type { Config } from "./config.js";
 import { createEsClient, type EsClient } from "./es/client.js";
 import { createTokenService, type TokenService } from "./auth/token.js";
 import { createEmbedder } from "./es/embeddings.js";
-import { MOCK_TALKS } from "./mock-data.js";
+import { loggerOptions } from "./telemetry/logger.js";
+import { accessRoutes } from "./routes/access.js";
+import { registerInterestRoutes } from "./routes/interests.js";
 import { registerRoutes } from "./routes/register.js";
+import { registerClusterRoutes } from "./routes/clusters.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
 
 const VERSION = "0.1.0";
-const STUB_ATTENDEE_ID = "attendee-stub-1";
-
-const inMinutes = (ms: number) => new Date(Date.now() + ms).toISOString();
 
 export interface ServerDeps {
   /** Elasticsearch client; tests inject a fake. Defaults to one built from config. */
@@ -41,7 +36,12 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   const tokens = deps.tokens ?? createTokenService({ key: config.tokenSigningKey, nodeEnv: config.nodeEnv });
   const es = deps.es ?? createEsClient(config);
   const embedder = createEmbedder(process.env, es);
-  const app = Fastify({ logger: false });
+  const app = Fastify({
+    logger: loggerOptions,
+    trustProxy: config.trustProxyHops > 0
+      ? (_address: string, hop: number) => hop < config.trustProxyHops
+      : false,
+  });
 
   app.get(routes.health.path, async (): Promise<HealthResponse> => ({
     status: "ok",
@@ -57,37 +57,13 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
     rateLimitPerMinute: config.registerRateLimitPerMinute,
   });
 
-  registerSearchRoutes(app, { es, ...deps.search });
+  registerSearchRoutes(app, { es, tokens, ...deps.search });
+  registerClusterRoutes(app, { es }); // Module 4: GET /api/interests/clusters
 
-  app.post(routes.accessToken.path, async (): Promise<AccessTokenResponse> => ({
-    token: `stub.${STUB_ATTENDEE_ID}`,
-    expiresAt: inMinutes(60 * 1000),
-  }));
+  // Module 3: POST /api/access/token + POST /api/access/scan (routes/access.ts).
+  app.register(accessRoutes, { es, tokens });
 
-  app.post<{ Body: ScanRequest }>(
-    routes.accessScan.path,
-    async (req, reply): Promise<ScanResponse | void> => {
-      const body = req.body;
-      if (!body || typeof body.token !== "string" || typeof body.room !== "string") {
-        return reply.code(400).send({ error: "invalid_request", message: "token and room are required" });
-      }
-      const known = MOCK_TALKS.some((t) => t.room === body.room);
-      return known
-        ? { decision: "allow", room: body.room }
-        : { decision: "deny", room: body.room, reason: "unknown_room" };
-    },
-  );
-
-  app.get(routes.interestsAggregate.path, async (): Promise<InterestAggregateResponse> => ({
-    clusters: [
-      { label: "Kubernetes", count: 42 },
-      { label: "Observability", count: 31 },
-      { label: "Search & data", count: 17 },
-    ],
-    suppressed: 3,
-    minClusterSize: MIN_CLUSTER_SIZE,
-    generatedAt: new Date().toISOString(),
-  }));
+  registerInterestRoutes(app, { es, now: deps.search?.now });
 
   // `config` is wired for later tasks (ES client, token signing, OTel).
   app.decorate("config", config);

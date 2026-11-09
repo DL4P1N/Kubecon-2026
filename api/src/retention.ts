@@ -1,5 +1,6 @@
 import type { EsClient } from "./es/client.js";
 import { withSpan } from "./telemetry/span.js";
+import { logs, SeverityNumber } from "@opentelemetry/api";
 
 export const RETENTION_MS = 24 * 60 * 60 * 1000;
 export const RETENTION_INDICES = ["attendees", "schedules", "entitlements"] as const;
@@ -32,6 +33,11 @@ export async function runRetention(es: EsClient, now = new Date()): Promise<numb
       }
     }
     span.setAttribute("retention.deleted", deleted);
+    logs.getLogger("companion-retention").emit({
+      severityNumber: incomplete ? SeverityNumber.ERROR : SeverityNumber.INFO,
+      body: "Retention cleanup",
+      attributes: { "retention.deleted": deleted },
+    });
     if (incomplete) throw new Error("Retention cleanup incomplete");
     return deleted;
   });
