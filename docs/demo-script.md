@@ -1,6 +1,7 @@
-# Conference Companion: 4 minute 40 second demo
+# Conference Companion: 4 minute 45 second demo
 
-Status: rehearsal draft; human presenter assignment and script review pending.
+Status: rehearsal draft for an assumed five-minute slot (15 seconds buffer);
+human slot-length confirmation, presenter assignment, and script review pending.
 Use synthetic attendees only. The recording and fallback screenshots belong to
 board task #18; this document does not claim that a recording exists.
 
@@ -29,7 +30,10 @@ three. Confirm the people and handoffs before rehearsal.
 4. Open `/search`, submit `security` once to warm hybrid inference, and wait for
    both columns to finish. The tuned #36 evaluation report/query selection is
    **TBD until a live measured report is committed**. Do not replace it with
-   hypotheses from `search-comparison.md`.
+   hypotheses from `search-comparison.md`. If the report is absent, rehearse
+   a paraphrase against the live index and keep it only if its results are
+   clearly sensible. Otherwise use `security` as a neutral two-mode comparison;
+   show the evaluator and hand-judged set without claiming a quality win.
 5. Prepare two attendee tabs: a new `/register` tab for the live registration,
    and a private synthetic demo-pass tab using the session file below. In the
    demo-pass tab complete `/onboarding` before rehearsal so `/schedule` is
@@ -82,7 +86,7 @@ npx tsx scripts/seed-demo.mts --session-file /tmp/cc-demo-session.json
 ```
 
 The file must be outside the checkout; it is created exclusively with mode
-0600 and expires after 15 minutes. An existing file is refused. Remove only
+0600; its session token expires after 15 minutes. An existing file is refused. Remove only
 that known temporary file before creating a fresh rehearsal session.
 On this Mac, copy its token without displaying it:
 
@@ -90,7 +94,15 @@ On this Mac, copy its token without displaying it:
 node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync("/tmp/cc-demo-session.json","utf8")).token)' | pbcopy
 ```
 
-Before recording, in the demo-pass tab's DevTools console, run
+On Windows PowerShell, use an absolute private path under `$env:TEMP` for the
+session file, then copy without displaying it:
+
+```powershell
+(Get-Content -Raw "$env:TEMP\cc-demo-session.json" | ConvertFrom-Json).token | Set-Clipboard
+```
+
+Before recording, rehearse the following setup in the demo-pass tab's DevTools
+console. Run
 `sessionStorage.setItem("cc.token", prompt("Paste private synthetic session token"))`,
 paste the clipboard value, close DevTools, and reload `/schedule`. A new tab
 has its own session storage; install it in the intended tab. Clear the
@@ -114,14 +126,20 @@ step. Expired tokens and revoked entitlements are separate checks.
 
 | Time | Driver and exact action | Say/show |
 | --- | --- | --- |
-| 0:00–0:35 | Narrator: `/register`; enter `SYNTHETIC DEMO presenter`, `presenter@example.invalid`; choose a loaded catalog topic; explicitly select both optional consent choices; click **Register**. | Consent starts off; only choose it intentionally. No health, politics, identity, or real personal details. Attendee data has a 24-hour retention window. |
-| 0:35–1:10 | Narrator: `/onboarding`; select security/Kubernetes if offered, **Intermediate**, **Solve a production problem**, free text `How can I secure my Kubernetes supply chain?`; click **Find talks**. At `/schedule`, show talk times and “Why recommended”. | Hybrid recommendations produce a personal schedule with no overlapping sessions. This session uses a signed token. |
-| 1:10–1:45 | Narrator: `/search`; enter the measured query approved from #36 (**TBD**). Check **Include Elasticsearch query details**, click **Search**, expand **Elasticsearch query** for both columns. If the report is still absent, use the previously measured `make sure nobody can tamper with the software I ship to customers` solely to demonstrate two modes. | BM25 and semantic retrieval are combined with RRF in Elasticsearch. Discuss observed titles, not raw cross-mode score magnitudes. The earlier five-query run did **not** establish a consistent relevance win; no quality-win claim until the tuned report proves it. |
-| 1:45–2:30 | Narrator switches to prepared synthetic demo-pass `/schedule`, clicks **Show room QR**. Kiosk operator uses the exact catalog room, scans with **Scan with camera** (or uses the private text alternative), then **Check access**. Cluster operator runs `--revoke`; scan the same still-valid QR again. Restore afterward. | First **Access granted**, then **Access denied**. Every scan rereads ES entitlements; revocation works without waiting for QR expiry. If 60 seconds elapse, issue a new QR and repeat—do not call expiry a revocation result. |
-| 2:30–2:55 | Narrator opens `/map`, then `/clusters` only if verified in preflight. | Explicitly synthetic opted-in groups. Groups below five are suppressed; no attendee IDs or precise locations are shown. Topic aggregation and k-means are different views. Thresholds are untested on real attendee data. |
-| 2:55–3:35 | Observability presenter shows the verified live Dash0 search trace, then #14 dashboard/SLO if available. Run `npm run test -w api -- test/telemetry-privacy.test.ts` on merged #13. | Show actual browser → API → ES span linkage only if present. The privacy regression captures application spans/logs and checks collector configuration; its deliberate attendee.id injection fails. Runtime collector/Dash0 proof is a separate evidence item. |
-| 3:35–4:10 | Cluster operator opens local Radar and #30's saved AI investigation. | Real E5 allocation failure: original diagnosis used ES APIs; memory allowance increased from 30% to 50%, then 417 talks seeded and model fully allocated. State exactly what Radar's retrospective AI investigation found; do not imply it made the original diagnosis. The separate API scale-to-zero probe test was **CONTROLLED**. |
-| 4:10–4:40 | Observability presenter opens [PR #25's Gitar dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/25#issuecomment-6749180455), then the acted-on probe finding on [PR #6](https://github.com/DL4P1N/Kubecon-2026/pull/6). | “Rules 1/1 met” proves rule execution on a config/docs PR. Gitar's finding changed liveness probes and was verified during a controlled outage. Functional validation is disabled; CI-failure diagnosis is not yet proven. |
+| 0:00–0:20 | Narrator introduces the attendee problem before opening `/register`. | “Dozens of sessions compete for each time slot. Finding the right talk, avoiding overlaps, and getting into the right room takes work. This companion turns interests into a plan and checks room access.” |
+| 0:20–0:50 | Narrator: `/register`; enter `SYNTHETIC DEMO presenter`, `presenter@example.invalid`; choose a loaded topic; explicitly select the two optional consent choices; click **Register**. | “Consent starts off. Recommendations work without opting into the map or QR check-in.” |
+| 0:50–1:20 | `/onboarding`: choose security/Kubernetes if offered, **Intermediate**, **Solve a production problem**, free text `How can I secure my Kubernetes supply chain?`; click **Find talks**. Show times and “Why recommended” at `/schedule`. | “Relevant talks become a personal schedule without overlaps.” If #42 occupancy is verified, point out its room indicator in this same slot; describe scan activity only, not a live headcount. |
+| 1:20–1:55 | `/search`: use the approved measured #36 query (**TBD**). Otherwise use the preflight's observed sensible query or neutral `security`. Check **Include Elasticsearch query details**, click **Search**, expand each **Elasticsearch query**. | “Keyword and meaning-based retrieval run in Elasticsearch and combine through RRF. Here are the actual requests and results.” One qualifier if needed: “A consistent relevance improvement is still being evaluated.” If #41 is verified, briefly show `/status` or the keyword fallback by replacing time spent on query details. |
+| 1:55–2:40 | Switch to the prepared synthetic demo-pass `/schedule`, click **Show room QR** immediately before scanning. Kiosk operator enters the exact catalog room, uses **Scan with camera** (or privately prepared text alternative), then **Check access**. Operator runs `--revoke`; scan the same still-valid QR again; restore afterward. | “Access granted, then access denied: each scan rereads current entitlements, so revocation does not wait for QR expiry.” Rehearse tsx startup and the 60-second window beforehand. |
+| 2:40–3:00 | Open `/map`; show `/clusters` only if verified in preflight. Optional: replace the cluster page with #42's verified room indicator. | “These synthetic opted-in interests help organizers plan rooms; groups below five are hidden.” Keep the real-data threshold limitation in the evidence table. |
+| 3:00–3:35 | Observability presenter shows the verified Dash0 search trace and #14 dashboard/SLO if available, then the pre-run privacy test output or PR30 CI. If #40 has real Agent0/MCP evidence, replace one dashboard panel with its finding and linked fix. | “Telemetry follows the request through the app and makes service health visible. The privacy regression catches an attendee ID added to a span.” One qualifier if needed: “This test checks application telemetry and collector configuration.” |
+| 3:35–4:05 | Cluster operator opens local Radar and #30's saved investigation. | “A real model-capacity failure blocked indexing. The team corrected the ML memory budget and seeded 417 talks; this saved Radar investigation explains the retained evidence.” One qualifier: “The original diagnosis used ES APIs; Radar's investigation is retrospective.” |
+| 4:05–4:35 | Open [PR25's Gitar dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/25#issuecomment-6749180455), then the acted-on probe finding on [PR6](https://github.com/DL4P1N/Kubecon-2026/pull/6). | “Project rules ran, and a review finding changed the probes so an API outage does not restart healthy nginx.” One qualifier: “Rules are statically checked; the probe outage was controlled.” |
+| 4:35–4:45 | Narrator returns to the schedule. | “Find talks that matter, keep a workable schedule, and check room access—with observable services and explicit privacy boundaries.” |
+
+Optional features replace time inside their existing slot; they do not extend
+the demo. Show them only after deployment/rehearsal and evidence checks. Until
+the human confirms the slot length, this is a five-minute rehearsal draft.
 
 ## Sponsor evidence gates
 
