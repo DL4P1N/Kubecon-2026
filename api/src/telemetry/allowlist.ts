@@ -32,6 +32,7 @@ export const SPAN_ATTRIBUTE_ALLOWLIST = [
   "search.mode",
   "search.hits",
   "error.type",
+  "retention.deleted",
 ] as const;
 
 export const LOG_ATTRIBUTE_ALLOWLIST = [
@@ -45,6 +46,7 @@ export const LOG_ATTRIBUTE_ALLOWLIST = [
   "search.mode",
   "search.hits",
   "error.type",
+  "retention.deleted",
 ] as const;
 
 export const METRIC_ATTRIBUTE_ALLOWLIST = [
