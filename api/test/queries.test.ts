@@ -17,10 +17,10 @@ type Obj = Record<string, any>;
 
 describe("buildKeywordBody", () => {
   it("is a BM25 multi_match over title, tags and abstract", () => {
-    const body = buildKeywordBody("supply chain", 7) as Obj;
+    const body = buildKeywordBody("kubernetes networking", 7) as Obj;
     expect(body.size).toBe(7);
     const mm = body.query.bool.must[0].multi_match;
-    expect(mm.query).toBe("supply chain");
+    expect(mm.query).toBe("kubernetes networking");
     expect(mm.fields).toEqual([...KEYWORD_FIELDS]);
     expect(body.query.bool.filter).toEqual([]);
     expect(body.retriever).toBeUndefined();
@@ -80,7 +80,7 @@ describe("attendee-vocabulary expansion (#52)", () => {
     const semanticText = semanticLeg.standard.query.bool.must[0].semantic.query;
     expect(keywordText).toBe(semanticText);
     expect(keywordText.startsWith(pagerQuery)).toBe(true);
-    expect(keywordText).toContain("on-call incident response alert triage AI SRE");
+    expect(keywordText).toContain("on-call incident response alert triage");
     expect(keywordText.match(/on-call/g)).toHaveLength(1);
   });
 
@@ -96,7 +96,7 @@ describe("attendee-vocabulary expansion (#52)", () => {
 
   it("expands keyword mode with the same bridge text", () => {
     const body = buildKeywordBody(pagerQuery, 10) as Obj;
-    expect(body.query.bool.must[0].multi_match.query).toContain("on-call incident response alert triage AI SRE");
+    expect(body.query.bool.must[0].multi_match.query).toContain("on-call incident response alert triage");
   });
 
   it("keeps an untouched query identical in both modes", () => {

@@ -50,24 +50,61 @@ Known gaps are the 7 ties. On these, BM25 matches generic words ("ship", "help",
 
 ## Measured result (task #52): attendee-vocabulary expansion
 
-**Source:** live run of `scripts/search-eval.ts` on 2026-11-09 at 21:20 UTC from branch `task/52-search-improve-missed-queries` (commit `1759f24`): the same 417-doc `talks` index and the same 12 judged queries used above, size 10. Machine-readable results (variant metrics, per-query reciprocal ranks, expansion terms, leg ablation, timings): [`docs/evidence/search-eval-52.json`](evidence/search-eval-52.json).
+**Source:** live runs on 2026-11-09 against the same 417-doc `talks` index, size 10.
 
-**What changed:** a small curated table in `api/src/search/queries.ts` (`QUERY_EXPANSIONS`, exported as `expandQueryText`) appends catalog vocabulary to attendee phrasing ("pager" → on-call/incident/alert triage, "graphics card" → GPU, "deletes the cluster by accident" → backup/restore/velero, and so on). It is term-level and general: there is no per-query branch, the judgments and relevant ids are unchanged, and no index, mapping, seed or inference endpoint changed. The shipped tuning is `queryExpansion: "both"`, so the bridge is appended to the BM25 text and to the semantic leg; keyword mode (`buildKeywordBody`) sends the same expanded text.
+**What changed:** a table of generic term-level synonyms in `api/src/search/queries.ts`
+(`QUERY_EXPANSIONS`, exported as `expandQueryText`) appends catalog vocabulary when
+an attendee uses everyday words: pager/on-call/alert → on-call/incident/alert triage,
+backup/restore/recover → backup/restore/disaster recovery/velero, gpu/graphics card →
+GPU sharing/time-slicing/DRA, cost/spend/bill → finops/rightsizing/opencost, supply
+chain/attestation/provenance → supply-chain security vocabulary, sandbox/untrusted →
+agent sandbox/isolation, secret/password/credential → secrets hygiene, autoscale/traffic
+spike → autoscaling/HPA/KEDA, image pull → startup latency, rbac/authorization →
+RBAC/OPA, rag/internal documents → retrieval-augmented generation. No rule matches a
+whole eval question, there is no per-query branch, and no index, mapping, seed or
+inference endpoint changed. The shipped tuning is `queryExpansion: "both"`, so both
+retrieval legs and keyword mode rank the same bridged text.
 
-| variant | keyword hit@3 | hybrid hit@3 | keyword MRR@10 | hybrid MRR@10 | hybrid wins / ties / losses vs keyword |
-|---|---|---|---|---|---|
-| `pre-expansion` (expansion off, otherwise current) | 0/12 | 4/12 | 0.042 | 0.313 | 5 / 7 / 0 |
-| `current` (expansion on, shipped) | 9/12 | 10/12 | 0.750 | **0.815** | 3 / 8 / 1 |
+### Tuned set (the 12 judged queries used above)
 
-Hybrid with expansion against hybrid without it: **8 wins / 4 ties / 0 losses**, no per-query reciprocal-rank regression. MRR@10 rises 0.313 → 0.815; hit@3 rises 4/12 → 10/12. Three of the four ties (image pull, canary, GPU) already had a relevant talk at rank 1 in both configurations; the cost query stayed at rank 4 in both.
+| variant | keyword hit@3 | keyword MRR@10 | hybrid hit@3 | hybrid MRR@10 |
+|---|---|---|---|---|
+| expansion off | 0/12 | 0.042 | 4/12 | 0.313 |
+| expansion on (shipped) | 6/12 | 0.438 | **8/12** | **0.683** |
+
+Hybrid on vs off: **6 wins / 6 ties / 0 losses**.
+
+### Held-out set (8 new questions, written after the rules were made generic)
+
+The held-out questions use different wording from the tuned set and were judged
+independently against the same catalog:
+
+| variant | keyword hit@3 | keyword MRR@10 | hybrid hit@3 | hybrid MRR@10 |
+|---|---|---|---|---|
+| expansion off | 0/8 | 0.016 | 3/8 | 0.215 |
+| expansion on (shipped) | 4/8 | 0.516 | **6/8** | **0.642** |
+
+Hybrid on vs off: **4 wins / 4 ties / 0 losses**. The improvement therefore
+generalizes beyond the questions the rules were reviewed against.
 
 **Scope and caveats**
 
-- The gain needs both legs expanded. Same-body ablation: keyword leg only → 4/12 hit@3 (MRR 0.408); semantic leg only → 4/12 (MRR 0.351); both → 10/12 (MRR 0.815). Expanding only the semantic leg, as originally planned, would not have produced this result.
-- Because keyword mode also gets the bridge, keyword hit@3 rises from 0/12 to 9/12. Hybrid against keyword therefore narrows to 3 wins / 8 ties / 1 loss. The one loss is query 1 (supply chain): keyword rank 1, hybrid rank 3, both relevant. Hybrid did not regress against its own pre-expansion result (RR 0 → 0.333); the keyword baseline improved. The #36 table describes the pre-expansion configuration and is not row-for-row comparable with the shipped tuning.
-- Still 12 hand-judged queries with 1–3 relevant ids each, not a claim about arbitrary attendee queries. One of the 12 (canary release) triggers no expansion row and no query triggers two rows.
-- The broadest trigger is "third party" (RAG vocabulary); it is a generic phrase and can append RAG terms to unrelated queries. This is more visible now that the keyword leg is expanded too.
-- Latency on this laptop against the port-forwarded single-node cluster: median 58 ms keyword, 145 ms hybrid with expansion, 105 ms hybrid without. The first hybrid query after the warm-up took 360 ms; E5 allocation still dominates a cold start.
+- An earlier revision matched phrases taken from the tuned questions themselves
+  ("going off at night", "deletes the cluster by accident"). That measured 10/12 but
+  was test-set leakage: the rules encoded the questions. It was replaced with the
+  generic synonym table above before shipping, and the lower, honest numbers are
+  reported here.
+- The gain needs both legs expanded. Same-body ablation: keyword leg only → 4/12
+  hit@3 (MRR 0.408); semantic leg only → 4/12 (MRR 0.351); both → 10/12 (MRR 0.815)
+  under the rejected rules; the shipped generic table gives 8/12 with both legs.
+- Keyword mode also improves (0 → 6 of 12 tuned, 0 → 4 of 8 held-out), so the
+  hybrid-versus-keyword contrast narrows. Present the change as query understanding,
+  not as hybrid alone fixing the misses. The #36 table above describes the
+  pre-expansion configuration and is not row-for-row comparable with shipped tuning.
+- Both sets remain small and hand-judged (1–3 relevant ids per query); they bound the
+  claim to "improves these judged paraphrases", not to arbitrary attendee queries.
+- Latency against the port-forwarded single-node cluster: median 58 ms keyword,
+  ~105-145 ms hybrid. A cold E5 allocation still dominates the first request.
 
 ## Recommended demo queries (for #18)
 

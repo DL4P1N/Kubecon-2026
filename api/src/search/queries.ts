@@ -56,18 +56,23 @@ export interface SearchTuning {
  * hit@3 4/12 -> 10/12, MRR@10 0.313 -> 0.815, no per-query regression.
  */
 const QUERY_EXPANSIONS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/tamper|ship to customers/i, "supply chain security sigstore attestation sbom provenance signing"],
-  [/pager|going off at night/i, "on-call incident response alert triage AI SRE"],
-  [/spend less money|machines my containers run on/i, "kubernetes cost optimization finops rightsizing"],
-  [/allowed to do what/i, "kubernetes authorization RBAC OPA policy"],
-  [/internal documents|ask questions about (?:our|the) (?:docs|documents|data)/i,
+  [/\bpager\b|\bon-?call\b|\balert(?:s|ing)?\b/i, "on-call incident response alert triage"],
+  [/\bbackups?\b|\brestor(?:e|ed|ing)\b|\brecover(?:y|ed)?\b/i, "backup restore disaster recovery velero"],
+  [/\bgpus?\b|\bgraphics card\b/i, "GPU sharing time-slicing DRA"],
+  [/\bcanary\b|\brollout\b|\bprogressive delivery\b/i, "canary progressive delivery rollout"],
+  [/\bfinops\b|\bcost\b|\bspend(?:ing)?\b|\bbill\b/i, "kubernetes cost optimization finops opencost"],
+  [/\bsupply chain\b|\battestation\b|\bprovenance\b|\bsbom\b/i,
+    "supply chain security attestation sigstore sbom in-toto"],
+  [/\bsandbox(?:es|ed|ing)?\b|\buntrusted\b/i, "agent sandbox isolation runtime untrusted"],
+  [/\bnetwork polic(?:y|ies)\b|\bnetworkpolicy\b/i, "network policy cilium ebpf"],
+  [/\bsecrets?\b|\bpasswords?\b|\bcredentials?\b/i, "kubernetes secrets rotation external secrets"],
+  [/\bautoscal(?:e|er|ing)\b|\btraffic spikes?\b/i, "autoscaling HPA KEDA"],
+  [/\bimage pull\b|\bpull time\b|\bdownload(?:ing)? (?:the )?image\b/i,
+    "container image pull latency startup"],
+  [/\brbac\b|\bauthoriz(?:ed|ation)\b|\ballowed to (?:do|access)\b/i,
+    "kubernetes authorization RBAC OPA policy"],
+  [/\brag\b|\binternal (?:docs|documents)\b|\bprivate (?:data|documents)\b/i,
     "RAG retrieval augmented generation self-hosted LLM vector search"],
-  [/pods take ages to start|downloading the container/i, "container image pull latency startup"],
-  [/keep passwords|api keys out of/i, "kubernetes secrets rotation external secrets"],
-  [/more copies of my service|traffic spikes/i, "autoscaling HPA KEDA"],
-  [/split one expensive|graphics card/i, "GPU sharing time-slicing DRA"],
-  [/run code written by an ai|harming/i, "agent sandbox isolation runtime"],
-  [/backups|deletes the cluster by accident/i, "backup restore disaster recovery velero"],
 ];
 
 /** Query text plus any matching attendee-vocabulary bridge terms. */
