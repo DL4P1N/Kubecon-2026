@@ -1,4 +1,4 @@
-import type { AlternativeTalk, AlternativesResponse, Talk } from "@cc/shared";
+import type { AlternativeTalk, AlternativesResponse, RelatedTalksResponse, Talk } from "@cc/shared";
 import type { EsClient } from "../es/client.js";
 import { SEMANTIC_FIELD, SOURCE_FIELDS, TALKS_INDEX, type EsBody } from "../search/queries.js";
 import { getTalksByIds, toTalk } from "../search/service.js";
@@ -42,6 +42,23 @@ export function buildAlternativesBody(talk: Talk, size: number): EsBody {
   };
 }
 
+/**
+ * ES body for related talks: the same semantic query as the alternatives, but
+ * at any time, excluding only the talk itself and non-session tracks.
+ */
+export function buildRelatedBody(talk: Talk, size: number): EsBody {
+  return {
+    size,
+    _source: SOURCE_FIELDS,
+    query: {
+      bool: {
+        must: [{ semantic: { field: SEMANTIC_FIELD, query: similarityText(talk) } }],
+        must_not: [{ term: { id: talk.id } }, { terms: { track: [...NON_SESSION_TRACKS] } }],
+      },
+    },
+  };
+}
+
 export function sharedTags(a: Talk, b: Talk): string[] {
   const mine = new Set(a.tags);
   return b.tags.filter((t) => mine.has(t));
@@ -67,4 +84,24 @@ export async function findAlternatives(es: EsClient, talkId: string, size: numbe
     .slice(0, size)
     .map((a) => ({ ...a, sharedTags: sharedTags(talk, a.talk) }));
   return { talkId: talk.id, window: { start: talk.start, end: talk.end }, alternatives };
+}
+
+export const DEFAULT_RELATED = 5;
+
+/** Talks on similar topics at any time, most similar first. Undefined when the talk does not exist. */
+export async function findRelated(es: EsClient, talkId: string, size: number): Promise<RelatedTalksResponse | undefined> {
+  const [talk] = await getTalksByIds(es, [talkId]);
+  if (!talk) return undefined;
+  const res = await es.request<{ hits: { hits: EsHit[] } }>("POST", `/${TALKS_INDEX}/_search`, buildRelatedBody(talk, size));
+  const related: AlternativeTalk[] = res.body.hits.hits
+    .map((h) => ({ talk: toTalk(h._id, h._source ?? {}), score: h._score ?? 0 }))
+    .filter((r) => r.talk.id !== talk.id)
+    .slice(0, size)
+    .map((r) => ({ ...r, sharedTags: sharedTags(talk, r.talk) }));
+  return { talkId: talk.id, related };
+}
+
+/** One talk by id; undefined when it does not exist. */
+export async function findTalk(es: EsClient, talkId: string): Promise<Talk | undefined> {
+  return (await getTalksByIds(es, [talkId]))[0];
 }

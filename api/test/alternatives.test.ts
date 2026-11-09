@@ -3,7 +3,7 @@ import Fastify from "fastify";
 import type { AlternativesResponse } from "@cc/shared";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
-import { alternativesRoutes, ALTERNATIVES_CACHE_MS } from "../src/routes/alternatives.js";
+import { talkRoutes as alternativesRoutes, ALTERNATIVES_CACHE_MS } from "../src/routes/talks.js";
 import { buildAlternativesBody, similarityText, sharedTags, NON_SESSION_TRACKS } from "../src/talks/alternatives.js";
 import { createStatusTracker, type StatusTracker } from "../src/status/tracker.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
