@@ -1,0 +1,1026 @@
+[
+  {
+    "id": "talk-001",
+    "title": "Keynote: The Next Decade of Cloud Native",
+    "speaker": "Priya Raman",
+    "abstract": "Where the cloud native ecosystem is heading, what we got wrong about complexity, and what the community should build next.",
+    "track": "Keynote",
+    "level": "beginner",
+    "room": "Main Hall",
+    "start": "2026-11-10T09:00:00.000Z",
+    "end": "2026-11-10T09:45:00.000Z",
+    "tags": [
+      "keynote",
+      "community",
+      "kubernetes"
+    ]
+  },
+  {
+    "id": "talk-002",
+    "title": "Keynote: Agents on the Platform",
+    "speaker": "Marcus Oyelaran",
+    "abstract": "How AI agents are changing the way platform teams build, operate and secure Kubernetes clusters.",
+    "track": "Keynote",
+    "level": "beginner",
+    "room": "Main Hall",
+    "start": "2026-11-11T09:00:00.000Z",
+    "end": "2026-11-11T09:45:00.000Z",
+    "tags": [
+      "keynote",
+      "ai",
+      "platform-engineering"
+    ]
+  },
+  {
+    "id": "talk-003",
+    "title": "Building an Internal Developer Platform That Developers Actually Use",
+    "speaker": "Hannah Becker",
+    "abstract": "Lessons from three platform teams on golden paths, self-service templates and measuring adoption instead of mandating it.",
+    "track": "Platform Engineering",
+    "level": "intermediate",
+    "room": "Hall A",
+    "start": "2026-11-10T10:00:00.000Z",
+    "end": "2026-11-10T10:45:00.000Z",
+    "tags": [
+      "idp",
+      "backstage",
+      "developer-experience"
+    ]
+  },
+  {
+    "id": "talk-004",
+    "title": "GitOps at Scale: Managing 500 Clusters with Argo CD",
+    "speaker": "Tomasz Wrona",
+    "abstract": "ApplicationSets, sharded controllers and progressive rollouts for a fleet of hundreds of clusters.",
+    "track": "Platform Engineering",
+    "level": "advanced",
+    "room": "Hall B",
+    "start": "2026-11-10T10:00:00.000Z",
+    "end": "2026-11-10T10:45:00.000Z",
+    "tags": [
+      "gitops",
+      "argocd",
+      "multi-cluster"
+    ]
+  },
+  {
+    "id": "talk-005",
+    "title": "Crossplane Compositions in Production",
+    "speaker": "Lena Fischer",
+    "abstract": "Designing composition APIs that hide cloud complexity while keeping escape hatches for experts.",
+    "track": "Platform Engineering",
+    "level": "intermediate",
+    "room": "Room 101",
+    "start": "2026-11-10T10:00:00.000Z",
+    "end": "2026-11-10T10:45:00.000Z",
+    "tags": [
+      "crossplane",
+      "infrastructure-as-code",
+      "control-plane"
+    ]
+  },
+  {
+    "id": "talk-006",
+    "title": "Kubernetes for Absolute Beginners: Your First Deployment",
+    "speaker": "Sam Okafor",
+    "abstract": "A hands-on walkthrough of pods, deployments and services for people who have never touched a cluster.",
+    "track": "Platform Engineering",
+    "level": "beginner",
+    "room": "Room 102",
+    "start": "2026-11-10T10:00:00.000Z",
+    "end": "2026-11-10T10:45:00.000Z",
+    "tags": [
+      "kubernetes",
+      "basics",
+      "deployments"
+    ]
+  },
+  {
+    "id": "talk-007",
+    "title": "Multi-Tenancy Without Tears: Namespaces, Quotas and vCluster",
+    "speaker": "Ines Duarte",
+    "abstract": "Comparing soft and hard tenancy models and when virtual clusters are worth the overhead.",
+    "track": "Platform Engineering",
+    "level": "intermediate",
+    "room": "Room 103",
+    "start": "2026-11-10T10:00:00.000Z",
+    "end": "2026-11-10T10:45:00.000Z",
+    "tags": [
+      "multi-tenancy",
+      "namespaces",
+      "vcluster"
+    ]
+  },
+  {
+    "id": "talk-008",
+    "title": "Cluster API Day Two: Upgrades, Drift and Fleet Operations",
+    "speaker": "Kwame Asante",
+    "abstract": "Running in-place and rolling upgrades across providers without waking up the on-call.",
+    "track": "Platform Engineering",
+    "level": "advanced",
+    "room": "Hall A",
+    "start": "2026-11-10T11:15:00.000Z",
+    "end": "2026-11-10T12:00:00.000Z",
+    "tags": [
+      "cluster-api",
+      "upgrades",
+      "fleet"
+    ]
+  },
+  {
+    "id": "talk-009",
+    "title": "Helm, Kustomize or Neither? A Practical Comparison",
+    "speaker": "Greta Lindqvist",
+    "abstract": "A side-by-side look at configuration management tools with real manifests and honest trade-offs.",
+    "track": "Platform Engineering",
+    "level": "beginner",
+    "room": "Hall B",
+    "start": "2026-11-10T11:15:00.000Z",
+    "end": "2026-11-10T12:00:00.000Z",
+    "tags": [
+      "helm",
+      "kustomize",
+      "configuration"
+    ]
+  },
+  {
+    "id": "talk-010",
+    "title": "Platform as a Product: Roadmaps, Feedback Loops and Funding",
+    "speaker": "Diego Salazar",
+    "abstract": "Treating the platform like a product with users, a roadmap and metrics that leadership understands.",
+    "track": "Platform Engineering",
+    "level": "intermediate",
+    "room": "Room 101",
+    "start": "2026-11-10T11:15:00.000Z",
+    "end": "2026-11-10T12:00:00.000Z",
+    "tags": [
+      "platform-engineering",
+      "product",
+      "teams"
+    ]
+  },
+  {
+    "id": "talk-011",
+    "title": "OpenTelemetry Collector Pipelines That Scale",
+    "speaker": "Aiko Tanaka",
+    "abstract": "Tail sampling, load balancing exporters and memory limits for collectors handling millions of spans per minute.",
+    "track": "Observability",
+    "level": "advanced",
+    "room": "Room 102",
+    "start": "2026-11-10T11:15:00.000Z",
+    "end": "2026-11-10T12:00:00.000Z",
+    "tags": [
+      "opentelemetry",
+      "collector",
+      "tracing"
+    ]
+  },
+  {
+    "id": "talk-012",
+    "title": "Scrubbing Telemetry: Keeping PII Out of Traces and Logs",
+    "speaker": "Rafael Moreno",
+    "abstract": "Allowlist-based attribute filtering in the collector so sensitive fields never leave the cluster.",
+    "track": "Observability",
+    "level": "intermediate",
+    "room": "Room 103",
+    "start": "2026-11-10T11:15:00.000Z",
+    "end": "2026-11-10T12:00:00.000Z",
+    "tags": [
+      "opentelemetry",
+      "privacy",
+      "pii"
+    ]
+  },
+  {
+    "id": "talk-013",
+    "title": "From Metrics to Meaning: SLOs That Drive Decisions",
+    "speaker": "Nora Haddad",
+    "abstract": "Choosing service level indicators, setting error budgets and using them to settle roadmap arguments.",
+    "track": "Observability",
+    "level": "intermediate",
+    "room": "Hall A",
+    "start": "2026-11-10T13:30:00.000Z",
+    "end": "2026-11-10T14:15:00.000Z",
+    "tags": [
+      "slo",
+      "sre",
+      "metrics"
+    ]
+  },
+  {
+    "id": "talk-014",
+    "title": "eBPF Observability Without Sidecars",
+    "speaker": "Viktor Novak",
+    "abstract": "Auto-instrumenting services at the kernel level and what you gain and lose compared with SDKs.",
+    "track": "Observability",
+    "level": "advanced",
+    "room": "Hall B",
+    "start": "2026-11-10T13:30:00.000Z",
+    "end": "2026-11-10T14:15:00.000Z",
+    "tags": [
+      "ebpf",
+      "tracing",
+      "networking"
+    ]
+  },
+  {
+    "id": "talk-015",
+    "title": "Getting Started with Prometheus and Grafana",
+    "speaker": "Chloe Martin",
+    "abstract": "Install, scrape, query and alert: a first monitoring stack for a small Kubernetes cluster.",
+    "track": "Observability",
+    "level": "beginner",
+    "room": "Room 101",
+    "start": "2026-11-10T13:30:00.000Z",
+    "end": "2026-11-10T14:15:00.000Z",
+    "tags": [
+      "prometheus",
+      "grafana",
+      "metrics"
+    ]
+  },
+  {
+    "id": "talk-016",
+    "title": "Real User Monitoring for Single-Page Apps",
+    "speaker": "Joao Pereira",
+    "abstract": "Correlating browser sessions with backend traces and handling consent and sampling correctly.",
+    "track": "Observability",
+    "level": "intermediate",
+    "room": "Room 102",
+    "start": "2026-11-10T13:30:00.000Z",
+    "end": "2026-11-10T14:15:00.000Z",
+    "tags": [
+      "rum",
+      "frontend",
+      "opentelemetry"
+    ]
+  },
+  {
+    "id": "talk-017",
+    "title": "Logs Are Dead, Long Live Structured Events",
+    "speaker": "Maya Goldberg",
+    "abstract": "Why wide structured events beat grep and how to migrate an existing logging pipeline.",
+    "track": "Observability",
+    "level": "intermediate",
+    "room": "Room 103",
+    "start": "2026-11-10T13:30:00.000Z",
+    "end": "2026-11-10T14:15:00.000Z",
+    "tags": [
+      "logging",
+      "events",
+      "wide-events"
+    ]
+  },
+  {
+    "id": "talk-018",
+    "title": "Debugging Production with Continuous Profiling",
+    "speaker": "Oskar Berg",
+    "abstract": "Always-on CPU and memory profiles, flame graph diffs and finding regressions after every deploy.",
+    "track": "Observability",
+    "level": "advanced",
+    "room": "Hall A",
+    "start": "2026-11-10T14:45:00.000Z",
+    "end": "2026-11-10T15:30:00.000Z",
+    "tags": [
+      "profiling",
+      "performance",
+      "ebpf"
+    ]
+  },
+  {
+    "id": "talk-019",
+    "title": "Zero Trust for Workloads: SPIFFE and SPIRE in Practice",
+    "speaker": "Amara Nwosu",
+    "abstract": "Issuing short-lived workload identities and replacing static secrets across clusters.",
+    "track": "Security",
+    "level": "advanced",
+    "room": "Hall B",
+    "start": "2026-11-10T14:45:00.000Z",
+    "end": "2026-11-10T15:30:00.000Z",
+    "tags": [
+      "spiffe",
+      "zero-trust",
+      "identity"
+    ]
+  },
+  {
+    "id": "talk-020",
+    "title": "Supply Chain Security: Signing, SBOMs and Admission Control",
+    "speaker": "Elias Haugen",
+    "abstract": "End-to-end image signing with Sigstore and enforcing provenance at admission time.",
+    "track": "Security",
+    "level": "intermediate",
+    "room": "Room 101",
+    "start": "2026-11-10T14:45:00.000Z",
+    "end": "2026-11-10T15:30:00.000Z",
+    "tags": [
+      "supply-chain",
+      "sigstore",
+      "sbom"
+    ]
+  },
+  {
+    "id": "talk-021",
+    "title": "Kubernetes RBAC Explained Simply",
+    "speaker": "Fatima Zahra",
+    "abstract": "Roles, bindings and service accounts without the confusion, plus the three mistakes everyone makes.",
+    "track": "Security",
+    "level": "beginner",
+    "room": "Room 102",
+    "start": "2026-11-10T14:45:00.000Z",
+    "end": "2026-11-10T15:30:00.000Z",
+    "tags": [
+      "rbac",
+      "authorization",
+      "basics"
+    ]
+  },
+  {
+    "id": "talk-022",
+    "title": "Policy as Code with Kyverno and OPA Gatekeeper",
+    "speaker": "Benedikt Roth",
+    "abstract": "Writing, testing and rolling out admission policies without blocking every deployment.",
+    "track": "Security",
+    "level": "intermediate",
+    "room": "Room 103",
+    "start": "2026-11-10T14:45:00.000Z",
+    "end": "2026-11-10T15:30:00.000Z",
+    "tags": [
+      "policy",
+      "kyverno",
+      "opa"
+    ]
+  },
+  {
+    "id": "talk-023",
+    "title": "Runtime Threat Detection with Falco and eBPF",
+    "speaker": "Yuki Matsuda",
+    "abstract": "Tuning rules, reducing noise and routing detections to incident response.",
+    "track": "Security",
+    "level": "advanced",
+    "room": "Hall A",
+    "start": "2026-11-10T16:00:00.000Z",
+    "end": "2026-11-10T16:45:00.000Z",
+    "tags": [
+      "falco",
+      "ebpf",
+      "runtime-security"
+    ]
+  },
+  {
+    "id": "talk-024",
+    "title": "Secrets Management: External Secrets, Vault and Beyond",
+    "speaker": "Camila Reyes",
+    "abstract": "Comparing patterns for getting secrets into pods safely and rotating them without restarts.",
+    "track": "Security",
+    "level": "intermediate",
+    "room": "Hall B",
+    "start": "2026-11-10T16:00:00.000Z",
+    "end": "2026-11-10T16:45:00.000Z",
+    "tags": [
+      "secrets",
+      "vault",
+      "external-secrets"
+    ]
+  },
+  {
+    "id": "talk-025",
+    "title": "Designing for Privacy: Short-Lived Tokens and Data Retention",
+    "speaker": "Jonas Eklund",
+    "abstract": "Practical patterns for signed short-lived tokens, consent capture and automatic deletion of attendee data.",
+    "track": "Security",
+    "level": "intermediate",
+    "room": "Room 101",
+    "start": "2026-11-10T16:00:00.000Z",
+    "end": "2026-11-10T16:45:00.000Z",
+    "tags": [
+      "privacy",
+      "tokens",
+      "retention"
+    ]
+  },
+  {
+    "id": "talk-026",
+    "title": "Hardening the Control Plane",
+    "speaker": "Sofia Petrov",
+    "abstract": "Locking down the API server, etcd encryption and audit logging for regulated environments.",
+    "track": "Security",
+    "level": "advanced",
+    "room": "Room 102",
+    "start": "2026-11-10T16:00:00.000Z",
+    "end": "2026-11-10T16:45:00.000Z",
+    "tags": [
+      "control-plane",
+      "etcd",
+      "hardening"
+    ]
+  },
+  {
+    "id": "talk-027",
+    "title": "Serving LLMs on Kubernetes with GPU Sharing",
+    "speaker": "Arjun Mehta",
+    "abstract": "Scheduling, MIG, time slicing and autoscaling inference workloads efficiently.",
+    "track": "AI and ML",
+    "level": "advanced",
+    "room": "Room 103",
+    "start": "2026-11-10T16:00:00.000Z",
+    "end": "2026-11-10T16:45:00.000Z",
+    "tags": [
+      "llm",
+      "gpu",
+      "inference"
+    ]
+  },
+  {
+    "id": "talk-028",
+    "title": "Retrieval-Augmented Generation on Your Own Cluster",
+    "speaker": "Elena Sokolova",
+    "abstract": "Building a RAG pipeline with a vector store, chunking strategies and evaluation, all running in-cluster.",
+    "track": "AI and ML",
+    "level": "intermediate",
+    "room": "Hall A",
+    "start": "2026-11-10T17:15:00.000Z",
+    "end": "2026-11-10T18:00:00.000Z",
+    "tags": [
+      "rag",
+      "vector-search",
+      "llm"
+    ]
+  },
+  {
+    "id": "talk-029",
+    "title": "Hybrid Search: Combining BM25 and Dense Vectors",
+    "speaker": "Michael Adeyemi",
+    "abstract": "Why keyword and semantic search complement each other and how to fuse and tune the scores.",
+    "track": "AI and ML",
+    "level": "intermediate",
+    "room": "Hall B",
+    "start": "2026-11-10T17:15:00.000Z",
+    "end": "2026-11-10T18:00:00.000Z",
+    "tags": [
+      "search",
+      "elasticsearch",
+      "vector-search"
+    ]
+  },
+  {
+    "id": "talk-030",
+    "title": "Machine Learning Pipelines with Kubeflow",
+    "speaker": "Isabel Cruz",
+    "abstract": "Reproducible training pipelines, experiment tracking and promotion to serving.",
+    "track": "AI and ML",
+    "level": "intermediate",
+    "room": "Room 101",
+    "start": "2026-11-10T17:15:00.000Z",
+    "end": "2026-11-10T18:00:00.000Z",
+    "tags": [
+      "kubeflow",
+      "mlops",
+      "pipelines"
+    ]
+  },
+  {
+    "id": "talk-031",
+    "title": "AI SRE: Letting Agents Triage Your Incidents",
+    "speaker": "Pavel Kuznetsov",
+    "abstract": "What works, what hallucinates and the guardrails you need before an agent touches production.",
+    "track": "AI and ML",
+    "level": "intermediate",
+    "room": "Room 102",
+    "start": "2026-11-10T17:15:00.000Z",
+    "end": "2026-11-10T18:00:00.000Z",
+    "tags": [
+      "ai",
+      "sre",
+      "incident-response"
+    ]
+  },
+  {
+    "id": "talk-032",
+    "title": "Intro to AI on Kubernetes: A Beginner's Map",
+    "speaker": "Grace Liu",
+    "abstract": "A friendly overview of the tools for running machine learning workloads on a cluster.",
+    "track": "AI and ML",
+    "level": "beginner",
+    "room": "Room 103",
+    "start": "2026-11-10T17:15:00.000Z",
+    "end": "2026-11-10T18:00:00.000Z",
+    "tags": [
+      "ai",
+      "kubernetes",
+      "basics"
+    ]
+  },
+  {
+    "id": "talk-033",
+    "title": "Cost-Aware Batch Training with Kueue and Spot Instances",
+    "speaker": "Hugo Lambert",
+    "abstract": "Queueing, preemption and checkpointing so training jobs survive cheap capacity.",
+    "track": "AI and ML",
+    "level": "advanced",
+    "room": "Hall A",
+    "start": "2026-11-10T18:30:00.000Z",
+    "end": "2026-11-10T19:15:00.000Z",
+    "tags": [
+      "kueue",
+      "batch",
+      "cost"
+    ]
+  },
+  {
+    "id": "talk-034",
+    "title": "Clustering Interests Without Compromising Privacy",
+    "speaker": "Naledi Dlamini",
+    "abstract": "Running k-means over aggregated vectors with minimum cluster sizes and suppression of small groups.",
+    "track": "AI and ML",
+    "level": "advanced",
+    "room": "Hall A",
+    "start": "2026-11-11T10:00:00.000Z",
+    "end": "2026-11-11T10:45:00.000Z",
+    "tags": [
+      "clustering",
+      "privacy",
+      "k-means"
+    ]
+  },
+  {
+    "id": "talk-035",
+    "title": "Cilium Cluster Mesh for Multi-Region Services",
+    "speaker": "Anders Holm",
+    "abstract": "Global services, cross-cluster policy and failure domains with Cilium Cluster Mesh.",
+    "track": "Networking",
+    "level": "advanced",
+    "room": "Hall B",
+    "start": "2026-11-11T10:00:00.000Z",
+    "end": "2026-11-11T10:45:00.000Z",
+    "tags": [
+      "cilium",
+      "ebpf",
+      "multi-cluster"
+    ]
+  },
+  {
+    "id": "talk-036",
+    "title": "Gateway API: The Ingress Replacement You Were Promised",
+    "speaker": "Leila Ahmadi",
+    "abstract": "Roles, routes and policies in Gateway API and how to migrate from Ingress incrementally.",
+    "track": "Networking",
+    "level": "intermediate",
+    "room": "Room 101",
+    "start": "2026-11-11T10:00:00.000Z",
+    "end": "2026-11-11T10:45:00.000Z",
+    "tags": [
+      "gateway-api",
+      "ingress",
+      "traffic"
+    ]
+  },
+  {
+    "id": "talk-037",
+    "title": "Service Mesh Without the Pain",
+    "speaker": "Thomas Keller",
+    "abstract": "When you need a mesh, when you do not, and a gentle path to mutual TLS.",
+    "track": "Networking",
+    "level": "beginner",
+    "room": "Room 102",
+    "start": "2026-11-11T10:00:00.000Z",
+    "end": "2026-11-11T10:45:00.000Z",
+    "tags": [
+      "service-mesh",
+      "mtls",
+      "istio"
+    ]
+  },
+  {
+    "id": "talk-038",
+    "title": "Debugging Kubernetes DNS and Network Policies",
+    "speaker": "Ravi Shankar",
+    "abstract": "A systematic checklist for the latency, timeouts and dropped packets that make teams blame the network.",
+    "track": "Networking",
+    "level": "intermediate",
+    "room": "Room 103",
+    "start": "2026-11-11T10:00:00.000Z",
+    "end": "2026-11-11T10:45:00.000Z",
+    "tags": [
+      "dns",
+      "network-policy",
+      "debugging"
+    ]
+  },
+  {
+    "id": "talk-039",
+    "title": "Ambient Mesh in Production: Six Months Later",
+    "speaker": "Clara Jensen",
+    "abstract": "Operational findings from moving sidecar workloads to ambient mode.",
+    "track": "Networking",
+    "level": "advanced",
+    "room": "Hall A",
+    "start": "2026-11-11T11:15:00.000Z",
+    "end": "2026-11-11T12:00:00.000Z",
+    "tags": [
+      "istio",
+      "ambient",
+      "service-mesh"
+    ]
+  },
+  {
+    "id": "talk-040",
+    "title": "QR Codes, Tokens and Door Access: Building a Room Scanner",
+    "speaker": "Mateo Vargas",
+    "abstract": "A small demo-friendly design for scanning short-lived signed tokens and checking entitlements server-side.",
+    "track": "Networking",
+    "level": "beginner",
+    "room": "Hall B",
+    "start": "2026-11-11T11:15:00.000Z",
+    "end": "2026-11-11T12:00:00.000Z",
+    "tags": [
+      "qr",
+      "access-control",
+      "edge"
+    ]
+  },
+  {
+    "id": "talk-041",
+    "title": "Running Elasticsearch on Kubernetes with Security Enabled",
+    "speaker": "Birgit Larsen",
+    "abstract": "ECK, TLS, service accounts and least-privilege roles from the first day of the cluster.",
+    "track": "Data and Storage",
+    "level": "intermediate",
+    "room": "Room 101",
+    "start": "2026-11-11T11:15:00.000Z",
+    "end": "2026-11-11T12:00:00.000Z",
+    "tags": [
+      "elasticsearch",
+      "operators",
+      "security"
+    ]
+  },
+  {
+    "id": "talk-042",
+    "title": "Stateful Workloads: Operators, Backups and Failure Drills",
+    "speaker": "Kenji Watanabe",
+    "abstract": "Building confidence in databases on Kubernetes through game days and restore tests.",
+    "track": "Data and Storage",
+    "level": "advanced",
+    "room": "Room 102",
+    "start": "2026-11-11T11:15:00.000Z",
+    "end": "2026-11-11T12:00:00.000Z",
+    "tags": [
+      "statefulset",
+      "operators",
+      "backup"
+    ]
+  },
+  {
+    "id": "talk-043",
+    "title": "Persistent Volumes Demystified",
+    "speaker": "Olivia Brown",
+    "abstract": "Storage classes, claims and CSI drivers explained with simple examples.",
+    "track": "Data and Storage",
+    "level": "beginner",
+    "room": "Room 103",
+    "start": "2026-11-11T11:15:00.000Z",
+    "end": "2026-11-11T12:00:00.000Z",
+    "tags": [
+      "storage",
+      "csi",
+      "persistent-volumes"
+    ]
+  },
+  {
+    "id": "talk-044",
+    "title": "Streaming Data with Kafka and Strimzi",
+    "speaker": "Dmitri Volkov",
+    "abstract": "Operating Kafka clusters on Kubernetes including rack awareness and rolling upgrades.",
+    "track": "Data and Storage",
+    "level": "intermediate",
+    "room": "Hall A",
+    "start": "2026-11-11T13:30:00.000Z",
+    "end": "2026-11-11T14:15:00.000Z",
+    "tags": [
+      "kafka",
+      "strimzi",
+      "streaming"
+    ]
+  },
+  {
+    "id": "talk-045",
+    "title": "Vector Databases Compared: When to Use Which",
+    "speaker": "Zainab Yusuf",
+    "abstract": "Indexing methods, filtering, memory footprint and operational cost across popular vector stores.",
+    "track": "Data and Storage",
+    "level": "intermediate",
+    "room": "Hall B",
+    "start": "2026-11-11T13:30:00.000Z",
+    "end": "2026-11-11T14:15:00.000Z",
+    "tags": [
+      "vector-search",
+      "databases",
+      "embeddings"
+    ]
+  },
+  {
+    "id": "talk-046",
+    "title": "Time Series at Scale: Retention, Downsampling and Cost",
+    "speaker": "Henrik Dahl",
+    "abstract": "Designing tiered storage for metrics and logs that keeps queries fast and bills small.",
+    "track": "Data and Storage",
+    "level": "advanced",
+    "room": "Room 101",
+    "start": "2026-11-11T13:30:00.000Z",
+    "end": "2026-11-11T14:15:00.000Z",
+    "tags": [
+      "time-series",
+      "retention",
+      "cost"
+    ]
+  },
+  {
+    "id": "talk-047",
+    "title": "Chaos Engineering for the Rest of Us",
+    "speaker": "Adaeze Obi",
+    "abstract": "Start with a one-hour game day and a single hypothesis; no special tooling required.",
+    "track": "Operations and SRE",
+    "level": "beginner",
+    "room": "Room 102",
+    "start": "2026-11-11T13:30:00.000Z",
+    "end": "2026-11-11T14:15:00.000Z",
+    "tags": [
+      "chaos",
+      "reliability",
+      "testing"
+    ]
+  },
+  {
+    "id": "talk-048",
+    "title": "Autoscaling Deep Dive: HPA, KEDA and Karpenter Together",
+    "speaker": "Luca Romano",
+    "abstract": "Combining pod and node autoscalers and avoiding the feedback loops that cause flapping.",
+    "track": "Operations and SRE",
+    "level": "advanced",
+    "room": "Room 103",
+    "start": "2026-11-11T13:30:00.000Z",
+    "end": "2026-11-11T14:15:00.000Z",
+    "tags": [
+      "autoscaling",
+      "keda",
+      "karpenter"
+    ]
+  },
+  {
+    "id": "talk-049",
+    "title": "FinOps for Kubernetes: Finding the Waste",
+    "speaker": "Mei Lin",
+    "abstract": "Allocation, rightsizing and showback that engineers will actually act on.",
+    "track": "Operations and SRE",
+    "level": "intermediate",
+    "room": "Hall A",
+    "start": "2026-11-11T14:45:00.000Z",
+    "end": "2026-11-11T15:30:00.000Z",
+    "tags": [
+      "finops",
+      "cost",
+      "rightsizing"
+    ]
+  },
+  {
+    "id": "talk-050",
+    "title": "Incident Response: Blameless Postmortems That Change Things",
+    "speaker": "Samuel Mwangi",
+    "abstract": "A template, a facilitation guide and follow-through habits for postmortems that lead to fixes.",
+    "track": "Operations and SRE",
+    "level": "beginner",
+    "room": "Hall B",
+    "start": "2026-11-11T14:45:00.000Z",
+    "end": "2026-11-11T15:30:00.000Z",
+    "tags": [
+      "incident-response",
+      "postmortem",
+      "culture"
+    ]
+  },
+  {
+    "id": "talk-051",
+    "title": "Surviving Node Failures: Pod Disruption Budgets and Topology Spread",
+    "speaker": "Anna Kowalski",
+    "abstract": "Spread constraints, budgets and drain behavior that keep services up during maintenance.",
+    "track": "Operations and SRE",
+    "level": "intermediate",
+    "room": "Room 101",
+    "start": "2026-11-11T14:45:00.000Z",
+    "end": "2026-11-11T15:30:00.000Z",
+    "tags": [
+      "availability",
+      "scheduling",
+      "reliability"
+    ]
+  },
+  {
+    "id": "talk-052",
+    "title": "Kubernetes Upgrades Without Downtime",
+    "speaker": "Ibrahim Sesay",
+    "abstract": "Detecting deprecated APIs, sequencing add-ons and rolling back safely.",
+    "track": "Operations and SRE",
+    "level": "intermediate",
+    "room": "Room 102",
+    "start": "2026-11-11T14:45:00.000Z",
+    "end": "2026-11-11T15:30:00.000Z",
+    "tags": [
+      "upgrades",
+      "operations",
+      "deprecations"
+    ]
+  },
+  {
+    "id": "talk-053",
+    "title": "Inner Loop Development with Tilt and Skaffold",
+    "speaker": "Freya Nilsson",
+    "abstract": "Fast feedback cycles for developers working against real clusters.",
+    "track": "Developer Experience",
+    "level": "beginner",
+    "room": "Room 103",
+    "start": "2026-11-11T14:45:00.000Z",
+    "end": "2026-11-11T15:30:00.000Z",
+    "tags": [
+      "tilt",
+      "skaffold",
+      "inner-loop"
+    ]
+  },
+  {
+    "id": "talk-054",
+    "title": "CI/CD Pipelines That Fail Fast: Lessons from Flaky Tests",
+    "speaker": "Ethan Cole",
+    "abstract": "Diagnosing CI failures quickly with better logs, retries and automated triage.",
+    "track": "Developer Experience",
+    "level": "intermediate",
+    "room": "Hall A",
+    "start": "2026-11-11T16:00:00.000Z",
+    "end": "2026-11-11T16:45:00.000Z",
+    "tags": [
+      "ci",
+      "testing",
+      "pipelines"
+    ]
+  },
+  {
+    "id": "talk-055",
+    "title": "Automated Code Review with AI: What Actually Helps",
+    "speaker": "Valentina Rossi",
+    "abstract": "Configuring review bots with team rules so comments are specific, relevant and rarely wrong.",
+    "track": "Developer Experience",
+    "level": "intermediate",
+    "room": "Hall B",
+    "start": "2026-11-11T16:00:00.000Z",
+    "end": "2026-11-11T16:45:00.000Z",
+    "tags": [
+      "code-review",
+      "ai",
+      "pull-requests"
+    ]
+  },
+  {
+    "id": "talk-056",
+    "title": "Writing Your First Kubernetes Operator in Go",
+    "speaker": "Nikhil Rao",
+    "abstract": "Reconcile loops, status conditions and testing with envtest.",
+    "track": "Developer Experience",
+    "level": "intermediate",
+    "room": "Room 101",
+    "start": "2026-11-11T16:00:00.000Z",
+    "end": "2026-11-11T16:45:00.000Z",
+    "tags": [
+      "operators",
+      "go",
+      "controller-runtime"
+    ]
+  },
+  {
+    "id": "talk-057",
+    "title": "WebAssembly Beyond the Browser: Running Wasm Workloads on Kubernetes",
+    "speaker": "Sven Andersson",
+    "abstract": "Runtimes, shims and the real-world trade-offs against containers.",
+    "track": "Developer Experience",
+    "level": "advanced",
+    "room": "Room 102",
+    "start": "2026-11-11T16:00:00.000Z",
+    "end": "2026-11-11T16:45:00.000Z",
+    "tags": [
+      "wasm",
+      "runtimes",
+      "edge"
+    ]
+  },
+  {
+    "id": "talk-058",
+    "title": "Building Accessible Dashboards for Conference Attendees",
+    "speaker": "Tabitha Green",
+    "abstract": "Practical accessibility patterns for schedule and map views used on phones in busy hallways.",
+    "track": "Developer Experience",
+    "level": "beginner",
+    "room": "Room 103",
+    "start": "2026-11-11T16:00:00.000Z",
+    "end": "2026-11-11T16:45:00.000Z",
+    "tags": [
+      "frontend",
+      "accessibility",
+      "react"
+    ]
+  },
+  {
+    "id": "talk-059",
+    "title": "Local Kubernetes Clusters for Demos: kind, k3d and minikube",
+    "speaker": "Omar Farouk",
+    "abstract": "Choosing a local cluster and keeping demos reproducible.",
+    "track": "Developer Experience",
+    "level": "beginner",
+    "room": "Hall A",
+    "start": "2026-11-11T17:15:00.000Z",
+    "end": "2026-11-11T18:00:00.000Z",
+    "tags": [
+      "kind",
+      "k3d",
+      "local-development"
+    ]
+  },
+  {
+    "id": "talk-060",
+    "title": "Lightning Talks: Five Tools We Cannot Live Without",
+    "speaker": "Community Panel",
+    "abstract": "Five rapid demos of small tools that quietly make cluster life better.",
+    "track": "Developer Experience",
+    "level": "beginner",
+    "room": "Hall B",
+    "start": "2026-11-11T17:15:00.000Z",
+    "end": "2026-11-11T17:40:00.000Z",
+    "tags": [
+      "lightning",
+      "tools",
+      "community"
+    ]
+  },
+  {
+    "id": "talk-061",
+    "title": "Lightning: Debugging with kubectl Plugins",
+    "speaker": "Bao Tran",
+    "abstract": "Five useful kubectl plugins and how to write your own in twenty lines.",
+    "track": "Developer Experience",
+    "level": "beginner",
+    "room": "Room 101",
+    "start": "2026-11-11T17:15:00.000Z",
+    "end": "2026-11-11T18:00:00.000Z",
+    "tags": [
+      "kubectl",
+      "plugins",
+      "debugging"
+    ]
+  },
+  {
+    "id": "talk-062",
+    "title": "Lightning: One Slide Postmortems",
+    "speaker": "Rosa Delgado",
+    "abstract": "A very short format for capturing incident lessons so people actually read them.",
+    "track": "Operations and SRE",
+    "level": "beginner",
+    "room": "Room 102",
+    "start": "2026-11-11T17:15:00.000Z",
+    "end": "2026-11-11T17:40:00.000Z",
+    "tags": [
+      "lightning",
+      "postmortem",
+      "culture"
+    ]
+  },
+  {
+    "id": "talk-063",
+    "title": "Lightning: Ten Elasticsearch Queries Every Platform Engineer Should Know",
+    "speaker": "Per Nilsen",
+    "abstract": "Aggregations, filters and kNN queries in ten minutes of live demos.",
+    "track": "Data and Storage",
+    "level": "beginner",
+    "room": "Room 103",
+    "start": "2026-11-11T17:15:00.000Z",
+    "end": "2026-11-11T17:40:00.000Z",
+    "tags": [
+      "lightning",
+      "elasticsearch",
+      "queries"
+    ]
+  },
+  {
+    "id": "talk-064",
+    "title": "Lightning: Reading eBPF Output Without Fear",
+    "speaker": "Ayesha Khan",
+    "abstract": "Make sense of trace output and map it to what your pods are doing.",
+    "track": "Observability",
+    "level": "beginner",
+    "room": "Hall A",
+    "start": "2026-11-11T18:30:00.000Z",
+    "end": "2026-11-11T18:55:00.000Z",
+    "tags": [
+      "lightning",
+      "ebpf",
+      "debugging"
+    ]
+  }
+]
