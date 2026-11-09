@@ -1,0 +1,28 @@
+# Optional: requires an installed ingress-nginx controller and trusted public CA.
+# Set host, namespace annotation and tls Secret to match the provisioned release.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: companion-https
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    nginx.ingress.kubernetes.io/proxy-ssl-verify: "on"
+    nginx.ingress.kubernetes.io/proxy-ssl-server-name: "on"
+    nginx.ingress.kubernetes.io/proxy-ssl-name: web
+    nginx.ingress.kubernetes.io/proxy-ssl-secret: conference-companion/companion-web-tls
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [companion.localhost]
+      secretName: companion-web-tls
+  rules:
+    - host: companion.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 8080

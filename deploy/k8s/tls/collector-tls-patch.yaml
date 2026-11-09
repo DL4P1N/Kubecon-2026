@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+spec:
+  template:
+    spec:
+      containers:
+        - name: otel-collector
+          args: ["--config=/conf/config.yaml", "--config=/tls-config/tls.yaml"]
+          volumeMounts:
+            - { name: transport-tls, mountPath: /etc/companion-tls, readOnly: true }
+            - { name: tls-config, mountPath: /tls-config, readOnly: true }
+      volumes:
+        - name: transport-tls
+          secret:
+            secretName: companion-collector-tls
+        - name: tls-config
+          configMap:
+            name: companion-collector-tls-config
