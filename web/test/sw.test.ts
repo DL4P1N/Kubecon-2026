@@ -144,6 +144,28 @@ it("install precaches valid assets and rejects HTML served as an asset", async (
   expect(remaining(bad.stores, "cc-shell-test")).not.toContain("/index.html");
 });
 
+it("install is all-or-nothing: a later invalid or failing asset leaves no shell cache", async () => {
+  // The JS asset is valid and the CSS asset is the SPA fallback (text/html).
+  const late = boot(async (input: any) => {
+    const url = typeof input === "string" ? input : input.url;
+    if (url.endsWith("index.html")) return new Response(shellHtml, { headers: { "content-type": "text/html" } });
+    if (url.endsWith(".js")) return new Response("x", { headers: { "content-type": "text/javascript" } });
+    return new Response("<!doctype html>", { headers: { "content-type": "text/html" } });
+  });
+  await expect(late.dispatch("install")).rejects.toThrow(/Invalid asset/);
+  expect(late.stores.has("cc-shell-test")).toBe(false);
+
+  // A network error on the second asset behaves the same way.
+  const network = boot(async (input: any) => {
+    const url = typeof input === "string" ? input : input.url;
+    if (url.endsWith("index.html")) return new Response(shellHtml, { headers: { "content-type": "text/html" } });
+    if (url.endsWith(".js")) return new Response("x", { headers: { "content-type": "text/javascript" } });
+    throw new TypeError("offline");
+  });
+  await expect(network.dispatch("install")).rejects.toThrow(/offline/);
+  expect(network.stores.has("cc-shell-test")).toBe(false);
+});
+
 it("fetch does not cache HTML (SPA fallback) as a missing /assets/ file but caches real ones", async () => {
   const html = boot(async () => new Response("<!doctype html>", { status: 200, headers: { "content-type": "text/html; charset=utf-8" } }));
   const missing = await html.dispatch("fetch", { request: new Request(`${ORIGIN}/assets/gone-123.js`) });

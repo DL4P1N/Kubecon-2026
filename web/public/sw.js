@@ -46,18 +46,28 @@ function validAsset(pathname, response) {
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
-    const cache = await caches.open(SHELL);
     const response = await fetch("/index.html", { cache: "reload" });
     if (!response.ok) throw new Error("Shell unavailable");
     const html = await response.clone().text();
     // Vite's production assets are content-hashed. Precache CSS and entry JS.
     const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"?]+)"/g)].map((match) => match[1]);
+    // Install is all-or-nothing: fetch and validate every asset in memory before
+    // the shell cache is opened, so a failure never leaves a partial cache behind.
+    const fetched = [];
     for (const asset of assets) {
       const assetResponse = await fetch(asset);
       if (!validAsset(new URL(asset, self.location.origin).pathname, assetResponse)) throw new Error(`Invalid asset ${asset}`);
-      await cache.put(asset, assetResponse);
+      fetched.push([asset, assetResponse]);
     }
-    await cache.put("/index.html", response);
+    try {
+      const cache = await caches.open(SHELL);
+      for (const [asset, assetResponse] of fetched) await cache.put(asset, assetResponse);
+      await cache.put("/index.html", response);
+    } catch (error) {
+      // A failed write must not leave a partially populated shell cache either.
+      try { await caches.delete(SHELL); } catch { /* best effort */ }
+      throw error;
+    }
     await sweepExpired();
   })());
 });
