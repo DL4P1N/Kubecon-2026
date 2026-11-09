@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.erickwhatcott.conferencecompanion</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>confcompanion</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Bluetooth finds nearby venue receivers to show where you are on the floor plan, and, only if you turn it on, lets them locate this phone.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>The camera and LiDAR scan a room's walls so organisers can add it to the venue floor plan.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Connects to your conference server on the local network.</string>
+</dict>
+</plist>
