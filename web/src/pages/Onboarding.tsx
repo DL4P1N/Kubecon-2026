@@ -27,6 +27,10 @@ export function Onboarding() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (pending) return;
+    if (topics.length === 0 && goals.length === 0 && freeText.trim() === "") {
+      setError("Choose a topic or goal, or describe what you would like to learn.");
+      return;
+    }
     setPending(true);
     setError("");
     try {
