@@ -113,6 +113,8 @@ export const VARIANTS: Record<string, SearchTuning> = {
   "excl-msm30-k20": { ...EXCL, hybridKeywordMinimumShouldMatch: "30%", rankConstant: 20 },
   "excl-linear": { ...EXCL, fusion: "linear", semanticWeight: 1 },
   "excl-linear-sem2": { ...EXCL, fusion: "linear", semanticWeight: 2 },
+  /** Production tuning before #52: fuzzy matching but no query expansion. */
+  "pre-expansion": { ...DEFAULT_TUNING, queryExpansion: "off" },
   current: DEFAULT_TUNING,
 };
 
@@ -206,7 +208,9 @@ async function main(): Promise<void> {
   const kwCache = new Map<string, Hit[][]>();
   for (const name of names) {
     const tuning = VARIANTS[name]!;
-    const kwKey = JSON.stringify(tuning.excludeTracks);
+    // The whole tuning affects the keyword body (track exclusion, fuzziness,
+    // query expansion), so variants must not share cached keyword results.
+    const kwKey = JSON.stringify(tuning);
     let kwAll = kwCache.get(kwKey);
     if (!kwAll) {
       kwAll = [];

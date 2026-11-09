@@ -6,6 +6,7 @@ import {
   buildHybridBody,
   buildKeywordBody,
   eligibilityClauses,
+  expandQueryText,
   filterClauses,
   levelsFor,
   onboardingFilters,
@@ -67,6 +68,43 @@ describe("buildHybridBody", () => {
   it("widens the rank window for large page sizes", () => {
     const body = buildHybridBody("x", 200) as Obj;
     expect(body.retriever.rrf.rank_window_size).toBe(200);
+  });
+});
+
+describe("attendee-vocabulary expansion (#52)", () => {
+  const pagerQuery = "my pager keeps going off at night";
+
+  it("expands both legs once from the same text", () => {
+    const [keywordLeg, semanticLeg] = (buildHybridBody(pagerQuery, 10) as Obj).retriever.rrf.retrievers;
+    const keywordText = keywordLeg.standard.query.bool.must[0].multi_match.query;
+    const semanticText = semanticLeg.standard.query.bool.must[0].semantic.query;
+    expect(keywordText).toBe(semanticText);
+    expect(keywordText.startsWith(pagerQuery)).toBe(true);
+    expect(keywordText).toContain("on-call incident response alert triage AI SRE");
+    expect(keywordText.match(/on-call/g)).toHaveLength(1);
+  });
+
+  it("leaves unrelated queries untouched", () => {
+    expect(expandQueryText("kubernetes network security")).toBe("kubernetes network security");
+  });
+
+  it("can be disabled through the tuning", () => {
+    const [, semanticLeg] = (buildHybridBody(pagerQuery, 10, {}, { ...DEFAULT_TUNING, queryExpansion: "off" }) as Obj)
+      .retriever.rrf.retrievers;
+    expect(semanticLeg.standard.query.bool.must[0].semantic.query).toBe(pagerQuery);
+  });
+
+  it("expands keyword mode with the same bridge text", () => {
+    const body = buildKeywordBody(pagerQuery, 10) as Obj;
+    expect(body.query.bool.must[0].multi_match.query).toContain("on-call incident response alert triage AI SRE");
+  });
+
+  it("keeps an untouched query identical in both modes", () => {
+    const plain = "kubernetes network security";
+    const keywordBody = buildKeywordBody(plain, 10) as Obj;
+    const [, semanticLeg] = (buildHybridBody(plain, 10) as Obj).retriever.rrf.retrievers;
+    expect(keywordBody.query.bool.must[0].multi_match.query).toBe(plain);
+    expect(semanticLeg.standard.query.bool.must[0].semantic.query).toBe(plain);
   });
 });
 
