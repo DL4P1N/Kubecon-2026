@@ -1,0 +1,14 @@
+.interest-map { line-height: 1.5; max-width: 48rem; }
+.interest-map [role=alert] { color: #991b1b; }
+.map-note { border-left: 4px solid #b45309; padding: .5rem .75rem; background: #fffbeb; color: #1f2937; }
+.bar-chart { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+.bar-chart li { display: grid; grid-template-columns: minmax(6rem, 12rem) 1fr 3rem; gap: .75rem; align-items: center; margin-bottom: .5rem; }
+.bar-label { overflow-wrap: anywhere; }
+.bar-track { display: block; background: #e2e8f0; border-radius: .25rem; height: 1.25rem; }
+.bar { display: block; height: 100%; background: #164e9b; border-radius: .25rem; min-width: 2px; }
+.bar-value { text-align: right; font-variant-numeric: tabular-nums; }
+.interest-map table { border-collapse: collapse; width: 100%; }
+.interest-map caption { text-align: left; font-weight: 600; padding-bottom: .5rem; }
+.interest-map th, .interest-map td { border-bottom: 1px solid #94a3b8; padding: .4rem .5rem; text-align: left; }
+.interest-map td { font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .bar-chart li { grid-template-columns: 1fr 2.5rem; } .bar-track { grid-column: 1 / -1; grid-row: 2; } }
