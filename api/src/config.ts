@@ -18,13 +18,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
     throw new Error(`Invalid PORT: ${env.PORT}`);
   }
+  if (env.NODE_ENV === "production") {
+    // Fail closed: never run production with the public dev key or without ES credentials.
+    const missing = ["TOKEN_SIGNING_KEY", "ES_URL", "ES_USERNAME", "ES_PASSWORD"].filter((k) => !env[k]);
+    if (missing.length > 0) {
+      throw new Error(`Missing required environment variables in production: ${missing.join(", ")}`);
+    }
+  }
   return {
     port,
     host: env.HOST ?? "0.0.0.0",
     esUrl: env.ES_URL ?? "http://localhost:9200",
     esUsername: env.ES_USERNAME ?? "",
     esPassword: env.ES_PASSWORD ?? "",
-    tokenSigningKey: env.TOKEN_SIGNING_KEY ?? "dev-only-insecure-key",
+    tokenSigningKey: env.TOKEN_SIGNING_KEY || "dev-only-insecure-key",
     otelExporterOtlpEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT || undefined,
   };
 }
