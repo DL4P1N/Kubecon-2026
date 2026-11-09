@@ -1,0 +1,18 @@
+{
+  "status": "completed",
+  "release_sha": "b9f7ffe",
+  "image": "cc-api:b9f7ffe",
+  "observation_phase": "Initial post-seed batch, before the later browser registration smoke; not the final opted-in population.",
+  "fixtures": {"attendees_seeded": 12, "opted_in": 12, "vectors_written": true, "embedder": "es-inference", "dimensions": 384},
+  "jobs": {
+    "clusters": {"name": "smoke47-clusters-3d6b63", "status": "Complete", "log": "12 opted-in attendees, k=2, 2 clusters shown, 0 suppressed, 0 skipped (no usable vector)"},
+    "retention": {"name": "smoke47-retention-4be5c5", "status": "Complete", "log": {"deleted": 0}}
+  },
+  "later_browser_snapshot": {
+    "source": "live-smoke-flows.json",
+    "opted_in": 15,
+    "cluster_sizes": [8, 6],
+    "suppressed": 1,
+    "explanation": "Additional synthetic browser registrations and a later scheduled clustering run changed the population after the initial 12-attendee batch."
+  }
+}

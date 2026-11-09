@@ -23,7 +23,8 @@ spec:
           containers:
             - name: retention
               # Use the same release tag as the API Deployment.
-              image: ghcr.io/dl4p1n/kubecon-2026-api:main
+              image: cc-api:local
+              imagePullPolicy: IfNotPresent
               command: ["node", "dist/retention-cli.js"]
               envFrom:
                 - configMapRef:
@@ -52,4 +53,4 @@ spec:
           volumes:
             - name: es-ca
               secret:
-                secretName: elasticsearch-ca
+                secretName: elasticsearch-http-ca

@@ -1,0 +1,30 @@
+{
+  "status": "live_browser_smoke",
+  "release_sha": "b9f7ffe",
+  "endpoint": "http://127.0.0.1:18086",
+  "flows": {
+    "registration_catalog_and_schedules": {
+      "status": "passed",
+      "observed": "Two synthetic attendees registered through the live UI with distinct catalog interests (kubernetes; observability) and both consent checkboxes explicitly checked. Each completed onboarding and received a schedule. Attendee A schedule included Kubernetes/security-related talks; attendee B schedule included observability talks. Each schedule showed two overlap skips.",
+      "screenshots": ["docs/demo/live-smoke-register-a.png", "docs/demo/live-smoke-onboarding-a.png", "docs/demo/live-smoke-schedule-a.png", "docs/demo/live-smoke-register-b.png", "docs/demo/live-smoke-onboarding-b.png", "docs/demo/live-smoke-schedule-b.png"]
+    },
+    "keyword_and_hybrid_search": {
+      "status": "passed",
+      "query": "Kubernetes network security",
+      "observed": "Live Search UI returned populated Keyword and Hybrid result columns.",
+      "screenshots": ["docs/demo/live-smoke-search.png"]
+    },
+    "qr_revocation_and_restore": {"status": "not_run_by_browser_owner", "note": "Parent owns API-level QR/revocation/restore proof."},
+    "map_and_clusters": {
+      "status": "passed",
+      "observed": "Map displayed 15 opted-in attendees, Kubernetes 14, Observability 7, Security 6. Cluster UI loaded with organizer key privately, then key field was cleared before screenshot: 2 clusters (Kubernetes + Observability, 8; Kubernetes + Security, 6); 1 opted-in attendee hidden because its group had fewer than 5.",
+      "screenshots": ["docs/demo/live-smoke-map.png", "docs/demo/live-smoke-clusters.png", "docs/demo/live-smoke-organizer.png"]
+    },
+    "status_surface": {
+      "status": "passed",
+      "observed": "UI header badge All systems normal. Status page API Up v0.1.0, Elasticsearch Reachable, Keyword p95 41ms (1 search), Hybrid Ready p95 251ms (5 searches), server errors 0/24 (0.0%).",
+      "screenshots": ["docs/demo/live-smoke-status.png"]
+    }
+  },
+  "limitations": ["Per user's changed acceptance, full E2E is not required. Browser /api/me isolation and QR revocation/restore were not run and are explicitly outside this evidence run. Parent owns separate API/Elasticsearch-trace evidence."]
+}

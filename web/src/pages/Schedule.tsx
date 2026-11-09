@@ -8,9 +8,21 @@ import { talkHref } from "../talksApi.js";
 import { SkippedTalks } from "../components/SkippedTalks.js";
 import { recallSkipped, rememberSkipped } from "../skippedTalks.js";
 import "./discovery.css";
+import { RoomActivityBadge, useRoomActivity } from "./RoomActivity.js";
 
 export function Schedule() {
-  const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
+  const { activity } = useRoomActivity();
+  const [schedule, setSchedule] = useState<(ScheduleResponse & { offlineSavedAt?: string }) | null>(null);
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const connected = () => { setOnline(true); setRetry(0); };
+    const disconnected = () => { setOnline(false); setAccess(null); };
+    window.addEventListener("online", connected);
+    window.addEventListener("offline", disconnected);
+    return () => { window.removeEventListener("online", connected); window.removeEventListener("offline", disconnected); };
+  }, []);
+  // Bumped to re-request the schedule while a worker-saved copy is shown although the browser reports being online.
+  const [retry, setRetry] = useState(0);
   const [error, setError] = useState("");
   // Schedules are personal: without a session token from /register there is nothing to load.
   const [needsRegistration, setNeedsRegistration] = useState(() => !getToken());
@@ -48,20 +60,32 @@ export function Schedule() {
   useEffect(() => {
     if (needsRegistration) return;
     let active = true;
-    api.getSchedule().then((result) => { if (active) setSchedule(result); }, (err: unknown) => {
+    let timer: number | undefined;
+    api.getSchedule().then((result) => {
       if (!active) return;
-      // api.ts reports the HTTP status at the end of the message; 401 means a missing or expired session.
-      if (err instanceof Error && / 401$/.test(err.message)) setNeedsRegistration(true);
+      setSchedule(result); setError("");
+      // The worker's network can lag the page's "online" event and answer from its saved copy; keep asking
+      // (with backoff) so a rejected session or fresh data replaces the offline view without a manual reload.
+      if (result.offlineSavedAt && online) timer = window.setTimeout(() => setRetry((n) => n + 1), Math.min(1000 * 2 ** Math.min(retry, 4), 15000));
+    }, (err: unknown) => {
+      if (!active) return;
+      // Discard personal state when the server rejects this session.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        setNeedsRegistration(true);
+        setSchedule(null);
+        setAccess(null);
+      }
       else setError("Your schedule could not be loaded. Please reload or register again if your session expired.");
     });
-    return () => { active = false; };
-  }, [needsRegistration]);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [needsRegistration, online, retry]);
   useEffect(() => {
     if (!access) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [access]);
   async function showQr() {
+    if (!navigator.onLine) { setQrError("QR needs a connection."); return; }
     if (pending) return;
     setPending(true);
     setQrError("");
@@ -72,15 +96,18 @@ export function Schedule() {
       const svg = await QRCode.toString(token.token, { type: "svg", width: 256, margin: 4 });
       const image = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
       setNow(Date.now());
-      setAccess({ ...token, image });
+      if (navigator.onLine) setAccess({ ...token, image });
     } catch {
       setQrError("Room check-in is unavailable. Make sure you opted in to QR check-in and your registration has not expired.");
     } finally { setPending(false); }
   }
-  const validQr = access && now < Date.parse(access.expiresAt);
+  const validQr = online && access && now < Date.parse(access.expiresAt);
   return <section className="discovery">
     <h1>My schedule</h1>
+    {schedule?.offlineSavedAt && <p role="status">Offline: showing schedule saved at {new Date(schedule.offlineSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.</p>}
+    {!online && <p role="status">QR needs a connection. Reconnect to create a fresh check-in code.</p>}
     <p>All session times use your device’s local time zone.</p>
+    <p>Room activity reflects recent check-ins, not a headcount.</p>
     {needsRegistration && <p role="status">Register to build your personal schedule. <Link to="/register">Register now</Link>.</p>}
     {error && <p role="alert">{error}</p>}
     {!schedule && !error && !needsRegistration && <p role="status">Loading your schedule…</p>}
@@ -97,6 +124,7 @@ export function Schedule() {
         <p><time dateTime={talk.start}>{new Date(talk.start).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</time>
           {" – "}<time dateTime={talk.end}>{new Date(talk.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></p>
         <h2><Link to={talkHref(talk.id)}>{talk.title}</Link></h2><p>{talk.room} · {talk.speaker}</p>
+        <p><RoomActivityBadge room={talk.room} activity={activity} /></p>
         {reason && <p><strong>Why recommended:</strong> {reason}</p>}
         <button type="button" disabled={calendarPending} aria-label={`Add ${talk.title} to calendar`}
           onClick={() => void exportCalendar(talk.id)}>Add this talk to calendar</button>
@@ -105,7 +133,7 @@ export function Schedule() {
     <section aria-labelledby="checkin-heading">
       <h2 id="checkin-heading">Room check-in</h2>
       <p>For attendees who opted in. Each scan checks your room access; the code expires shortly after it is issued.</p>
-      <button type="button" disabled={pending} onClick={showQr}>{pending ? "Creating code…" : "Show room QR"}</button>
+      <button type="button" disabled={pending || !online} onClick={showQr}>{pending ? "Creating code…" : "Show room QR"}</button>
       {qrError && <p role="alert">{qrError}</p>}
       {validQr && <div>
         <img src={access.image} width={256} height={256} alt="Short-lived room check-in QR code" />
