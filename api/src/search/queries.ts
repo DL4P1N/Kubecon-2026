@@ -42,23 +42,26 @@ export interface SearchTuning {
   fuzzyPrefixLength?: number;
   /**
    * Whether both retrieval legs receive the curated attendee-vocabulary
-   * expansion of the query text (#52). Measured on the live index: expanding
-   * only the semantic leg was much weaker (hybrid MRR@10 0.351) than expanding
-   * both legs (0.815), so the default applies it once to both.
+   * expansion of the query text (#52). The text is expanded once and both legs
+   * rank the same string; an ablation under an earlier (rejected) rule set found
+   * semantic-leg-only expansion far weaker than both legs, so the default
+   * applies it to both.
    */
   queryExpansion?: "off" | "both";
 }
 
 /**
  * Attendee phrasing that does not share vocabulary with the talk catalog.
- * Applied term-wise to every query; this is a general vocabulary bridge, not a
- * per-query lookup. Measured on the 12-query eval (live 417-talk index): hybrid
- * hit@3 4/12 -> 10/12, MRR@10 0.313 -> 0.815, no per-query regression.
+ * Applied term-wise to every query; triggers are single terms or catalog
+ * phrases, never wording taken from the judged eval questions. Measured live on
+ * the 417-talk index (docs/evidence/search-eval-52.md): held-out 8 questions
+ * hybrid hit@3 3/8 -> 6/8, MRR@10 0.215 -> 0.642; the 12 tuned questions
+ * 4/12 -> 6/12, 0.313 -> 0.500. No per-query regression on either set.
  */
 const QUERY_EXPANSIONS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\bpager\b|\bon-?call\b|\balert(?:s|ing)?\b/i, "on-call incident response alert triage"],
   [/\bbackups?\b|\brestor(?:e|ed|ing)\b|\brecover(?:y|ed)?\b/i, "backup restore disaster recovery velero"],
-  [/\bgpus?\b|\bgraphics card\b/i, "GPU sharing time-slicing DRA"],
+  [/\bgpus?\b/i, "GPU sharing time-slicing DRA"],
   [/\bcanary\b|\brollout\b|\bprogressive delivery\b/i, "canary progressive delivery rollout"],
   [/\bfinops\b|\bcost\b|\bspend(?:ing)?\b|\bbill\b/i, "kubernetes cost optimization finops opencost"],
   [/\bsupply chain\b|\battestation\b|\bprovenance\b|\bsbom\b/i,
@@ -66,12 +69,11 @@ const QUERY_EXPANSIONS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\bsandbox(?:es|ed|ing)?\b|\buntrusted\b/i, "agent sandbox isolation runtime untrusted"],
   [/\bnetwork polic(?:y|ies)\b|\bnetworkpolicy\b/i, "network policy cilium ebpf"],
   [/\bsecrets?\b|\bpasswords?\b|\bcredentials?\b/i, "kubernetes secrets rotation external secrets"],
-  [/\bautoscal(?:e|er|ing)\b|\btraffic spikes?\b/i, "autoscaling HPA KEDA"],
+  [/\bautoscal(?:e|er|ing)\b/i, "autoscaling HPA KEDA"],
   [/\bimage pull\b|\bpull time\b|\bdownload(?:ing)? (?:the )?image\b/i,
     "container image pull latency startup"],
-  [/\brbac\b|\bauthoriz(?:ed|ation)\b|\ballowed to (?:do|access)\b/i,
-    "kubernetes authorization RBAC OPA policy"],
-  [/\brag\b|\binternal (?:docs|documents)\b|\bprivate (?:data|documents)\b/i,
+  [/\brbac\b|\bauthoriz(?:ed|ation)\b/i, "kubernetes authorization RBAC OPA policy"],
+  [/\brag\b|\bprivate (?:data|documents)\b/i,
     "RAG retrieval augmented generation self-hosted LLM vector search"],
 ];
 

@@ -1,4 +1,4 @@
-import { EVAL_SET } from "./search-eval.js";
+import { EVAL_SET } from "./search-eval-set.js";
 import { loadConfig } from "../api/src/config.ts";
 import { createEsClient } from "../api/src/es/client.ts";
 import {
@@ -73,5 +73,5 @@ async function measure(label: string, set: Judged[]) {
 }
 
 await ids(buildHybridBody("warm up", 1, {}, ON));
-await measure("TUNED SET (12 original judged queries)", EVAL_SET as unknown as Judged[]);
+await measure("TUNED SET (12 original judged queries)", EVAL_SET);
 await measure("HELD-OUT SET (8 new questions)", HELD_OUT);
