@@ -38,21 +38,21 @@ and a plain `npm run dev:api` never try to export.
 | --- | --- |
 | `instrument.ts` | Preloaded with `node --import` (start/dev scripts, Dockerfile CMD) so instrumentation patches modules before the app loads. |
 | `sdk.ts` | `NodeSDK` with resource `service.name=companion-api`, OTLP/HTTP exporters for traces, metrics, logs. Instrumentations: `http` (server spans + `http.server.request.duration`), `@fastify/otel` (route/handler spans, sets `http.route`), `undici` (outgoing `fetch`, i.e. the ES client), `pino` (log correlation + OTLP log sending). `shutdownTelemetry()` flushes on SIGTERM. |
-| `span.ts` | `withSpan(name, attrs, fn)` and `setSpanAttributes(span, attrs)`: custom spans whose attributes are filtered through the allowlist (so `attendee.id` is dropped before export). Errors record `error.type` only, never the message. |
-| `metrics.ts` | `recordSearchLatency(seconds, mode)` / `timeSearch(mode, fn)` -> histogram `companion.search.duration` (s, by `search.mode`); `recordAccessScan(decision, room)` -> counter `access.scans` (by `access.decision`, `room.id`; PromQL name `access_scans_total`). |
+| `span.ts` | `withSpan(name, attrs, fn)`: custom spans whose attributes (at start and via `span.setAttribute`) are filtered through the allowlist, so `attendee.id` is dropped before export. Errors record `error.type` only, never the message. `setSpanRunner(fake)` swaps the implementation in tests. |
+| `metrics.ts` | `recordSearchLatency(seconds, mode)` / `timeSearch(mode, fn)` (already wrapped around `runSearch` in `api/src/search/service.ts`) -> histogram `companion.search.duration` (s, by `search.mode`); `recordAccessScan(decision, room)` -> counter `access.scans` (by `access.decision`, `room.id`; PromQL name `access_scans_total`). |
 | `logger.ts` | `loggerOptions` for `Fastify({ logger })`: pino JSON to stdout, request serializer emits only method, path without query, route and status; redacts `authorization`, cookies, bodies, tokens and `attendeeId`. |
 | `allowlist.ts` | The allowlist as constants. A unit test checks they match both collector configs. |
 
 Usage from feature code:
 
 ```ts
-import { withSpan, setSpanAttributes } from "./telemetry/span.js";
+import { withSpan } from "./telemetry/span.js";
 import { timeSearch, recordAccessScan } from "./telemetry/metrics.js";
 
 const res = await timeSearch(mode, () =>
   withSpan("search.hybrid", { "search.mode": mode }, async (span) => {
     const r = await es.request("POST", "/talks/_search", body);
-    setSpanAttributes(span, { "search.hits": hits.length });
+    span.setAttribute("search.hits", hits.length);
     return r;
   }),
 );
@@ -67,8 +67,9 @@ to the collector over OTLP. We chose OTLP because it needs no filelog receiver
 or node-level DaemonSet, and Dash0 links the records to traces directly.
 stdout JSON is still there for `kubectl logs`.
 
-Note: Fastify logging is enabled by passing `loggerOptions` to `Fastify()` in
-`api/src/server.ts` (owned by task #8 at the time of writing; see the board).
+Fastify logging is enabled by passing `loggerOptions` to `Fastify()` in
+`api/src/server.ts`. Level comes from `LOG_LEVEL` (default `info`, `silent`
+under vitest).
 
 ## Web (`web/src/telemetry/rum.ts`)
 

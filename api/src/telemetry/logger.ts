@@ -32,7 +32,7 @@ interface ReqLike {
 }
 
 export const loggerOptions = {
-  level: process.env.LOG_LEVEL ?? "info",
+  level: process.env.LOG_LEVEL ?? (process.env.VITEST ? "silent" : "info"),
   redact: { paths: REDACT_PATHS, censor: "[redacted]" },
   serializers: {
     req(req: ReqLike) {

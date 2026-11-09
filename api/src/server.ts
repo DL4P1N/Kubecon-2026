@@ -14,6 +14,7 @@ import {
 import type { Config } from "./config.js";
 import { createEsClient, type EsClient } from "./es/client.js";
 import { MOCK_TALKS } from "./mock-data.js";
+import { loggerOptions } from "./telemetry/logger.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
 
 const VERSION = "0.1.0";
@@ -35,7 +36,7 @@ export interface ServerDeps {
  * returning contract-shaped mock data until their tasks land.
  */
 export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInstance {
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: loggerOptions });
 
   app.get(routes.health.path, async (): Promise<HealthResponse> => ({
     status: "ok",
