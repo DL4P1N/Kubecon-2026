@@ -5,6 +5,7 @@ import { routes, type AccessTokenResponse, type ScanResponse } from "@cc/shared"
 import { requireAttendee, TokenError, type TokenService } from "../auth/token.js";
 import type { EsClient } from "../es/client.js";
 import { TALKS_INDEX } from "../search/queries.js";
+import { recordAccessScan } from "../telemetry/metrics.js";
 import { withSpan } from "../telemetry/span.js";
 import { ALL_ROOMS, type AttendeeDoc, type EntitlementDoc } from "./register.js";
 
@@ -30,6 +31,9 @@ export const ACCESS_TOKEN_TTL_SECONDS = 60;
 export const MAX_ROOM_LENGTH = 200;
 /** A signed JWT carrying a UUID is ~250 bytes; anything much larger is not ours. */
 export const MAX_SCAN_TOKEN_LENGTH = 1024;
+
+/** Metric room label when the room is not (yet) a validated catalog room. */
+export const UNKNOWN_ROOM = "unknown";
 
 export const scanBodySchema = z.object({
   token: z.string().min(1).max(MAX_SCAN_TOKEN_LENGTH),
@@ -109,9 +113,15 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
     { config: { rateLimit: { max: opts.scanRateLimitPerMinute ?? 600, timeWindow: "1 minute" } } },
     async (req, reply) =>
       withSpan("access.scan", {}, async (span) => {
+        // Room that passed the catalog check; user input is never used as a metric label before that.
+        let knownRoom: string | undefined;
+        const decide = (decision: ScanResponse["decision"]) => {
+          span.setAttribute("access.decision", decision);
+          recordAccessScan(decision, knownRoom ?? UNKNOWN_ROOM);
+        };
         const parsed = scanBodySchema.safeParse(req.body);
         if (!parsed.success) {
-          span.setAttribute("access.decision", "deny");
+          decide("deny");
           // Field paths and messages only; never echo submitted values.
           return reply.code(400).send({
             error: "invalid_request",
@@ -121,7 +131,7 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
         const { token, room } = parsed.data;
 
         const finish = (code: number, body: ScanResponse) => {
-          span.setAttribute("access.decision", body.decision);
+          decide(body.decision);
           return reply.code(code).send(body);
         };
 
@@ -139,9 +149,10 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
             query: { term: { room } },
           });
           if (!known.body.count) {
-            span.setAttribute("access.decision", "deny");
+            decide("deny");
             return reply.code(400).send({ error: "invalid_request", message: "room: unknown room" });
           }
+          knownRoom = room;
           span.setAttribute("room.id", room);
 
           const r = await es.request<{ found?: boolean; _source?: EntitlementDoc }>(
@@ -157,7 +168,7 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
           return finish(200, { decision: "allow", room });
         } catch {
           // Fail closed. ES errors are not logged or returned: they contain the doc path.
-          span.setAttribute("access.decision", "deny");
+          decide("deny");
           return reply.code(503).send({ error: "storage_unavailable", message: "could not check access" });
         }
       }).catch(() =>

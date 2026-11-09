@@ -7,6 +7,7 @@ import type { Config } from "./config.js";
 import { createEsClient, type EsClient } from "./es/client.js";
 import { createTokenService, type TokenService } from "./auth/token.js";
 import { createEmbedder } from "./es/embeddings.js";
+import { loggerOptions } from "./telemetry/logger.js";
 import { accessRoutes } from "./routes/access.js";
 import { registerInterestRoutes } from "./routes/interests.js";
 import { registerRoutes } from "./routes/register.js";
@@ -35,7 +36,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   const es = deps.es ?? createEsClient(config);
   const embedder = createEmbedder(process.env, es);
   const app = Fastify({
-    logger: false,
+    logger: loggerOptions,
     trustProxy: config.trustProxyHops > 0
       ? (_address: string, hop: number) => hop < config.trustProxyHops
       : false,

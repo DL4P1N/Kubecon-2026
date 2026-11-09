@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: companion-app-config
+  labels:
+    app.kubernetes.io/name: companion
+    app.kubernetes.io/part-of: conference-companion
+data:
+  NODE_ENV: production
+  HOST: 0.0.0.0
+  PORT: "3000"
+  # One trusted nginx hop on the local web -> API path; not arbitrary proxies.
+  TRUST_PROXY: "1"
+  ES_URL: https://elasticsearch:9200
+  NODE_EXTRA_CA_CERTS: /etc/elasticsearch/ca.crt
+  OTEL_SERVICE_NAME: companion-api
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf

@@ -3,6 +3,14 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { Writable } from "node:stream";
 import type { AccessTokenResponse, RegisterResponse, ScanResponse } from "@cc/shared";
 import { SignJWT } from "jose";
+import { metrics } from "@opentelemetry/api";
+import {
+  AggregationTemporality,
+  InMemoryMetricExporter,
+  MeterProvider,
+  PeriodicExportingMetricReader,
+} from "@opentelemetry/sdk-metrics";
+import { resetMetricsForTest } from "../src/telemetry/metrics.js";
 import { createTokenService } from "../src/auth/token.js";
 import { createEsClient, type EsClient } from "../src/es/client.js";
 import { accessRoutes, scanBodySchema } from "../src/routes/access.js";
@@ -292,5 +300,39 @@ describe("QR access", () => {
     expect(everything).not.toContain(reg.attendeeId);
     expect(everything).not.toContain(qr.token);
     expect(everything).not.toContain(reg.token);
+  });
+
+  it("counts scans by decision and room only, never by attendee ID, and not by unvalidated room input", async () => {
+    const exporter = new InMemoryMetricExporter(AggregationTemporality.CUMULATIVE);
+    const reader = new PeriodicExportingMetricReader({ exporter, exportIntervalMillis: 60_000 });
+    const provider = new MeterProvider({ readers: [reader] });
+    metrics.setGlobalMeterProvider(provider);
+    resetMetricsForTest();
+    try {
+      const reg = await register();
+      const qr = (await qrToken(reg)).json() as AccessTokenResponse;
+      await scan(qr.token);
+      await scan(qr.token);
+      await scan("garbage", "attacker-chosen-room");
+      await scan(qr.token, "Nowhere");
+      await reader.forceFlush();
+
+      const all = exporter.getMetrics().flatMap((rm) => rm.scopeMetrics.flatMap((sm) => sm.metrics));
+      const points = all.find((m) => m.descriptor.name === "access.scans")!.dataPoints;
+      const summary = points.map((p) => ({ ...p.attributes, n: p.value }));
+      expect(summary).toEqual(
+        expect.arrayContaining([
+          { "access.decision": "allow", "room.id": ROOM, n: 2 },
+          { "access.decision": "deny", "room.id": "unknown", n: 2 },
+        ]),
+      );
+      expect(points).toHaveLength(2);
+      expect(JSON.stringify(points)).not.toContain(reg.attendeeId);
+      expect(JSON.stringify(points)).not.toContain("attacker-chosen-room");
+    } finally {
+      await provider.shutdown();
+      metrics.disable();
+      resetMetricsForTest();
+    }
   });
 });
