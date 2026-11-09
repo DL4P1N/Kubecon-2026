@@ -10,6 +10,7 @@ import {
 } from "@opentelemetry/sdk-metrics";
 import { withSpan } from "../src/telemetry/span.js";
 import { recordAccessScan, recordSearchLatency, resetMetricsForTest } from "../src/telemetry/metrics.js";
+import Fastify from "fastify";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
@@ -116,6 +117,24 @@ describe("allowlist mirrors the collector config", () => {
       }
     });
   }
+});
+
+describe("fastify logging does not leak user input", () => {
+  it("strips query strings from 404 messages and drops error messages", async () => {
+    const lines: string[] = [];
+    const app = Fastify({
+      logger: { ...loggerOptions, level: "info", stream: { write: (s: string) => void lines.push(s) } },
+    });
+    app.get("/boom", async () => {
+      throw new Error("attendee a-123 not found");
+    });
+    await app.inject({ method: "GET", url: "/api/search/?q=my%20secret%20text" });
+    await app.inject({ method: "GET", url: "/boom?token=abc" });
+    await app.close();
+    const out = lines.join("");
+    expect(out).toContain("not found"); // the 404 line is still logged
+    expect(out).not.toMatch(/secret|token=abc|a-123/);
+  });
 });
 
 describe("sdk + logger", () => {

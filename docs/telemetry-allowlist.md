@@ -27,6 +27,11 @@ The same lists live in code as `SPAN_ATTRIBUTE_ALLOWLIST`,
 anything else in-process, and `api/test/telemetry.test.ts` fails if those
 constants drift from either collector config.
 
+Log message bodies are not attributes, so `keep_keys` does not cover them.
+The collector therefore also runs `replace_pattern(body, "\\?\\S*", "?[redacted]")`
+on logs, so a URL query string inside a message never reaches Dash0 (the API
+already strips them in `api/src/telemetry/logger.ts`).
+
 ## Local validation
 
 Start the debug-enabled collector with `docker compose -f deploy/compose/docker-compose.yml up`.

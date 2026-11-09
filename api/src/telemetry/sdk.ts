@@ -48,10 +48,9 @@ export function startTelemetry(serviceName?: string, env: NodeJS.ProcessEnv = pr
     ],
     logRecordProcessors: [new BatchLogRecordProcessor({ exporter: new OTLPLogExporter() })],
     instrumentations: [
-      new HttpInstrumentation({
-        // Health probes would otherwise dominate the trace list.
-        ignoreIncomingRequestHook: (req) => req.url === "/healthz",
-      }),
+      // Every endpoint, /healthz included, gets a server span (repo rule).
+      // Probe noise can be sampled or filtered in the collector instead.
+      new HttpInstrumentation(),
       new UndiciInstrumentation(),
       new FastifyOtelInstrumentation({ registerOnInitialization: true }),
       new PinoInstrumentation(),

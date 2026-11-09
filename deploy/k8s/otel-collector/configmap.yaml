@@ -33,6 +33,8 @@ data:
           - context: log
             statements:
               - keep_keys(attributes, ["log.severity", "http.request.method", "http.response.status_code", "http.route", "url.path", "room.id", "access.decision", "search.mode", "search.hits", "error.type"])
+              # Defence in depth: never forward URL query strings inside log bodies.
+              - replace_pattern(body, "\\?\\S*", "?[redacted]")
         metric_statements:
           - context: resource
             statements:
