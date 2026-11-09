@@ -73,19 +73,27 @@ export interface OnboardingAnswers {
   experience: ExperienceLevel;
   goals: string[];
   freeText?: string;
+  /** Only suggest talks starting at or after this time. ISO 8601. */
+  availableFrom?: string;
+  /** Only suggest talks ending at or before this time. ISO 8601. */
+  availableTo?: string;
 }
 
 export interface OnboardingRequest {
   answers: OnboardingAnswers;
 }
 
-/** The query generated from the onboarding answers. */
+/** The query generated from the onboarding answers, plus the ranked talks. */
 export interface OnboardingResponse {
   query: {
     text: string;
     topics: string[];
     mode: SearchMode;
   };
+  /** Ranked talks for the generated query (level and time filters applied). */
+  hits?: SearchHit[];
+  /** Elasticsearch request body, only when `?debug=1`. */
+  debug?: unknown;
 }
 
 // ---------------------------------------------------------------- talks / search
@@ -94,6 +102,7 @@ export type SearchMode = "hybrid" | "keyword";
 
 export interface Talk {
   id: string;
+  level?: ExperienceLevel;
   title: string;
   speaker: string;
   abstract: string;
@@ -104,14 +113,24 @@ export interface Talk {
   tags: string[];
 }
 
+/** Which retriever leg produced a hit. */
+export type SearchLeg = "keyword" | "semantic";
+
 export interface SearchHit {
   talk: Talk;
+  /** keyword mode: BM25 score. hybrid mode: RRF fused score. */
   score: number;
+  /** Which legs matched this talk (keyword = BM25, semantic = content_semantic). */
+  matched?: SearchLeg[];
 }
 
 export interface SearchQuery {
   q: string;
   mode?: SearchMode;
+  /** `1` returns the Elasticsearch request body in `debug`. */
+  debug?: "0" | "1";
+  /** Page size, 1-50 (default 10). */
+  size?: number;
 }
 
 export interface SearchResponse {
@@ -119,12 +138,22 @@ export interface SearchResponse {
   mode: SearchMode;
   tookMs: number;
   hits: SearchHit[];
+  /** Elasticsearch request body, only when `?debug=1`. */
+  debug?: unknown;
 }
 
 // ---------------------------------------------------------------- schedule
 
+/**
+ * Provide `talkIds` (in priority order) to save those talks, or `answers` to
+ * build a schedule from onboarding. In both cases overlapping talks are
+ * dropped greedily, highest priority/score first.
+ */
 export interface SaveScheduleRequest {
-  talkIds: string[];
+  talkIds?: string[];
+  answers?: OnboardingAnswers;
+  /** Cap on the number of talks (default 12). */
+  maxTalks?: number;
 }
 
 export interface ScheduleItem {
@@ -136,6 +165,8 @@ export interface ScheduleItem {
 export interface ScheduleResponse {
   items: ScheduleItem[];
   updatedAt: string; // ISO 8601
+  /** Talks that were left out because they overlap a higher-priority one. */
+  droppedTalkIds?: string[];
 }
 
 // ---------------------------------------------------------------- access (QR per room)

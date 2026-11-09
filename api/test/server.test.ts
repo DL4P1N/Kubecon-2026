@@ -3,12 +3,14 @@ import type { FastifyInstance } from "fastify";
 import type { HealthResponse, SearchResponse } from "@cc/shared";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
+import { esHit, fakeEs, talk } from "./helpers.js";
 
 describe("api stub", () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    app = buildServer(loadConfig({}));
+    const es = fakeEs(() => ({ body: { took: 1, hits: { hits: [esHit(talk("t1", 9, 10), 1.5, ["keyword"])] } } }));
+    app = buildServer(loadConfig({}), { es });
     await app.ready();
   });
   afterAll(() => app.close());
