@@ -13,7 +13,7 @@
     "es:init": "tsx src/es/init.ts",
     "seed": "tsx src/es/seed.ts",
     "retention": "node dist/retention-cli.js",
-    "clusters": "tsx src/clusters/job.ts",
+    "clusters": "tsx src/clusters/cli.ts",
     "clusters:seed": "tsx src/clusters/seed.ts"
   },
   "dependencies": {
