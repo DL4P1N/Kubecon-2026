@@ -1,4 +1,5 @@
 import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { InterestMap } from "./pages/InterestMap.js";
 import { Kiosk } from "./pages/Kiosk.js";
 import { Onboarding } from "./pages/Onboarding.js";
 import { Register } from "./pages/Register.js";
@@ -15,6 +16,7 @@ export function App() {
           <Link to="/schedule">Schedule</Link>
           <Link to="/search">Search</Link>
           <Link to="/kiosk">Kiosk</Link>
+          <Link to="/map">Interest map</Link>
         </nav>
       </header>
       <main>
@@ -25,6 +27,7 @@ export function App() {
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/search" element={<Search />} />
           <Route path="/kiosk" element={<Kiosk />} />
+          <Route path="/map" element={<InterestMap />} />
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>
       </main>

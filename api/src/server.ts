@@ -1,10 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import {
-  MIN_CLUSTER_SIZE,
   routes,
   type AccessTokenResponse,
   type HealthResponse,
-  type InterestAggregateResponse,
   type MeResponse,
   type RegisterRequest,
   type RegisterResponse,
@@ -14,6 +12,7 @@ import {
 import type { Config } from "./config.js";
 import { createEsClient, type EsClient } from "./es/client.js";
 import { MOCK_TALKS } from "./mock-data.js";
+import { registerInterestRoutes } from "./routes/interests.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
 
 const VERSION = "0.1.0";
@@ -64,7 +63,8 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
     onboarded: false,
   }));
 
-  registerSearchRoutes(app, { es: deps.es ?? createEsClient(config), ...deps.search });
+  const es = deps.es ?? createEsClient(config);
+  registerSearchRoutes(app, { es, ...deps.search });
 
   app.post(routes.accessToken.path, async (): Promise<AccessTokenResponse> => ({
     token: `stub.${STUB_ATTENDEE_ID}`,
@@ -85,16 +85,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
     },
   );
 
-  app.get(routes.interestsAggregate.path, async (): Promise<InterestAggregateResponse> => ({
-    clusters: [
-      { label: "Kubernetes", count: 42 },
-      { label: "Observability", count: 31 },
-      { label: "Search & data", count: 17 },
-    ],
-    suppressed: 3,
-    minClusterSize: MIN_CLUSTER_SIZE,
-    generatedAt: new Date().toISOString(),
-  }));
+  registerInterestRoutes(app, { es, now: deps.search?.now });
 
   // `config` is wired for later tasks (ES client, token signing, OTel).
   app.decorate("config", config);
