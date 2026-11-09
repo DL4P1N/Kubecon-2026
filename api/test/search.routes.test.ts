@@ -340,7 +340,12 @@ describe("schedule routes", () => {
     const body = res.json() as ScheduleResponse;
     expect(body.items.map((i) => i.talk.id)).toEqual(["b", "c"]);
     expect(body.droppedTalkIds).toEqual(["nope", "a"]);
+    // Only the overlap is a conflict; the unknown id is not.
+    expect(body.skipped?.map(({ talkId, conflictsWith }) => ({ talkId, conflictsWith }))).toEqual([{ talkId: "a", conflictsWith: ["b"] }]);
+    expect(body.skipped?.[0]?.talk?.id).toBe("a");
     expect((docs.get("ada-1") as { talk_ids: string[] }).talk_ids).toEqual(["b", "c"]);
+    const get = await app.inject({ method: "GET", url: "/api/schedule", headers });
+    expect((get.json() as ScheduleResponse).skipped).toBeUndefined();
   });
 
   it("keeps two registered attendees' schedules separate", async () => {
