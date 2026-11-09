@@ -16,7 +16,7 @@ vi.mock("html5-qrcode", () => ({
   },
 }));
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.replaceState(null, "", "/"); });
 
 it("uses status regions for loading and empty states and alert for errors", () => {
   const retry = vi.fn();

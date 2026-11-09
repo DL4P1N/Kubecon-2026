@@ -9,7 +9,8 @@ import { StatusBadge } from "../src/components/StatusBadge.js";
 import { describeStatus } from "../src/components/status.js";
 import { ApiError, api } from "../src/api.js";
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+// Search persists its query in the URL; reset it so one test does not auto-run the next one's search.
+afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.replaceState(null, "", "/"); });
 
 const base: StatusResponse = {
   status: "ok", generatedAt: "2026-11-09T12:00:00Z", windowSeconds: 300,
@@ -99,6 +100,7 @@ it("search still shows an error when keyword fails too, or hybrid fails with a n
   expect((await screen.findAllByRole("alert")).length).toBe(2);
   cleanup();
   vi.restoreAllMocks();
+  window.history.replaceState(null, "", "/");
   vi.spyOn(api, "search").mockImplementation(async (q, mode) => {
     if (mode === "hybrid") throw new ApiError("bad", 400);
     return { q, mode, tookMs: 1, hits: [] };
