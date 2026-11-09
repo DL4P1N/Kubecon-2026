@@ -30,13 +30,13 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const width of [375, 768]) {
-  for (const path of ["register", "onboarding", "schedule", "search", "map", "status", "kiosk"]) {
+  for (const path of ["onboarding", "schedule", "search", "map", "status", "kiosk"]) {
     test(`mobile ${path} at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: width === 375 ? 812 : 1024 });
       await page.goto(`/${path}`);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await expect(page.getByRole("link", { name: /All systems normal/ })).toBeVisible();
-      if (path === "register" || path === "onboarding") await expect(page.getByLabel("kubernetes", { exact: true })).toBeVisible();
+      if (path === "onboarding") await expect(page.getByLabel("kubernetes", { exact: true })).toBeVisible();
       if (path === "schedule") {
         await page.getByRole("button", { name: "Show room QR" }).click();
         const qr = page.getByAltText("Short-lived room check-in QR code");

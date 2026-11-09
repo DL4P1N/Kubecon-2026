@@ -153,6 +153,9 @@ self.addEventListener("fetch", (event) => {
   maybeSweep(event);
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || request.method !== "GET") return;
+  // The static site (/site/*: its own pages, assets and navigations) and the SSE feed are never touched by the
+  // worker: no shell fallback for a /site/ URL, and an event stream must never pass through a cache.
+  if (url.pathname === "/site" || url.pathname.startsWith("/site/") || url.pathname === "/api/events") return;
   // OTLP, QR, registration, searches and all other APIs are network-only.
   if (url.pathname === "/api/schedule" && !url.search) {
     event.respondWith(schedule(request));

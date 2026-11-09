@@ -27,6 +27,8 @@ export interface RateLimitPolicy {
   interestsClusters: RouteLimit;
   me: RouteLimit;
   catalogTopics: RouteLimit;
+  chat: RouteLimit;
+  events: RouteLimit;
 }
 
 export const DEFAULT_RATE_LIMITS: RateLimitPolicy = {
@@ -38,6 +40,9 @@ export const DEFAULT_RATE_LIMITS: RateLimitPolicy = {
   interestsClusters: { max: 120 },
   me: { max: 120 },
   catalogTopics: { max: 300 },
+  // Each chat turn may spawn the Claude CLI (which spends usage), so the guard is tighter than for reads.
+  chat: { max: 30 },
+  events: { max: 30 },
 };
 
 export const RATE_LIMIT_WINDOW = "1 minute";

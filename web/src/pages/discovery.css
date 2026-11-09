@@ -1,44 +1,110 @@
-.discovery { line-height: 1.5; }
-.discovery button { border: 0; border-radius: .3rem; padding: .65rem 1rem; background: #164e9b; color: white; cursor: pointer; }
-.discovery button:disabled { background: #475569; cursor: wait; }
-.discovery input:not([type=checkbox]) { box-sizing: border-box; width: 100%; }
-.discovery [role=alert] { color: #991b1b; }
-.search-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
-.talk-results, .schedule-timeline { padding-left: 1.5rem; }
-.talk-results li, .schedule-timeline li { margin-bottom: 1.5rem; padding: .5rem; border-bottom: 1px solid #94a3b8; }
-.talk-results h3, .schedule-timeline h2 { margin: .25rem 0; }
-.discovery pre { overflow: auto; background: #f1f5f9; padding: .75rem; max-height: 24rem; }
-.discovery summary { cursor: pointer; padding: .5rem 0; }
-.skipped-talks ul { padding-left: 1.5rem; }
-.skipped-talks li { margin-bottom: 1rem; padding: .5rem; border-left: 4px solid #b45309; }
-.skipped-talks h3 { margin: .25rem 0; }
-.skipped-talks .skipped-note { color: #475569; font-size: .95em; }
-.checkin-token { overflow-wrap: anywhere; }
-.discovery label:has(input[type=checkbox]) { display: flex; align-items: center; min-height: 44px; gap: .35rem; }
-@media (max-width: 600px) { .search-comparison { grid-template-columns: 1fr; } }
+/* Schedule, Search, Talk detail, Organizer, plus the suggest combobox and filter chips.
+   Cards are flat surface panels with a 1px hairline. Primary = lime button; secondary = outline. */
+.discovery > p { color: var(--muted); }
+.discovery > form { max-width: 720px; margin-block: var(--s-5); }
+.discovery > h1 + p { color: var(--muted); }
 
-.talk-detail .talk-speaker { font-size: 1.15rem; margin-block: 0 1rem; }
-.talk-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
-.talk-facts dt { font-weight: 600; }
-.talk-facts dd { margin: 0; }
-.talk-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; list-style: none; padding: 0; }
-.talk-tags li { border: 1px solid currentColor; border-radius: 999px; padding: 0.1rem 0.6rem; }
-.related-list { padding-left: 1.25rem; }
-.related-list li { margin-block: 0.75rem; }
-.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Lists of talks (schedule timeline, search results, related, alternatives) */
+.talk-results, .schedule-timeline, .related-list, .alternatives-list { list-style: none; padding: 0; margin: var(--s-5) 0; display: grid; gap: var(--s-4); }
+.talk-results li, .schedule-timeline li { padding: var(--s-5); background: var(--surface); border: 1px solid var(--line); }
+.talk-results h3, .schedule-timeline h2 { margin: var(--s-1) 0 var(--s-2); font-size: var(--t-h3); line-height: 1.3; }
+.talk-results li p, .schedule-timeline li p { margin: 0 0 var(--s-2); max-width: 70ch; }
+.talk-results li > p:last-child { font: 500 var(--t-label)/1.4 var(--font-mono); color: var(--muted); margin-bottom: 0; }
+.schedule-timeline li > p:first-child { font: 500 var(--t-small)/1.4 var(--font-mono); color: var(--accent); }
+.schedule-timeline li > p:first-child time { font: inherit; }
+.schedule-timeline li > p:nth-of-type(2) { color: var(--muted); }
+.schedule-timeline li > button { margin-top: var(--s-3); background: transparent; color: var(--ink); border-color: var(--line-strong); }
+.schedule-timeline li > button:hover:not(:disabled) { background: var(--bg); border-color: var(--ink); color: var(--ink); }
+.schedule-timeline li > button:disabled { background: transparent; color: var(--muted); border-color: var(--line); }
+.schedule-timeline h2 a, .talk-results h3 a { color: var(--ink); text-decoration-color: var(--line-strong); }
+.schedule-timeline h2 a:hover, .talk-results h3 a:hover { color: var(--accent); text-decoration-color: currentColor; }
+
+/* Schedule: calendar export, room check-in */
+.discovery > button { margin: var(--s-2) 0 var(--s-4); }
+.discovery section[aria-labelledby="checkin-heading"] { margin-top: var(--s-7); padding-top: var(--s-2); border-top: 1px solid var(--line); }
+.discovery section[aria-labelledby="checkin-heading"] img { display: block; max-width: 100%; height: auto; margin: var(--s-4) 0; border: 4px solid var(--paper); background: var(--paper); }
+.checkin-token { display: block; overflow-wrap: anywhere; padding: var(--s-3); }
+
+/* Alternatives under a scheduled talk (outline button, indented list) */
+.alternatives { margin-top: var(--s-4); padding-top: var(--s-3); border-top: 1px solid var(--line); }
+.alternatives > button { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+.alternatives > button:hover:not(:disabled) { background: var(--bg); border-color: var(--ink); color: var(--ink); }
+.alternatives > button:disabled { background: transparent; color: var(--muted); border-color: var(--line); }
+.alternatives [aria-live] > p { margin-top: var(--s-3); color: var(--muted); }
+.alternatives [aria-live] > p[role=alert] { color: var(--state-down); }
+.alternatives-list { margin: var(--s-3) 0 0; gap: 0; border-left: 2px solid var(--accent); }
+.alternatives-list li { padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--line); background: var(--bg); line-height: 1.6; }
+.alternatives-list li:last-child { border-bottom: 0; }
+
+/* Skipped talks: a panel with an amber edge, only when there is something to swap */
+.skipped-talks:has(h2) { margin: var(--s-5) 0; padding: var(--s-5); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--state-warn); }
+.skipped-talks h2 { margin-top: 0; font-size: var(--t-h3); }
+.skipped-talks [role=status]:empty { display: none; }
+.skipped-talks ul { list-style: none; padding: 0; margin: var(--s-4) 0 0; display: grid; gap: var(--s-3); }
+.skipped-talks li { padding: var(--s-4); background: var(--bg); border: 1px solid var(--line); }
+.skipped-talks h3 { margin: 0 0 var(--s-2); }
+.skipped-talks li p { margin-bottom: var(--s-2); }
+.skipped-talks .skipped-note { color: var(--muted); font-size: var(--t-small); margin-bottom: 0; margin-top: var(--s-3); }
+
+/* Search: form, comparison columns */
+form[role=search] { padding: var(--s-5); background: var(--surface); border: 1px solid var(--line); }
+form[role=search] > label:first-child { margin-top: 0; }
+.search-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-6); align-items: start; margin-top: var(--s-5); }
+.search-comparison > section > h2 { margin-top: 0; padding-bottom: var(--s-3); border-bottom: 1px solid var(--line-strong); font: 500 var(--t-label)/1.3 var(--font-mono); color: var(--accent); }
+.search-comparison > section > p:first-of-type { color: var(--muted); font-size: var(--t-small); }
+.search-comparison p[role=status] { padding: var(--s-3) var(--s-4); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--state-warn); color: var(--ink); }
+.discovery summary { padding: var(--s-2) 0; }
+.discovery pre { max-height: 24rem; margin: var(--s-2) 0; }
+@media (max-width: 760px) { .search-comparison { grid-template-columns: 1fr; } .talk-results li, .schedule-timeline li { padding: var(--s-4); } }
+
+/* Suggest combobox */
 .suggest { position: relative; }
-.suggest input { width: 100%; box-sizing: border-box; }
-.suggest [role="listbox"] { position: absolute; z-index: 5; left: 0; right: 0; margin: 0; padding: 0; list-style: none; background: Canvas; color: CanvasText; border: 1px solid GrayText; border-radius: 0.25rem; }
+.suggest input { width: 100%; }
+.suggest [role="listbox"] { position: absolute; z-index: 5; left: 0; right: 0; margin: var(--s-1) 0 0; padding: 0; list-style: none; background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--r-sm); }
 .suggest [role="listbox"][hidden] { display: none; }
-.suggest [role="option"] { padding: 0.6rem 0.75rem; min-height: 44px; box-sizing: border-box; cursor: pointer; }
-.suggest [role="option"][aria-selected="true"], .suggest [role="option"]:hover { background: Highlight; color: HighlightText; }
-.suggest-kind { margin-left: 0.5rem; font-size: 0.8em; opacity: 0.8; }
-.search-filters { display: grid; gap: .5rem; margin: 1rem 0; }
-.filter-group { border: 1px solid #cbd5e1; border-radius: .3rem; padding: .25rem .75rem .75rem; display: flex; flex-wrap: wrap; gap: .5rem; }
-.filter-group legend { font-weight: 600; padding: 0 .25rem; }
-.discovery .filter-chip { min-height: 44px; padding: .4rem .8rem; border: 1px solid #164e9b; background: white; color: #164e9b; border-radius: 999px; }
-.discovery .filter-chip[aria-pressed=true] { background: #164e9b; color: white; }
-.discovery .filter-chip:focus-visible, .discovery .filter-clear:focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; }
-.discovery .filter-chip:disabled { opacity: .6; background: white; color: #164e9b; }
-.discovery .filter-chip[aria-pressed=true]:disabled { background: #164e9b; color: white; }
-.discovery .filter-clear { justify-self: start; min-height: 44px; }
+.suggest [role="option"] { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-2) var(--s-4); min-height: 44px; cursor: pointer; border-bottom: 1px solid var(--line); }
+.suggest [role="option"]:last-child { border-bottom: 0; }
+.suggest [role="option"][aria-selected="true"], .suggest [role="option"]:hover { background: var(--accent); color: var(--accent-ink); }
+.suggest-kind { margin-left: var(--s-2); font: 500 var(--t-label)/1 var(--font-mono); color: var(--muted); }
+.suggest [role="option"][aria-selected="true"] .suggest-kind, .suggest [role="option"]:hover .suggest-kind { color: var(--accent-ink); }
+
+/* Filters: sharp chips, outline at rest; lime fill, dark ink and a check mark when on */
+.search-filters { display: grid; gap: var(--s-3); margin: var(--s-5) 0; }
+.discovery fieldset.filter-group { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0; padding: var(--s-2) var(--s-4) var(--s-4); background: transparent; border: 1px solid var(--line); }
+.filter-group legend { padding: 0 var(--s-2); font: 500 var(--t-label)/1.3 var(--font-mono); color: var(--muted); }
+.discovery .filter-chip, .discovery .filter-clear {
+  min-height: 44px; padding: 0 var(--s-4); margin: 0; background: var(--bg); color: var(--ink); border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm); font-size: var(--t-small);
+}
+.discovery .filter-chip:hover:not(:disabled), .discovery .filter-clear:hover:not(:disabled) { background: var(--surface); border-color: var(--ink); color: var(--ink); }
+.discovery .filter-chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.discovery .filter-chip[aria-pressed=true]::before {
+  content: ""; width: 14px; height: 14px; flex: none; background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2.5 8.5l3.5 3.5 7.5-8.5' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2.5 8.5l3.5 3.5 7.5-8.5' fill='none' stroke='black' stroke-width='2'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.discovery .filter-chip[aria-pressed=true]:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-ink); }
+.discovery .filter-chip:disabled { opacity: .6; background: var(--bg); color: var(--ink); border-color: var(--line-strong); }
+.discovery .filter-chip[aria-pressed=true]:disabled { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.discovery .filter-clear { justify-self: start; }
+.filter-count { font-family: var(--font-mono); font-size: var(--t-label); }
+
+/* Talk detail */
+.talk-detail { max-width: 800px; }
+.talk-detail .talk-speaker { font-size: var(--t-lead); color: var(--ink); margin: 0 0 var(--s-5); }
+.talk-facts { display: grid; grid-template-columns: max-content 1fr; gap: var(--s-2) var(--s-5); padding: var(--s-4) var(--s-5); background: var(--surface); border: 1px solid var(--line); margin: var(--s-4) 0; }
+.talk-facts dt { font: 500 var(--t-label)/1.7 var(--font-mono); color: var(--muted); }
+.talk-facts dd { margin: 0; }
+.talk-tags { display: flex; flex-wrap: wrap; gap: var(--s-2); list-style: none; padding: 0; margin: var(--s-4) 0; }
+.talk-tags li { padding: var(--s-1) var(--s-3); border: 1px solid var(--line-strong); border-radius: var(--r-sm); font: 500 var(--t-label)/1.5 var(--font-mono); }
+.discovery .talk-abstract { color: var(--ink); max-width: 70ch; }
+.add-to-schedule { margin: var(--s-5) 0; }
+.add-to-schedule [aria-live] p { margin: var(--s-3) 0 0; }
+.related-list { margin-top: var(--s-3); gap: 0; border-top: 1px solid var(--line); }
+.related-list li { padding: var(--s-3) 0; border-bottom: 1px solid var(--line); line-height: 1.7; }
+
+/* Organizer */
+.organizer form { max-width: 480px; }
+.organizer > section { margin-top: var(--s-7); padding-top: var(--s-2); border-top: 1px solid var(--line); }
+.organizer > section h2 { margin-top: var(--s-4); }
+.organizer ul { max-width: 70ch; }

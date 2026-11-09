@@ -1,0 +1,96 @@
+/* App header and footer: the landing nav and footer, reduced to an accessible app bar.
+   Tokens come from styles.css (:root). Sharp corners, 1px hairlines, no shadows. */
+
+.site-header { background: var(--bg); border-bottom: 1px solid var(--line); position: relative; z-index: 20; }
+.site-header__bar {
+  box-sizing: border-box; display: flex; align-items: center; flex-wrap: nowrap; gap: var(--s-2) var(--s-4);
+  max-width: var(--container); margin: 0 auto; padding: var(--s-2) var(--gut); min-height: 64px;
+}
+
+.site-logo {
+  display: inline-flex; align-items: center; gap: var(--s-2); min-height: 44px; flex: none;
+  color: var(--ink); font: 600 17px/1 var(--font-display); letter-spacing: -0.01em; text-decoration: none; order: 0;
+}
+.site-logo:hover { color: var(--accent); }
+.site-mark {
+  display: inline-block; flex: none; width: 22px; height: 22px; background: var(--accent);
+  --mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2.5' width='20' height='5.5' rx='2.75'/%3E%3Crect x='2' y='9.25' width='14' height='5.5' rx='2.75'/%3E%3Crect x='2' y='16' width='8' height='5.5' rx='2.75'/%3E%3C/svg%3E");
+  -webkit-mask: var(--mark) center / contain no-repeat; mask: var(--mark) center / contain no-repeat;
+}
+
+/* Desktop: logo | links ... status | Register. The menu wrapper dissolves so its children join the bar. */
+.site-menu { display: contents; }
+.site-nav { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1); order: 1; min-width: 0; }
+.site-header .status-badge-wrap { order: 2; margin-left: auto; }
+.site-btn { order: 3; }
+.site-toggle { order: 4; display: none; }
+
+.site-link {
+  position: relative; display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--s-2);
+  color: var(--ink); font: 500 15px/1 var(--font-text); text-decoration: none; white-space: nowrap;
+}
+/* the site's 2px underline: draws on hover, stays on the current page */
+.site-link::after {
+  content: ""; position: absolute; left: var(--s-2); right: var(--s-2); bottom: 8px; height: 2px; background: var(--accent);
+  transform: scaleX(0); transform-origin: right; transition: transform 180ms var(--ease);
+}
+.site-link:hover::after, .site-link[aria-current="page"]::after { transform: scaleX(1); transform-origin: left; }
+.site-link:hover { color: var(--ink); }
+.site-link[aria-current="page"] { color: var(--accent); }
+
+.site-btn {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: 44px; padding: 0 var(--s-5);
+  background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); border-radius: var(--r-btn);
+  font: 500 15px/1 var(--font-text); text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: background-color 180ms var(--ease), border-color 180ms var(--ease);
+}
+.site-btn:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-ink); }
+.site-btn:active { transform: translateY(1px); }
+
+.site-toggle {
+  align-items: center; gap: var(--s-2); box-sizing: border-box; min-height: 44px; min-width: 44px; padding: 0 var(--s-4); margin-left: auto;
+  background: transparent; color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--r-btn);
+  font: 500 15px/1 var(--font-text); cursor: pointer;
+}
+.site-toggle:hover:not(:disabled) { background: var(--surface); border-color: var(--ink); color: var(--ink); }
+
+/* The status badge in the bar: a mono label with the state square */
+.site-header .status-badge-wrap { display: inline-flex; align-items: center; }
+.site-header .status-badge { min-height: 44px; display: inline-flex; align-items: center; }
+
+/* Collapse: the bar holds logo, status and the menu button; links and Register open below. */
+@media (max-width: 1240px) {
+  .site-header__bar { flex-wrap: wrap; }
+  .site-toggle { display: inline-flex; }
+  .site-header .status-badge-wrap { margin-left: 0; }
+  .site-menu { display: none; order: 5; flex: 1 0 100%; flex-direction: column; align-items: stretch; gap: var(--s-3); padding: var(--s-3) 0 var(--s-4); border-top: 1px solid var(--line); }
+  .site-menu.is-open { display: flex; }
+  .site-nav { flex-direction: column; align-items: stretch; gap: 0; }
+  .site-link { padding: 0 var(--s-2); border-bottom: 1px solid var(--line); min-height: 48px; }
+  .site-link::after { left: var(--s-2); right: auto; width: 24px; bottom: 10px; }
+  .site-btn { min-height: 48px; }
+}
+@media (max-width: 760px) {
+  .site-header__bar { padding-inline: var(--s-4); column-gap: var(--s-3); }
+  .site-logo { font-size: 16px; }
+  /* logo and menu button share the first row; the status badge gets its own slim row */
+  .site-logo { order: 0; flex: 1 1 auto; }
+  .site-toggle { order: 1; margin-left: 0; }
+  .site-header .status-badge-wrap { order: 2; flex: 1 0 100%; }
+  .site-menu { order: 3; }
+}
+@media (prefers-reduced-motion: reduce) { .site-link::after { transition: none; } }
+
+/* Footer: one slim line */
+.site-footer { border-top: 1px solid var(--line); background: var(--bg); }
+.site-footer__bar {
+  box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-5);
+  max-width: var(--container); margin: 0 auto; padding: var(--s-3) var(--gut); font-size: var(--t-small);
+}
+.site-footer__name { color: var(--muted); margin-right: auto; }
+.site-footer a.site-footer__link {
+  display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; justify-content: center; color: var(--ink); text-decoration: underline;
+  text-decoration-color: var(--line-strong); text-underline-offset: 4px;
+}
+.site-footer a.site-footer__link:hover { color: var(--accent); text-decoration-color: currentColor; }
+@media (max-width: 760px) { .site-footer__bar { padding-inline: var(--s-4); } }

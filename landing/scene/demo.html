@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Venue scene demo</title>
+<link rel="stylesheet" href="venue.css">
+<style>
+  :root { --venue-dim: 0.25; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: #0e1410; color: #eef0dc; font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main, header { position: relative; z-index: 1; }
+  header { position: fixed; top: 16px; right: 16px; z-index: 2; display: flex; gap: 8px; }
+  header button { font: 13px/1 ui-monospace, Menlo, monospace; color: #0e1410; background: #c6f08a; border: 0; border-radius: 999px; padding: 9px 14px; cursor: pointer; }
+  header button[aria-pressed="true"] { background: #eef0dc; }
+  section { min-height: 100vh; display: flex; align-items: center; padding: 64px 6vw; }
+  section[data-venue-side="right"] { justify-content: flex-end; }
+  section[data-venue-side="center"] { justify-content: center; text-align: center; }
+  .copy { max-width: 30rem; }
+  .copy p.k { font: 12px/1 ui-monospace, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; color: #c6f08a; margin: 0 0 14px; }
+  .copy h2 { font-size: clamp(32px, 4.4vw, 56px); line-height: 1.04; margin: 0 0 18px; letter-spacing: -0.02em; }
+  .copy p { margin: 0 0 12px; color: #d8dcc6; }
+  @media (max-width: 759px) {
+    section, section[data-venue-side] { align-items: flex-start; justify-content: flex-start; text-align: left; padding: 96px 20px 40px; }
+    .copy h2 { font-size: 34px; }
+  }
+</style>
+</head>
+<body>
+  <div data-venue data-venue-mode="background" data-venue-data="../data/demo-aggregates.json" aria-hidden="true"><img data-venue-still src="still-overview.png" alt=""></div>
+  <header>
+    <button type="button" data-venue-control="pause" data-label-on="Play motion" data-label-off="Pause motion">Pause motion</button>
+    <button type="button" data-venue-control="static">Static view</button>
+  </header>
+  <main>
+    <section data-venue-shot="overview" data-venue-side="left"><div class="copy"><p class="k">01 · overview</p><h2>One venue, every attendee's day</h2><p>Placeholder copy. The whole floor is in view: the desk, the hallway, the keynote hall, four rooms and the lounge. The left third stays calm so this text reads.</p><p>Second line of placeholder copy to judge legibility over the scene.</p></div></section>
+    <section data-venue-shot="arrive" data-venue-side="right"><div class="copy"><p class="k">02 · arrive</p><h2>Register at the door</h2><p>Placeholder copy. A queue at the desk, the host behind it, a badge appears on everyone who is through.</p></div></section>
+    <section data-venue-shot="host" data-venue-side="left" data-venue-dim="0.4"><div class="copy"><p class="k">03 · host</p><h2>Sign up by chatting with the host</h2><p>Placeholder copy. Close on the desk: the host and one attendee take turns talking. This shot asks for more dim.</p></div></section>
+    <section data-venue-shot="schedule" data-venue-side="right"><div class="copy"><p class="k">04 · schedule</p><h2>A schedule picked for you</h2><p>Placeholder copy. Along the hallway people peel off into rooms; recommended rooms carry a lime marker.</p></div></section>
+    <section data-venue-shot="scan" data-venue-side="left"><div class="copy"><p class="k">05 · scan</p><h2>Scan at the door</h2><p>Placeholder copy. Stop at the scanner, lime flash, step in. Now and then a scan is denied and the attendee turns back.</p></div></section>
+    <section data-venue-shot="stage" data-venue-side="right"><div class="copy"><p class="k">06 · stage</p><h2>The keynote</h2><p>Placeholder copy. Speaker on stage, the screen lit, a seated audience.</p></div></section>
+    <section data-venue-shot="lounge" data-venue-side="left"><div class="copy"><p class="k">07 · lounge</p><h2>Between talks</h2><p>Placeholder copy. Tables, pairs chatting, coffee.</p></div></section>
+    <section data-venue-shot="clusters" data-venue-side="right"><div class="copy"><p class="k">08 · clusters</p><h2>What the room cares about</h2><p>Placeholder copy. Seen from above, everyone takes their interest colour and drifts into groups. Groups under five fold into grey "other".</p></div></section>
+  </main>
+  <script type="module" src="venue.js"></script>
+</body>
+</html>

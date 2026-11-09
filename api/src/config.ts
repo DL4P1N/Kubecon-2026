@@ -19,6 +19,10 @@ export interface Config {
   trustProxyHops: number;
   apiTlsCertFile?: string;
   apiTlsKeyFile?: string;
+  /** "auto" (default): Claude CLI when found on PATH, else scripted. "scripted": never spawn the CLI. */
+  chatMode: "auto" | "scripted";
+  /** Path to the Claude Code CLI (CLAUDE_BIN); unset means look for `claude` on PATH. */
+  claudeBin: string | undefined;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -40,6 +44,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 10) {
     throw new Error("TRUST_PROXY must be an integer from 0 to 10");
   }
+  const chatMode = env.CHAT_MODE ?? "auto";
+  if (chatMode !== "auto" && chatMode !== "scripted") throw new Error(`Invalid CHAT_MODE: ${chatMode} (use auto or scripted)`);
   return {
     port,
     host: env.HOST ?? "0.0.0.0",
@@ -53,6 +59,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     trustProxyHops,
     apiTlsCertFile: env.API_TLS_CERT_FILE || undefined,
     apiTlsKeyFile: env.API_TLS_KEY_FILE || undefined,
+    chatMode,
+    claudeBin: env.CLAUDE_BIN || undefined,
   };
 }
 

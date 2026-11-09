@@ -92,6 +92,9 @@ export interface RegisterRequest {
   email: string;
   interests: string[];
   consent: Consent;
+  /** Optional, never stored: conference slug and returning-visitor flag, used only for the live demo stream (GET /api/events). */
+  conference?: string;
+  returning?: boolean;
 }
 
 export interface RegisterResponse {
@@ -312,6 +315,56 @@ export interface InterestClustersResponse {
   minClusterSize: number;
 }
 
+// ---------------------------------------------------------------- registration chat + live demo stream
+
+export type ChatAsk = "topics" | "goal" | "confirm";
+export type ChatVia = "github" | "google" | "linkedin" | "qr";
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** The profile a finished chat produces. Maps onto RegisterRequest and OnboardingAnswers in the browser. */
+export interface ChatProfile {
+  name: string;
+  role: string;
+  interests: string[];
+  goal: string;
+  formats: string;
+}
+
+/** POST /api/chat (no auth). Stateless: send the whole transcript every turn. */
+export interface ChatRequest {
+  conference: { slug: string; name?: string; topics?: string[] };
+  via?: ChatVia | null;
+  messages: ChatMessage[];
+  /** Profile this browser remembered from an earlier registration (returning visitor). */
+  known?: ChatProfile | null;
+}
+
+export interface ChatResponse {
+  reply: string;
+  done: boolean;
+  /** "claude" when the Claude Code CLI answered, "scripted" for the built-in flow. */
+  mode: "claude" | "scripted";
+  /** Closed question the reply asks, rendered as quick-reply chips; null when none. */
+  ask: ChatAsk | null;
+  options?: string[];
+  /** Options pre-selected (returning visitor's topics). */
+  selected?: string[];
+  /** Present when `done`. */
+  profile?: ChatProfile;
+}
+
+/** One `registered` frame on GET /api/events (text/event-stream). First name only; nothing else about the attendee. */
+export interface RegisteredEvent {
+  label: string;
+  conference: string;
+  returning: boolean;
+  interests: number;
+}
+
 // ---------------------------------------------------------------- route table
 
 export const routes = {
@@ -330,6 +383,8 @@ export const routes = {
   accessScan: { method: "POST", path: "/api/access/scan" },
   interestsAggregate: { method: "GET", path: "/api/interests/aggregate" },
   interestsClusters: { method: "GET", path: "/api/interests/clusters" },
+  chat: { method: "POST", path: "/api/chat" },
+  events: { method: "GET", path: "/api/events" },
 } as const satisfies Record<string, RouteDef>;
 
 export type RouteName = keyof typeof routes;

@@ -52,6 +52,9 @@ export const registerBodySchema = z.object({
     clusterMap: z.boolean(),
     qrCheckin: z.boolean(),
   }),
+  // Optional and never stored: only feed the live demo stream (GET /api/events).
+  conference: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/).optional(),
+  returning: z.boolean().optional(),
 });
 
 export type RegisterBody = z.infer<typeof registerBodySchema>;
@@ -84,6 +87,11 @@ export interface RegisterRoutesOptions {
   /** Per client IP per minute. Default 120 (REGISTER_RATE_LIMIT_PER_MINUTE); attendees can share a venue NAT IP. */
   rateLimitPerMinute?: number;
   now?: () => number;
+  /**
+   * Called once after a successful registration (for the live demo stream). Receives only the display
+   * name, the interests and the optional demo fields; never the attendee ID or token. Must not throw.
+   */
+  onRegistered?: (info: { name: string; interests: string[]; conference?: string; returning?: boolean }) => void;
 }
 
 const tracer = () => trace.getTracer("companion-api");
@@ -194,6 +202,11 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
         }
 
         const res: RegisterResponse = { attendeeId: id, token: signed.token, expiresAt: signed.expiresAt };
+        try {
+          opts.onRegistered?.({ name: body.name, interests: body.interests, conference: body.conference, returning: body.returning });
+        } catch {
+          // The demo stream must never fail a registration.
+        }
         return reply.code(201).send(res);
       }),
   );

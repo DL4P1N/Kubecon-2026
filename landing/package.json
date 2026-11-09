@@ -1,0 +1,12 @@
+{
+  "name": "conference-companion-landing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Landing-page backend and headless front-end logic for Conference Companion (zero runtime dependencies, Node 22+).",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

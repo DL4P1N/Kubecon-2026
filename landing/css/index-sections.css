@@ -1,0 +1,111 @@
+/* index.html, the five lower sections: #schedule, #conferences, #retention, #privacy, #faq.
+   The venue is fixed behind the page, so each section keeps a transparent ground, grows with its content
+   (min-height one screen, real padding) and sets its words and UI on flat opaque panels on the wrap's LEFT
+   line, 640px wide (the finder alone is 760). The right of the page stays open for the scene.
+   Loaded after css/site.css. Every colour, size and space is a kit token. */
+
+/* ------------------------------------------------------------ shared scaffold */
+main > section.sx-sec { background: transparent; height: auto; min-height: 100vh; min-height: 100svh; padding: 96px 0; }
+main > section.sx-sec > .wrap.grid { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-5); height: auto; }
+.sx { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-5); width: 100%; min-width: 0; }
+
+/* the one panel: opaque surface, 1px line, 32/40 padding, 640 wide, height by content, on the wrap's left line */
+.sx__head, #retention .ret, #faq .faqbox {
+  box-sizing: border-box; width: min(640px, 100%); height: auto; max-width: 100%;
+  padding: var(--s-6) var(--s-7); background: var(--surface); border: 1px solid var(--line);
+}
+.sx__head { display: grid; gap: var(--s-4); align-content: start; }
+.sx__head > * { margin: 0; }
+.sx__head .t-lead { max-width: none; }
+@media (max-width: 639px) {
+  main > section.sx-sec { padding: 72px 0; }
+  .sx__head, #retention .ret, #faq .faqbox { padding: var(--s-5); }
+}
+
+/* a lit panel (the dealt ground) holding one piece of UI: the UI card is far lighter or darker than it */
+.sx__lit, #faq .consent { box-sizing: border-box; width: min(640px, 100%); height: auto; --ratio: 0px; display: block; padding: var(--s-6); border-radius: var(--r-lg); }
+@media (max-width: 639px) { .sx__lit, #faq .consent { padding: var(--s-4); } }
+
+/* ------------------------------------------------------------ #schedule: the whole app window, list over the open talk */
+#schedule .app.ui { height: auto; flex: none; margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; box-shadow: 0 18px 40px -18px rgb(15 31 16 / .55); }
+#schedule .app > .app__pane { overflow: visible; max-height: none; min-height: auto; display: block; }
+#schedule .app > .app__pane::after { display: none; }
+#schedule .app > .app__pane + .app__pane { border-left: 0; border-top: 1px solid var(--u-line); }
+#schedule .app .ui-win__side { display: none; }
+#schedule .app .ui-win__body { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+#schedule .app .ui-win__ph { white-space: nowrap; }
+/* avatar initials in the ink, on the kit's tinted tones: every tone reaches 4.5:1 */
+#schedule .app .ui-avatar { color: var(--u-ink); }
+/* the open talk: its reason sits above the page, never over its text */
+#schedule .app .ui-doc { width: 100%; max-width: none; gap: var(--s-3); padding: var(--s-4) var(--s-4) var(--s-5); }
+#schedule .app .ui-doc__page { width: 100%; }
+#schedule .app .ui-doc__note { position: static; order: -1; width: auto; transform: none; opacity: 1; }
+#schedule .app .ui-doc__note:not(.is-on) { opacity: 0; }
+
+/* ------------------------------------------------------------ #conferences: the finder as a live window (760, the one wider block) */
+#conferences .finder { box-sizing: border-box; display: flex; flex-direction: column; width: min(760px, 100%); margin: 0; }
+#conferences .finder .ui-win__bar { flex: none; }
+.finder__count { margin: 0; font: 500 var(--t-small)/1 var(--font-mono); color: var(--u-text-2); white-space: nowrap; }
+.finder__fields { flex: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); padding: var(--s-4) var(--s-4) 0; }
+.finder .field { gap: var(--s-2); }
+.finder .field label { font-size: var(--t-small); font-weight: 500; color: var(--ink); }
+.finder .field :is(input, select) { width: 100%; background: var(--bg); }
+.finder .field input[type="search"] { -webkit-appearance: none; appearance: none; }
+.find__list { list-style: none; margin: 0; padding: var(--s-4); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); align-content: start; }
+.find__list > li { display: block; min-width: 0; }
+.find-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name name" "meta date"; row-gap: 0; column-gap: var(--s-4); align-items: center; align-content: center; padding: var(--s-2) var(--s-4); height: 68px; text-decoration: none; color: var(--ink); }
+.find-card__name { grid-area: name; font-size: 18px; line-height: 24px; font-weight: 500; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find-card__meta { grid-area: meta; font-size: var(--t-body); line-height: 24px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find-card__date { grid-area: date; font: 500 var(--t-small)/24px var(--font-mono); color: var(--ink); text-align: right; white-space: nowrap; }
+.find-card[data-real] .find-card__name::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: var(--s-3); background: var(--accent); vertical-align: 1px; }
+.find__empty { grid-column: 1 / -1; display: grid; gap: var(--s-4); justify-items: start; padding: var(--s-5); border: 1px dashed var(--line-strong); color: var(--ink); }
+.find__empty strong { font-weight: 500; }
+.find__empty button { appearance: none; background: none; border: 0; padding: 0; min-height: 44px; font: 500 var(--t-body)/1 var(--font-text); color: var(--ink); cursor: pointer; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--line-strong); }
+@media (max-width: 639px) {
+  .finder__fields { grid-template-columns: minmax(0, 1fr); padding: var(--s-4) var(--s-3) 0; }
+  .find__list { grid-template-columns: minmax(0, 1fr); padding: var(--s-3); gap: var(--s-2); }
+  .find-card { height: auto; padding: var(--s-3) var(--s-4); }
+  .find-card__name, .find-card__meta { white-space: normal; }
+}
+
+/* ------------------------------------------------------------ #retention: one statement and four facts on one panel */
+#retention .ret { display: grid; gap: var(--s-5); }
+#retention .ret .mo-lt__type { max-width: none; margin: 0; font-size: var(--t-h2); }
+#retention .ret .t-lead { max-width: none; color: var(--ink); margin: 0; }
+#retention .ret__detail { display: grid; gap: var(--s-5); }
+#retention .ret .rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+#retention .ret .rows > li { padding-block: var(--s-3); }
+#retention .ret .rows > li:last-child { border-bottom: 0; padding-bottom: 0; }
+#retention .ret .rows__value { font-family: var(--font-mono); font-size: var(--t-small); line-height: 24px; }
+@media (max-width: 639px) {
+  #retention .ret .rows > li { grid-template-columns: minmax(0, 1fr); gap: 0; padding-block: var(--s-2); }
+  #retention .ret .rows__value { grid-column: 1; grid-row: 2; text-align: left; white-space: normal; max-width: none; }
+}
+
+/* ------------------------------------------------------------ #privacy: what is stored, then the telemetry path */
+.facts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-4); }
+.facts li { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: var(--s-3); align-items: baseline; margin: 0; color: var(--ink); }
+.facts li::before { content: ""; width: 8px; height: 8px; background: var(--accent); }
+.facts li.facts__link::before { display: none; }
+.facts li.facts__link { grid-template-columns: minmax(0, 1fr); }
+.facts li.facts__link .link { justify-self: start; }
+#privacy .sx__dg { box-sizing: border-box; width: min(640px, 100%); height: 230px; --ratio: 0px; padding: var(--s-5); }
+#privacy .sx__dg > .dg { width: 100%; height: 100%; }
+@media (max-width: 639px) { #privacy .sx__dg { height: 300px; padding: var(--s-3); } }
+
+/* ------------------------------------------------------------ #faq: five answers, then what registering does */
+#faq .faqbox { display: flex; flex-direction: column; gap: var(--s-5); }
+#faq .faqbox > h2 { margin: 0; }
+#faq .faq > .faq__item { padding: var(--s-4) 0; gap: var(--s-1); }
+#faq .faq > .faq__item:first-child { padding-top: 0; }
+#faq .faq > .faq__item:last-child { border-bottom: 0; padding-bottom: 0; }
+#faq .faq h3 { font-size: var(--t-lead); }
+#faq .faq p { max-width: none; margin: 0; }
+#faq .consent .reg3 { width: 100%; padding-bottom: var(--s-3); }
+/* three facts that stay true, not steps to finish: no struck labels, ink text, a muted line under each */
+#faq .reg3 .ui-check { height: auto; align-items: flex-start; padding: var(--s-3) var(--s-4); }
+#faq .reg3 .ui-check__box { margin-top: 1px; }
+#faq .reg3 .ui-check__text { display: grid; gap: 2px; min-width: 0; }
+#faq .reg3 .ui-check__label { font-size: var(--t-body); line-height: 20px; font-weight: 500; color: var(--u-ink); }
+#faq .reg3 .ui-check__label::after { display: none; }
+#faq .reg3 .ui-check__sub { font-size: var(--t-small); line-height: 20px; color: var(--u-muted); }

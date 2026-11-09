@@ -3,6 +3,6 @@
   "short_name": "Companion",
   "start_url": "/schedule",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#17324d"
+  "background_color": "#0f1f10",
+  "theme_color": "#0f1f10"
 }

@@ -22,6 +22,10 @@ import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
 import { resolveRateLimits, type RateLimitPolicy } from "./http/rateLimit.js";
 import { RoomActivityCounter } from "./rooms/activity.js";
 import { registerRoomRoutes } from "./routes/rooms.js";
+import { chatRoutes } from "./routes/chat.js";
+import { eventsRoutes } from "./routes/events.js";
+import { EventHub, buildRegisteredEvent } from "./chat/events.js";
+import { createClaudeRunner, findOnPath, isExecutableFile, type ClaudeRunner } from "./chat/model.js";
 
 const VERSION = "0.1.0";
 
@@ -37,6 +41,17 @@ export interface ServerDeps {
   status?: StatusTracker;
   /** Per-IP rate limits (http/rateLimit.ts); tests lower them. /healthz is never limited. */
   rateLimits?: Partial<RateLimitPolicy>;
+  /** Claude CLI runner for POST /api/chat; tests inject a fake. `null` forces scripted mode. Defaults from CHAT_MODE / CLAUDE_BIN / PATH. */
+  runClaude?: ClaudeRunner | null;
+  /** Live demo stream hub (GET /api/events); tests inject one with a short heartbeat. */
+  events?: EventHub;
+}
+
+/** The Claude CLI runner for this process, or null (scripted chat) when CHAT_MODE=scripted or the binary is not found. */
+export function resolveChatRunner(config: Pick<Config, "chatMode" | "claudeBin">, env: NodeJS.ProcessEnv = process.env): ClaudeRunner | null {
+  if (config.chatMode === "scripted") return null;
+  const bin = config.claudeBin ? (isExecutableFile(config.claudeBin) ? config.claudeBin : null) : findOnPath("claude", env.PATH);
+  return bin ? createClaudeRunner({ bin, env }) : null;
 }
 
 /**
@@ -83,12 +98,19 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   }));
 
   // Module 1: POST /api/register + GET /api/me (routes/register.ts).
+  const hub = deps.events ?? new EventHub();
+  app.addHook("onClose", async () => hub.close());
   app.register(registerRoutes, {
     es,
     tokens,
     embed: (text) => embedder.embed(text),
     rateLimitPerMinute: config.registerRateLimitPerMinute,
+    onRegistered: (info) => hub.broadcast("registered", buildRegisteredEvent(info, info.conference ?? "unknown", info.returning)),
   });
+
+  // Registration chat (POST /api/chat) and the live demo stream (GET /api/events).
+  app.register(chatRoutes, { runClaude: deps.runClaude === undefined ? resolveChatRunner(config) : deps.runClaude, rateLimit: limits.chat });
+  app.register(eventsRoutes, { hub, rateLimit: limits.events });
 
   registerSearchRoutes(app, { es, tokens, tracker, rateLimits: limits, ...deps.search });
   app.register(talkRoutes, { es, tracker, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/talks/:id, /related, /alternatives

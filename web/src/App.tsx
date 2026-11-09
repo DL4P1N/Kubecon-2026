@@ -1,51 +1,48 @@
-import { Link, Navigate, Route, Routes, useLocation, useNavigationType } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { ClusterMap } from "./pages/ClusterMap.js";
 import { InterestMap } from "./pages/InterestMap.js";
 import { Kiosk } from "./pages/Kiosk.js";
 import { Onboarding } from "./pages/Onboarding.js";
-import { Register } from "./pages/Register.js";
 import { Schedule } from "./pages/Schedule.js";
 import { Search } from "./pages/Search.js";
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { Status } from "./pages/Status.js";
 import { TalkDetail } from "./pages/TalkDetail.js";
 import { Organizer } from "./pages/Organizer.js";
-import { StatusBadge } from "./components/StatusBadge.js";
+import { SiteFooter } from "./components/SiteFooter.js";
+import { SiteHeader } from "./components/SiteHeader.js";
 
 const NavDemo = lazy(() => import("./pages/NavDemo.js"));
 
+/** Full-page navigation to the static site under /site/ (a seam so tests can observe it without jsdom navigating). */
+export const siteNavigation = { replace: (url: string) => window.location.replace(url) };
+
+/** The product front door and sign-up are the static site, not React routes: send the browser there. */
+function GoToSite({ to, keepQuery = false }: { to: string; keepQuery?: boolean }) {
+  const { search, hash } = useLocation();
+  const target = keepQuery ? `${to}${search}${hash}` : to;
+  useEffect(() => { siteNavigation.replace(target); }, [target]);
+  return <p role="status">Taking you to <a href={target}>{to === "/site/" ? "the Conference Companion home page" : "sign-up"}</a>…</p>;
+}
+
 export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { navEnabled?: boolean } = {}) {
   const { pathname } = useLocation();
-  const navigationType = useNavigationType();
   const previousPath = useRef(pathname);
   const main = useRef<HTMLElement>(null);
   useEffect(() => {
     if (previousPath.current !== pathname) {
-      const rootRedirect = previousPath.current === "/" && pathname === "/register" && navigationType === "REPLACE";
-      if (!rootRedirect) main.current?.focus();
+      main.current?.focus();
       previousPath.current = pathname;
     }
-  }, [pathname, navigationType]);
+  }, [pathname]);
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to content</a>
-      <header>
-        <nav aria-label="Main" style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <Link to="/register">Register</Link>
-          <Link to="/onboarding">Onboarding</Link>
-          <Link to="/schedule">Schedule</Link>
-          <Link to="/search">Search</Link>
-          <Link to="/kiosk">Kiosk</Link>
-          <Link to="/map">Interest map</Link>
-          <Link to="/clusters">Clusters</Link>
-          <Link to="/organizer">Organizer</Link>
-          <StatusBadge />
-        </nav>
-      </header>
+      <SiteHeader />
       <main ref={main} id="main-content" tabIndex={-1}>
         <Routes>
-          <Route path="/" element={<Navigate to="/register" replace />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/" element={<GoToSite to="/site/" />} />
+          <Route path="/register" element={<GoToSite to="/site/register.html" keepQuery />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/search" element={<Search />} />
@@ -59,6 +56,7 @@ export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { n
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>
       </main>
+      <SiteFooter />
     </>
   );
 }

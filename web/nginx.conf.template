@@ -3,6 +3,18 @@ server {
   root /usr/share/nginx/html;
   index index.html;
 
+  # Server-Sent Events (live demo feed): never buffer, keep the stream open.
+  location = /api/events {
+    proxy_pass ${API_UPSTREAM};
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 1h;
+  }
+
   location /api/ {
     proxy_pass ${API_UPSTREAM};
     proxy_set_header Host $host;
@@ -19,7 +31,39 @@ server {
     proxy_pass ${API_UPSTREAM};
   }
 
-  # SPA fallback for client-side routes (/register, /schedule, ...)
+  # The product front door is the static site under /site/.
+  location = / {
+    return 302 /site/;
+  }
+
+  location = /site {
+    return 302 /site/;
+  }
+
+  # The static pages resolve their endpoints relative to the module (../api/x from /site/js/ is /site/api/x):
+  # map them onto the real API's /api/x. The event stream gets the same no-buffering treatment as /api/events.
+  location = /site/api/events {
+    proxy_pass ${API_UPSTREAM}/api/events;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 1h;
+  }
+
+  location /site/api/ {
+    proxy_pass ${API_UPSTREAM}/api/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+
+  location /site/ {
+    try_files $uri $uri/ /site/index.html;
+  }
+
+  # SPA fallback for client-side routes (/schedule, /search, ...)
   location / {
     try_files $uri /index.html;
   }
