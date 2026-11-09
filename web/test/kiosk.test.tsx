@@ -50,3 +50,52 @@ it("treats a 401 deny body as a result and other failures as an error", async ()
   expect(await api.scan({ token: "t", room: "r" })).toEqual({ decision: "deny", room: "r", reason: "token_invalid" });
   await expect(api.scan({ token: "t", room: "r" })).rejects.toThrow();
 });
+
+// ---- camera (html5-qrcode is mocked; no real camera in tests)
+const camera = vi.hoisted(() => ({
+  onSuccess: null as null | ((t: string) => void),
+  release: null as null | (() => void),
+  gate: false,
+  stops: 0,
+}));
+vi.mock("html5-qrcode", () => ({
+  Html5Qrcode: class {
+    async start(_c: unknown, _cfg: unknown, onSuccess: (t: string) => void) {
+      camera.onSuccess = onSuccess;
+      if (camera.gate) await new Promise<void>((r) => (camera.release = r));
+    }
+    async stop() {
+      camera.stops++;
+    }
+    clear() {}
+  },
+}));
+
+it("sends one scan for repeated decodes of the same QR", async () => {
+  camera.gate = false;
+  camera.stops = 0;
+  camera.onSuccess = null;
+  const scan = vi.spyOn(api, "scan").mockResolvedValue({ decision: "allow", room: "Hall DE" });
+  render(<Kiosk />);
+  fireEvent.change(screen.getByLabelText("Room"), { target: { value: "Hall DE" } });
+  fireEvent.click(screen.getByRole("button", { name: "Scan with camera" }));
+  await vi.waitFor(() => expect(camera.onSuccess).not.toBeNull());
+  camera.onSuccess!("tok");
+  camera.onSuccess!("tok");
+  camera.onSuccess!("tok");
+  await screen.findByText("Access granted");
+  expect(scan).toHaveBeenCalledTimes(1);
+});
+
+it("releases the camera when unmounted while it is still starting", async () => {
+  camera.gate = true;
+  camera.stops = 0;
+  camera.release = null;
+  const { unmount } = render(<Kiosk />);
+  fireEvent.click(screen.getByRole("button", { name: "Scan with camera" }));
+  await vi.waitFor(() => expect(camera.release).not.toBeNull());
+  unmount();
+  camera.release!();
+  await vi.waitFor(() => expect(camera.stops).toBe(1));
+  camera.gate = false;
+});

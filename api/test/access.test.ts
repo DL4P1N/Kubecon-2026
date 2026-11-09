@@ -175,6 +175,18 @@ describe("QR access", () => {
       expires_at: new Date(t - 1000).toISOString(),
     });
     expect((await scan(qr.token)).json()).toMatchObject({ decision: "deny", reason: "no_entitlement" });
+    // Fail closed on a missing or unparseable expiry.
+    for (const expires_at of [undefined, "not-a-date", 12345]) {
+      es.docs.set(`entitlements/${reg.attendeeId}`, { attendee_id: reg.attendeeId, pass_type: "general", rooms: ["*"], updated_at: "x", expires_at });
+      expect((await scan(qr.token)).json()).toMatchObject({ decision: "deny", reason: "no_entitlement" });
+    }
+  });
+
+  it("refuses a QR token when the attendee doc has no valid expiry", async () => {
+    const reg = await register();
+    const doc = es.docs.get(`attendees/${reg.attendeeId}`)!;
+    es.docs.set(`attendees/${reg.attendeeId}`, { ...doc, expires_at: undefined });
+    expect((await qrToken(reg)).statusCode).toBe(401);
   });
 
   it("honours revocation: editing the entitlement doc between two scans flips the decision", async () => {

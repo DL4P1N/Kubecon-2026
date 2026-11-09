@@ -53,6 +53,12 @@ export interface AccessRoutesOptions {
   now?: () => number;
 }
 
+/** Fail closed: a missing or unparseable expiry (docs are hand-edited) is treated as expired. */
+function isActive(expiresAt: unknown, nowMs: number): boolean {
+  const exp = typeof expiresAt === "string" ? Date.parse(expiresAt) : NaN;
+  return Number.isFinite(exp) && exp > nowMs;
+}
+
 const deny = (room: string, reason: string): ScanResponse => ({ decision: "deny", room, reason });
 
 export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app, opts) => {
@@ -83,7 +89,7 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
           return reply.code(503).send({ error: "storage_unavailable", message: "could not check consent" });
         }
         const src = doc?.found ? doc._source : undefined;
-        if (!src || Date.parse(src.expires_at) <= now()) {
+        if (!src || !isActive(src.expires_at, now())) {
           return reply.code(401).send({ error: "unauthorized", message: "attendee not found" });
         }
         if (src.consent?.qr_checkin !== true) {
@@ -145,7 +151,7 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
             [404],
           );
           const ent = r.body?.found ? r.body._source : undefined;
-          if (!ent || Date.parse(ent.expires_at) <= now()) return finish(200, deny(room, "no_entitlement"));
+          if (!ent || !isActive(ent.expires_at, now())) return finish(200, deny(room, "no_entitlement"));
           const rooms = Array.isArray(ent.rooms) ? ent.rooms : [];
           if (!rooms.includes(room) && !rooms.includes(ALL_ROOMS)) return finish(200, deny(room, "not_entitled"));
           return finish(200, { decision: "allow", room });

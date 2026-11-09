@@ -13,6 +13,12 @@ const REASONS: Record<string, string> = {
 const CAMERA_ELEMENT_ID = "kiosk-camera";
 
 interface CameraScanner {
+  start(
+    camera: { facingMode: string },
+    config: { fps: number; qrbox: number },
+    onSuccess: (text: string) => void,
+    onFailure: () => void,
+  ): Promise<unknown>;
   stop(): Promise<void>;
   clear(): void;
 }
@@ -31,6 +37,7 @@ export function Kiosk() {
   const [busy, setBusy] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const scanner = useRef<CameraScanner | null>(null);
+  const generation = useRef(0);
   const roomRef = useRef(room);
   roomRef.current = room;
 
@@ -57,6 +64,7 @@ export function Kiosk() {
   }
 
   async function stopCamera() {
+    generation.current++; // cancels a start that is still pending
     const s = scanner.current;
     scanner.current = null;
     setCameraOn(false);
@@ -72,23 +80,38 @@ export function Kiosk() {
   useEffect(() => () => void stopCamera(), []);
 
   async function startCamera() {
+    const mine = ++generation.current;
+    const cancelled = () => mine !== generation.current;
     setError("");
     setCameraOn(true);
+    let handled = false;
+    let qr: CameraScanner | null = null;
     try {
       // Lazy-loaded: the camera library is only fetched when someone uses it.
       const { Html5Qrcode } = await import("html5-qrcode");
-      const qr = new Html5Qrcode(CAMERA_ELEMENT_ID);
+      if (cancelled()) return;
+      qr = new Html5Qrcode(CAMERA_ELEMENT_ID);
       scanner.current = qr;
       await qr.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
         (text) => {
+          // The library reports every decoded frame until stop() resolves; act on the first only.
+          if (handled || cancelled()) return;
+          handled = true;
           setToken(text);
           void stopCamera().then(() => check(text));
         },
         () => {},
       );
+      if (cancelled()) {
+        // Stopped or unmounted while the camera was starting: release it now.
+        if (scanner.current === qr) scanner.current = null;
+        await qr.stop().catch(() => {});
+        qr.clear();
+      }
     } catch {
+      if (cancelled()) return;
       scanner.current = null;
       setCameraOn(false);
       setError("The camera is not available. Paste the token instead.");
