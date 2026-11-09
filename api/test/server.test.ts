@@ -67,7 +67,9 @@ describe("config", () => {
   });
 
   it("refuses to start in production with a placeholder signing key", () => {
-    expect(() => buildServer(loadConfig({ NODE_ENV: "production", TOKEN_SIGNING_KEY: "change-me" }))).toThrow(/placeholder/);
-    expect(() => buildServer(loadConfig({ NODE_ENV: "production" }))).toThrow(/placeholder/);
+    const prod = { NODE_ENV: "production", ES_URL: "https://es:9200", ES_USERNAME: "svc", ES_PASSWORD: "pw" };
+    expect(() => buildServer(loadConfig({ ...prod, TOKEN_SIGNING_KEY: "change-me" }))).toThrow(/placeholder/);
+    expect(() => buildServer(loadConfig({ ...prod, TOKEN_SIGNING_KEY: "too-short" }))).toThrow(/at least/);
+    expect(() => loadConfig({ ...prod })).toThrow(/TOKEN_SIGNING_KEY/);
   });
 });
