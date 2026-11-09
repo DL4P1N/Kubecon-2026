@@ -1,39 +1,39 @@
-# Conference Companion: 4 minute 45 second demo
+# Conference Companion: 3 minute demo
 
-Status: rehearsal draft for an assumed five-minute slot (15 seconds buffer);
-human slot-length confirmation, presenter assignment, and script review pending.
+Status: rehearsal draft for the confirmed three-minute slot. Erick presents the
+mobile demo; **human decision still needed:** assign presenters for the remaining
+beats.
 Use synthetic attendees only. The recording and fallback screenshots belong to
 board task #18; this document does not claim that a recording exists.
 
 ## Roles and preflight (before recording)
 
-Proposed roles for human review: narrator drives the attendee/browser flow;
-cluster operator handles seed, revocation, Radar, and deployment checks;
-observability presenter opens Dash0 and Gitar evidence. One person may hold all
-three. Confirm the people and handoffs before rehearsal.
+Erick drives the mobile attendee flow. The cluster operator handles seed,
+revocation, Radar, and deployment checks; the observability presenter opens Dash0
+and Gitar evidence. **Assign those last two people and confirm handoffs before
+rehearsal.**
 
 1. Cluster operator confirms the actual app origin. The deployed local setup
    used `http://127.0.0.1:18083`; substitute the verified HTTPS origin only after
    #24's opt-in TLS overlay is deployed and trusted. Do not claim end-to-end TLS
    from an HTTPS browser address alone. Keep Radar local at
    `http://127.0.0.1:9280`; never publish it on the board tunnel.
-2. Deploy merged real routes, including #11 QR and #37 catalog topics, and
-   #39's runtime dependency fix. Confirm the new image starts successfully;
-   the earlier OTel image was rolled back because `sdk-node` was missing. Open
-   `/register` and confirm topic choices load. A health response alone is not
-   this acceptance check. Confirm the talks seed completed, count is 417 (or
-   record the observed current count), and ES E5 is fully allocated.
+2. Use the deployed `9c047d7` build, whose browser smoke covered registration,
+   onboarding, schedule, room alternatives, talk detail, search and status
+   ([live smoke](evidence/live-smoke.md)). Open `/register` and confirm topic
+   choices load. A health response alone is not this acceptance check. The
+   seeded catalog has 417 talks; warm E5 before the search beat.
 3. Seed synthetic attendees using the commands below. Open `/map`: at least
    the security and observability groups should each meet k>=5. These are
    synthetic groups, not evidence from real attendees. The thresholds remain
    untested on real attendee data.
-4. Open `/search`, submit `security` once to warm hybrid inference, and wait for
-   both columns to finish. The tuned #36 evaluation report/query selection is
-   **TBD until a live measured report is committed**. Do not replace it with
-   hypotheses from `search-comparison.md`. If the report is absent, rehearse
-   a paraphrase against the live index and keep it only if its results are
-   clearly sensible. Otherwise use `security` as a neutral two-mode comparison;
-   show the evaluator and hand-judged set without claiming a quality win.
+4. Open `/search`, submit the first query below once to warm hybrid inference,
+   and wait for both columns. Use the three [measured demo
+   queries](search-comparison.md#recommended-demo-queries-for-18), not an
+   improvised relevance claim. #36 measured hybrid hit@3 **5/12** versus
+   keyword **0/12** on the live index. The later query-understanding evidence
+   has a small held-out set: hybrid **3/8 to 6/8**, with no losses (and
+   in-sample **4/12 to 6/12**); it is not a general claim that hybrid wins.
 5. Prepare two attendee tabs: a new `/register` tab for the live registration,
    and a private synthetic demo-pass tab using the session file below. In the
    demo-pass tab complete `/onboarding` before rehearsal so `/schedule` is
@@ -43,11 +43,12 @@ three. Confirm the people and handoffs before rehearsal.
    against the live `talks` catalog. Do not use an invented room. Rehearse a QR
    scan or the text alternative privately; camera support is optional. Each QR
    expires after about 60 seconds, so generate it immediately before scanning.
-7. Observability presenter opens the Dash0 tenant privately. Select the live
-   companion service and recent time range; verify #14 dashboard/SLO and a
-   trace before the recording. Until those exist, mark them pending and use
-   only labelled evidence. Open Radar's saved #30 investigation and the Gitar
-   dashboard linked below. Clear any private attendee/session details.
+7. Observability presenter opens the Dash0 tenant privately. Dashboard and SLO
+   definitions are committed in [the live-definition evidence](evidence/dash0-live-definitions.json),
+   and a browser-to-API-to-ES trace is recorded in [the live trace evidence](evidence/live-smoke-dash0-trace.json).
+   Dashboard/SLO screenshots with populated live data remain an honest gap.
+   Open Radar's saved #30 investigation and the Gitar dashboard linked below.
+   Clear any private attendee/session details.
 8. If #22 is merged/deployed, set `ORGANIZER_KEY` privately, run the cluster
    job with the configured ES inference provider, and open `/clusters`.
    Its organizer key prompt must be completed off camera. This is separate
@@ -126,35 +127,33 @@ step. Expired tokens and revoked entitlements are separate checks.
 
 | Time | Driver and exact action | Say/show |
 | --- | --- | --- |
-| 0:00–0:20 | Narrator introduces the attendee problem before opening `/register`. | “Dozens of sessions compete for each time slot. Finding the right talk, avoiding overlaps, and getting into the right room takes work. This companion turns interests into a plan and checks room access.” |
-| 0:20–0:50 | Narrator: `/register`; enter `SYNTHETIC DEMO presenter`, `presenter@example.invalid`; choose a loaded topic; explicitly select the two optional consent choices; click **Register**. | “Consent starts off. Recommendations work without opting into the map or QR check-in.” |
-| 0:50–1:20 | `/onboarding`: choose security/Kubernetes if offered, **Intermediate**, **Solve a production problem**, free text `How can I secure my Kubernetes supply chain?`; click **Find talks**. Show times and “Why recommended” at `/schedule`. | “Relevant talks become a personal schedule without overlaps.” If #42 occupancy is verified, point out its room indicator in this same slot; describe scan activity only, not a live headcount. |
-| 1:20–1:55 | `/search`: use the approved measured #36 query (**TBD**). Otherwise use the preflight's observed sensible query or neutral `security`. Check **Include Elasticsearch query details**, click **Search**, expand each **Elasticsearch query**. | “Keyword and meaning-based retrieval run in Elasticsearch and combine through RRF. Here are the actual requests and results.” One qualifier if needed: “A consistent relevance improvement is still being evaluated.” If #41 is verified, briefly show `/status` or the keyword fallback by replacing time spent on query details. |
-| 1:55–2:40 | Switch to the prepared synthetic demo-pass `/schedule`, click **Show room QR** immediately before scanning. Kiosk operator enters the exact catalog room, uses **Scan with camera** (or privately prepared text alternative), then **Check access**. Operator runs `--revoke`; scan the same still-valid QR again; restore afterward. | “Access granted, then access denied: each scan rereads current entitlements, so revocation does not wait for QR expiry.” Rehearse tsx startup and the 60-second window beforehand. |
-| 2:40–3:00 | Open `/map`; show `/clusters` only if verified in preflight. Optional: replace the cluster page with #42's verified room indicator. | “These synthetic opted-in interests help organizers plan rooms; groups below five are hidden.” Keep the real-data threshold limitation in the evidence table. |
-| 3:00–3:35 | Observability presenter shows the verified Dash0 search trace and #14 dashboard/SLO if available, then the pre-run privacy test output or PR30 CI. If #40 has real Agent0/MCP evidence, replace one dashboard panel with its finding and linked fix. | “Telemetry follows the request through the app and makes service health visible. The privacy regression catches an attendee ID added to a span.” One qualifier if needed: “This test checks application telemetry and collector configuration.” |
-| 3:35–4:05 | Cluster operator opens local Radar and #30's saved investigation. | “A real model-capacity failure blocked indexing. The team corrected the ML memory budget and seeded 417 talks; this saved Radar investigation explains the retained evidence.” One qualifier: “The original diagnosis used ES APIs; Radar's investigation is retrospective.” |
-| 4:05–4:35 | Open [PR25's Gitar dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/25#issuecomment-6749180455), then the acted-on probe finding on [PR6](https://github.com/DL4P1N/Kubecon-2026/pull/6). | “Project rules ran, and a review finding changed the probes so an API outage does not restart healthy nginx.” One qualifier: “Rules are statically checked; the probe outage was controlled.” |
-| 4:35–4:45 | Narrator returns to the schedule. | “Find talks that matter, keep a workable schedule, and check room access—with observable services and explicit privacy boundaries.” |
+| 0:00–0:20 | Erick introduces the attendee problem and registers `SYNTHETIC DEMO presenter`, selecting a topic and the optional consent choices. | “Finding the right talk, avoiding overlaps, and getting into the right room takes work. Consent starts off; recommendations still work.” |
+| 0:20–0:45 | Complete onboarding and open `/schedule`. Use **Room full? Similar talks now**, open a talk detail page with related talks, and demonstrate the conflict-safe schedule swap. Mention `.ics` export and offline support. | “The schedule stays workable, offers same-time alternatives, exports to a calendar, and is available offline after a successful online visit.” See [room alternatives](room-alternatives.md), [talk detail](talk-detail.md), [calendar](calendar.md), and [offline schedule](offline-schedule.md). |
+| 0:45–1:20 | At `/search`, use `keep passwords and API keys out of my config files`, then point to the rollout and image-pull queries from [the measured list](search-comparison.md#recommended-demo-queries-for-18). Show [suggestions and filters](search-suggest.md), query details, and both modes. | “In #36's live 12-question evaluation, hybrid put a relevant talk in the top three 5 times, versus 0 for keyword. Small held-out query-understanding evidence moved hybrid from 3/8 to 6/8 with no losses; keyword also improves, so this is not a hybrid-only claim.” |
+| 1:20–1:50 | Switch to the prepared synthetic demo-pass `/schedule`, show **Show room QR**, then scan at `/kiosk`. If rehearsed, revoke the entitlement and rescan the still-valid QR; restore afterward. | “Each scan rereads current entitlements, so revocation does not wait for QR expiry.” Never show a token or QR code legibly. |
+| 1:50–2:10 | Open `/map`, then `/clusters` only if verified in preflight, and the organizer dashboard. | “Synthetic opted-in interests help organizers plan rooms; groups below five are hidden.” |
+| 2:10–2:35 | Observability presenter opens the committed Dash0 trace and applied dashboard/SLO definitions. | “Telemetry follows the request through the app while the privacy regression catches an attendee ID added to a span.” Say that populated dashboard/SLO screenshots remain pending. |
+| 2:35–2:55 | Cluster operator opens the saved Radar investigation, then the Gitar evidence. | “The model-capacity incident led to a corrected ML memory budget and a 417-talk seed. Rules and review findings informed fixes.” Keep the Radar investigation retrospective. |
+| 2:55–3:00 | Return to the schedule. | “Find talks that matter, keep a workable schedule, and check room access—with observable services and explicit privacy boundaries.” |
 
 Optional features replace time inside their existing slot; they do not extend
-the demo. Show them only after deployment/rehearsal and evidence checks. Until
-the human confirms the slot length, this is a five-minute rehearsal draft.
+the demo. Show them only after deployment/rehearsal and evidence checks. This
+script is timed for the confirmed three-minute slot.
 
 ## Sponsor evidence gates
 
 | Track | Evidence to open | Claim boundary |
 | --- | --- | --- |
-| Elasticsearch | [Search comparison](search-comparison.md), [measured earlier run](demo/search-comparison-measured.json), committed #36 live report when available | Real 417-talk catalog, E5 inference, and query bodies are proven; tuned relevance improvement remains TBD. |
-| Dash0 | [Track evidence, Dash0 section](track-evidence.md#dash0), [telemetry privacy test](telemetry-privacy-test.md) after #13 merges, #14 dashboard | Live trace/SLO only after observation; application privacy test and collector static checks do not prove end-to-end delivery. |
-| Radar | [Real incident and boundaries](track-evidence.md#radar), #30 saved AI transcript/screenshots | Keep natural ML incident, retrospective investigation, and controlled outage distinct. |
-| Sonar/Gitar | [Rule execution](track-evidence.md#repository-rule-verification-task-34), PR #25 and acted-on PR #6 finding | A light Gitar entry; no Sonar tooling, runtime compliance, CI diagnosis, or functional-validation claim without evidence. |
+| Elasticsearch | [Search comparison](search-comparison.md), [#52 measured evidence](evidence/search-eval-52.md), [live smoke](evidence/live-smoke.md) | The 417-talk catalog, E5 inference, query bodies and #36 live 5/12 versus 0/12 result are proven. The small held-out query-understanding result is bounded as above. |
+| Dash0 | [live trace](evidence/live-smoke-dash0-trace.json), [applied definitions](evidence/dash0-live-definitions.json), [telemetry privacy test](telemetry-privacy-test.md) | A real browser-to-API-to-ES trace and applied dashboard/SLO definitions are recorded. Populated dashboard/SLO screenshots and a live exported privacy sample remain pending. |
+| Radar | [real incident and boundaries](track-evidence.md#radar), [resource sizing](evidence/radar-resources.md), #30 saved AI transcript/screenshots | Keep the natural ML incident, retrospective investigation, and controlled outage distinct; the resource evidence is a short synthetic-load sample. |
+| Gitar | [rule execution](track-evidence.md#repository-rule-verification-task-34), [CI diagnosis](gitar-ci-diagnosis.md) and acted-on findings | Five rules are committed and findings informed fixes. Several PRs had no completed written Gitar review, so those merges rely on CI and independent review rather than claiming a Gitar verdict. |
 
 ## Fallback and recording handoff (#18)
 
-Before ~2:30pm, #18's owner records one uninterrupted rehearsal and captures
-screenshots under `docs/demo/`. The recording filename and date must be added
-here after it exists: **TBD**. Do not imply that placeholders are artifacts.
+The live recording is owned by board task #74 and is not yet recorded. When it
+exists, add its date, duration, release commit, and out-of-git storage link here;
+do not imply that fallback artifacts are a live recording.
 
 Available now: [Radar overview](demo/radar-overview.png),
 [Radar topology](demo/radar-topology.png), the measured search JSON, and public
