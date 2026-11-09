@@ -25,11 +25,20 @@ least 5.
    count) last, so readers only ever see complete runs. Runs older than 24 hours
    are pruned at the end of each run.
 
+   The same index also holds the topic counts that `GET /api/interests/aggregate`
+   writes (`_id` `aggregate:<topic>`, `cluster_id` `topic:<topic>`, `run_id`
+   `aggregate-<time>`). The two writers do not touch each other's documents: k-means
+   runs use `run_id` starting `run-` and `_id` `<run_id>:<cluster_id>`; this job's
+   prune and the route's reads filter on that prefix (and on the `_run` marker), and the
+   aggregate cleanup filters on `aggregate-`. Tests cover both directions.
+
 `GET /api/interests/clusters` returns the latest completed run (empty with
 `runId: null` before the first one). Centroids stay server-side. The request needs the
 `x-organizer-key` header when `ORGANIZER_KEY` is set, and in production the route
-returns 503 until it is set. The web page is `/map`; it states
-"Thresholds untested on live data".
+returns 503 until it is set. The web page is `/clusters` (it
+states "Thresholds untested on live data"). `/map` and `GET /api/interests/aggregate` are
+the separate topic-count view from #16: plain per-topic counts with k >= 5, no k-means,
+public. This cluster view is the grouped, organizer-keyed one.
 
 ## Demo
 

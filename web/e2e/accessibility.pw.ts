@@ -20,13 +20,13 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const width of [375, 1280]) {
-  for (const path of ["register", "onboarding", "schedule", "search", "kiosk", "map"]) {
+  for (const path of ["register", "onboarding", "schedule", "search", "kiosk", "clusters"]) {
     test(`${path} at ${width}px has no serious or critical accessibility violations`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`/${path}`);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       if (path === "register" || path === "onboarding") await expect(page.getByLabel("kubernetes", { exact: true })).toBeVisible();
-      if (path === "map") await expect(page.getByText("Kubernetes + Helm")).toBeVisible();
+      if (path === "clusters") await expect(page.getByText("Kubernetes + Helm")).toBeVisible();
       if (path === "schedule") {
         await expect(page.getByText(talk.title)).toBeVisible();
         await page.getByRole("button", { name: "Show room QR" }).click();

@@ -19,6 +19,7 @@ function fakeEs() {
   const attendees = new Map<string, Doc>();
   const clusters = new Map<string, Doc>();
   const calls: string[] = [];
+  const deleteQueries: string[] = [];
   let scrollRest: Doc[] = [];
   let searchBody: Doc | undefined;
   let pageSize = 500;
@@ -59,12 +60,16 @@ function fakeEs() {
       return json({ result: "created" }, 201);
     }
     if (method === "POST" && u.pathname.endsWith("/_refresh")) return json({});
-    if (method === "POST" && u.pathname === "/interest_clusters/_delete_by_query") return json({ deleted: 0 });
+    if (method === "POST" && u.pathname === "/interest_clusters/_delete_by_query") {
+      deleteQueries.push(JSON.stringify(body.query));
+      return json({ deleted: 0 });
+    }
     if (method === "POST" && u.pathname === "/interest_clusters/_search") {
       const q = JSON.stringify(body.query);
       const docs = [...clusters.values()];
       if (q.includes('"cluster_id":"_run"') && !q.includes("must_not")) {
-        const markers = docs.filter((d) => d.cluster_id === "_run").sort((a, b) => String(b.computed_at).localeCompare(String(a.computed_at)));
+        const prefix = /"prefix":\{"run_id":"([^"]+)"/.exec(q)?.[1] ?? "";
+        const markers = docs.filter((d) => d.cluster_id === "_run" && String(d.run_id).startsWith(prefix)).sort((a, b) => String(b.computed_at).localeCompare(String(a.computed_at)));
         return json({ hits: { hits: markers.slice(0, 1).map((d) => ({ _source: d })) } });
       }
       const runId = /"run_id":"([^"]+)"/.exec(q)![1];
@@ -77,6 +82,7 @@ function fakeEs() {
     attendees,
     clusters,
     calls,
+    deleteQueries,
     get searchBody() {
       return searchBody;
     },
@@ -278,14 +284,45 @@ describe("cluster job, demo seed and route", () => {
 
   it("route never returns a stored cluster under the minimum", async () => {
     const es = fakeEs();
-    es.clusters.set("r:_run", { cluster_id: "_run", run_id: "r", size: 0, computed_at: now.toISOString() });
-    es.clusters.set("r:c1", { cluster_id: "c1", run_id: "r", label: "Big", size: 8, top_interests: [], computed_at: now.toISOString() });
-    es.clusters.set("r:c2", { cluster_id: "c2", run_id: "r", label: "Tiny", size: 3, top_interests: [], computed_at: now.toISOString() });
+    es.clusters.set("r:_run", { cluster_id: "_run", run_id: "run-r", size: 0, computed_at: now.toISOString() });
+    es.clusters.set("r:c1", { cluster_id: "c1", run_id: "run-r", label: "Big", size: 8, top_interests: [], computed_at: now.toISOString() });
+    es.clusters.set("r:c2", { cluster_id: "c2", run_id: "run-r", label: "Tiny", size: 3, top_interests: [], computed_at: now.toISOString() });
     const app = Fastify();
     registerClusterRoutes(app, { es: es.client, nodeEnv: "test" });
     const body = (await app.inject({ url: "/api/interests/clusters" })).json() as InterestClustersResponse;
     expect(body.clusters.map((c) => c.id)).toEqual(["c1"]);
     await app.close();
+  });
+});
+
+describe("coexisting with the aggregate route's docs in interest_clusters", () => {
+  const now = new Date("2026-11-09T12:00:00Z");
+  const aggregateDocs = (es: ReturnType<typeof fakeEs>, at: string) => {
+    es.clusters.set("aggregate:kubernetes", { cluster_id: "topic:kubernetes", run_id: `aggregate-${at}`, label: "kubernetes", size: 30, top_interests: ["kubernetes"], computed_at: at });
+    es.clusters.set("aggregate:_run", { cluster_id: "_run", run_id: `aggregate-${at}`, label: "lookalike", size: 99, top_interests: [], computed_at: at });
+  };
+
+  it("the route ignores aggregate docs, even newer ones, and reads only the k-means run", async () => {
+    const es = fakeEs();
+    es.clusters.set("run-1:_run", { cluster_id: "_run", run_id: "run-1", size: 2, computed_at: "2026-11-09T11:00:00Z" });
+    es.clusters.set("run-1:c1", { cluster_id: "c1", run_id: "run-1", label: "Kubernetes", size: 9, top_interests: ["kubernetes"], computed_at: "2026-11-09T11:00:00Z" });
+    aggregateDocs(es, "2026-11-09T12:00:00Z"); // newer than the k-means run
+    const app = Fastify();
+    registerClusterRoutes(app, { es: es.client, nodeEnv: "test" });
+    const body = (await app.inject({ url: "/api/interests/clusters" })).json() as InterestClustersResponse;
+    expect(body.runId).toBe("run-1");
+    expect(body.suppressed).toBe(2);
+    expect(body.clusters.map((c) => c.id)).toEqual(["c1"]);
+    await app.close();
+  });
+
+  it("the job's prune is scoped to its own run_id prefix and leaves aggregate docs alone", async () => {
+    const es = fakeEs();
+    aggregateDocs(es, "2026-11-01T00:00:00Z"); // older than 24h
+    await runClusterJob(es.client, { now: () => now, runId: "run-test-9" });
+    expect(es.deleteQueries).toHaveLength(1);
+    expect(es.deleteQueries[0]).toContain('"prefix":{"run_id":"run-"}');
+    expect(es.clusters.has("aggregate:kubernetes")).toBe(true);
   });
 });
 

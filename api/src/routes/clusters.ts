@@ -3,7 +3,7 @@ import { SpanStatusCode, trace } from "@opentelemetry/api";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { MIN_CLUSTER_SIZE, routes, type InterestClusterNode, type InterestClustersResponse } from "@cc/shared";
 import type { EsClient } from "../es/client.js";
-import { RUN_MARKER_ID } from "../clusters/job.js";
+import { RUN_ID_PREFIX, RUN_MARKER_ID } from "../clusters/job.js";
 
 export const ORGANIZER_KEY_HEADER = "x-organizer-key";
 const MAX_CLUSTERS = 50;
@@ -46,7 +46,9 @@ export async function loadLatestClusters(es: EsClient): Promise<InterestClusters
   const marker = await es.request<SearchBody<ClusterDoc>>("POST", "/interest_clusters/_search", {
     size: 1,
     sort: [{ computed_at: "desc" }],
-    query: { term: { cluster_id: RUN_MARKER_ID } },
+    // Only this job's markers: the aggregate route's docs share the index but have
+    // run_id "aggregate-..." and cluster_id "topic:...".
+    query: { bool: { filter: [{ term: { cluster_id: RUN_MARKER_ID } }, { prefix: { run_id: RUN_ID_PREFIX } }] } },
     _source: ["run_id", "size", "computed_at", "cluster_id", "label"],
   });
   const latest = marker.body.hits.hits[0]?._source;

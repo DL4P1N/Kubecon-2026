@@ -20,6 +20,8 @@ import { buildClusters, finalize, type BuildOptions, type ClusterInput, type Clu
  */
 
 export const RUN_MARKER_ID = "_run";
+/** run_id prefix of k-means runs; the aggregate route uses "aggregate-" in the same index. */
+export const RUN_ID_PREFIX = "run-";
 const SCROLL_KEEPALIVE = "1m";
 const PAGE_SIZE = 500;
 /** Cluster output is aggregate, but keep it no longer than attendee data (24h). */
@@ -52,7 +54,7 @@ interface ScrollPage {
 }
 
 export function newRunId(now: Date): string {
-  return `run-${now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${randomBytes(3).toString("hex")}`;
+  return `${RUN_ID_PREFIX}${now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${randomBytes(3).toString("hex")}`;
 }
 
 /** Opted-in, unexpired attendees (via scroll). Yields vectors and interests only, never IDs. */
@@ -146,7 +148,16 @@ export async function writeRun(es: EsClient, runId: string, run: ClusterRun, com
   await es.request("POST", "/interest_clusters/_refresh");
   await es
     .request("POST", "/interest_clusters/_delete_by_query?conflicts=proceed", {
-      query: { range: { computed_at: { lt: new Date(computedAt.getTime() - RUN_RETENTION_MS).toISOString() } } },
+      // Scoped to this job's own runs: the same index also holds the aggregate topic docs
+      // (run_id "aggregate-...") written by GET /api/interests/aggregate.
+      query: {
+        bool: {
+          filter: [
+            { prefix: { run_id: RUN_ID_PREFIX } },
+            { range: { computed_at: { lt: new Date(computedAt.getTime() - RUN_RETENTION_MS).toISOString() } } },
+          ],
+        },
+      },
     })
     .catch(() => undefined); // pruning is best effort
 }
