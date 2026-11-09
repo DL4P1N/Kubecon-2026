@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const response = path === "/api/rooms/occupancy" ? { source: "in-process-scan-activity", windowMinutes: 10,
-      rooms: [{ room: talk.room, level: "almost full", recentScans: 8, capacity: 10, percentage: 80 }] }
+      rooms: [{ room: talk.room, level: "many recent check-ins" }] }
       : path === "/api/catalog/topics" ? { topics: ["kubernetes"] }
       : path === "/api/search" ? { q: "", mode: "hybrid", tookMs: 1, hits: [{ talk, score: 1 }] }
       : path === "/api/schedule" ? { items: [{ talk, reason: "Matches your interests" }], updatedAt: "" }

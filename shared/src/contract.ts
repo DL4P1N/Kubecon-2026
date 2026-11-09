@@ -29,10 +29,7 @@ export const MIN_CLUSTER_SIZE = 5;
 
 export interface RoomActivity {
   room: string;
-  level: "quiet" | "busy" | "almost full";
-  recentScans: number | null;
-  capacity: number | null;
-  percentage: number | null;
+  level: "quiet" | "some recent check-ins" | "many recent check-ins";
 }
 export interface RoomOccupancyResponse {
   source: "in-process-scan-activity";

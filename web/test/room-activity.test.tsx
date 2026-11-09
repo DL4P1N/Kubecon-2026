@@ -8,7 +8,7 @@ import { RoomActivityBadge } from "../src/pages/RoomActivity.js";
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 const activity = { source: "in-process-scan-activity" as const, windowMinutes: 10,
-  rooms: [{ room: "room-a", level: "almost full" as const, recentScans: 8, capacity: 10, percentage: 80 }] };
+  rooms: [{ room: "room-a", level: "many recent check-ins" as const }] };
 it("shows accessible room activity on schedule and kiosk using aggregate data", async () => {
   vi.spyOn(api, "roomOccupancy").mockResolvedValue(activity);
   vi.spyOn(api, "getSchedule").mockResolvedValue({ updatedAt: "", items: [{ talk: {
@@ -17,17 +17,18 @@ it("shows accessible room activity on schedule and kiosk using aggregate data", 
   } }] });
   setToken("synthetic");
   render(<MemoryRouter><Schedule /></MemoryRouter>);
-  expect(await screen.findByText("Scan activity: almost full (80% of capacity)")).toBeTruthy();
+  expect(await screen.findByText("Scan activity: many recent check-ins")).toBeTruthy();
+  expect(screen.queryByText(/%|capacity|almost full/)).toBeNull();
   cleanup();
   render(<Kiosk />);
   fireEvent.change(screen.getByLabelText("Room", { exact: true }), { target: { value: "room-a" } });
-  expect(await screen.findByLabelText("room-a: almost full")).toBeTruthy();
+  expect(await screen.findByLabelText("room-a: many recent check-ins")).toBeTruthy();
 });
 it("does not call unavailable data quiet or expose suppressed counts", () => {
   const view = render(<RoomActivityBadge room="room-a" activity={null} />);
   expect(screen.getByText("Scan activity unavailable")).toBeTruthy();
   view.rerender(<RoomActivityBadge room="room-a" activity={{ ...activity,
-    rooms: [{ room: "room-a", level: "quiet", recentScans: null, capacity: 10, percentage: null }] }} />);
+    rooms: [{ room: "room-a", level: "quiet" }] }} />);
   expect(screen.getByText("Scan activity: quiet")).toBeTruthy();
   expect(screen.queryByText(/%/)).toBeNull();
 });

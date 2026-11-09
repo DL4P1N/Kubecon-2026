@@ -103,7 +103,7 @@ describe("QR access", () => {
       });
     });
     es = fakeEs();
-    roomActivity = new RoomActivityCounter(new Map(), now);
+    roomActivity = new RoomActivityCounter(now);
     app = await build();
   });
   afterEach(async () => {
@@ -145,12 +145,12 @@ describe("QR access", () => {
   it("counts allowed scans but not invalid or revoked scans", async () => {
     const reg = await register();
     const qr = (await qrToken(reg)).json() as AccessTokenResponse;
-    for (let i = 0; i < 5; i++) expect((await scan(qr.token)).json()).toMatchObject({ decision: "allow" });
+    for (let i = 0; i < 4; i++) expect((await scan(qr.token)).json()).toMatchObject({ decision: "allow" });
     await scan("invalid-token");
     const entitlement = es.docs.get(`entitlements/${reg.attendeeId}`)!;
     es.docs.set(`entitlements/${reg.attendeeId}`, { ...entitlement, rooms: [] });
     expect((await scan(qr.token)).json()).toMatchObject({ decision: "deny" });
-    expect(roomActivity.snapshot([ROOM]).rooms[0]).toMatchObject({ recentScans: 5 });
+    expect(roomActivity.snapshot([ROOM]).rooms[0]).toEqual({ room: ROOM, level: "quiet" });
   });
 
   it("returns 403 on token for an attendee without QR consent, and 401 without or with a bad session", async () => {

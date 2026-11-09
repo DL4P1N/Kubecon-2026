@@ -14,15 +14,18 @@ quiet result. A `rooms.occupancy` span contains no user attributes.
 The public endpoint permits 120 requests per client IP per minute before
 rejecting requests with 429, before an Elasticsearch query is made.
 
-Under five allowed scans, both `recentScans` and `percentage` are null and the
-label is quiet. This is small-count suppression, **not** a claim of five
-distinct people or formal anonymity: one person can scan repeatedly.
+Only a coarse label is public: quiet below five allowed scans, some recent
+check-ins for five through nineteen, or many recent check-ins for twenty or
+more. Suppression is applied after summing all minute buckets. Exact counts,
+percentages and room-capacity estimates are never returned, including above
+the suppression threshold. Capacity configuration is not used.
 
-Set `ROOM_CAPACITIES_JSON` to a JSON object of exact catalog room names and
-positive integer capacities. No room sizes are invented. With a configured
-capacity, recent scans produce quiet (<40%), busy (40–79%) or almost full
-(80%+) labels. Percentage is capped at 100. Without a configured capacity,
-percentage is null and at least five scans mean busy scan activity.
+These labels reduce the precision available through repeated polling; they
+are **not** formal anonymity or a claim of five distinct people. A valid QR
+can be replayed, and someone adding their own scans can influence a bucket or
+infer information when a coarse boundary is crossed. Minute-bucket expiry can
+also change a label. Rate limits constrain request volume, not this inference.
+Do not treat these labels as attendance, room fullness or available seats.
 
 This is a check-in signal, not measured occupancy: there are no exit events,
 repeat scans count again, and data resets on restart. Multiple API replicas

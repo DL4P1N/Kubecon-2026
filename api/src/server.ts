@@ -17,7 +17,7 @@ import { registerClusterRoutes } from "./routes/clusters.js";
 import { registerStatusRoutes } from "./routes/status.js";
 import { createStatusTracker, type StatusTracker } from "./status/tracker.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
-import { RoomActivityCounter, roomCapacities } from "./rooms/activity.js";
+import { RoomActivityCounter } from "./rooms/activity.js";
 import { registerRoomRoutes } from "./routes/rooms.js";
 
 const VERSION = "0.1.0";
@@ -45,7 +45,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   const tokens = deps.tokens ?? createTokenService({ key: config.tokenSigningKey, nodeEnv: config.nodeEnv });
   const es = deps.es ?? createEsClient(config);
   const embedder = createEmbedder(process.env, es);
-  const roomActivity = deps.roomActivity ?? new RoomActivityCounter(roomCapacities(process.env.ROOM_CAPACITIES_JSON));
+  const roomActivity = deps.roomActivity ?? new RoomActivityCounter();
   const app = Fastify({
     ...(config.apiTlsCertFile ? { https: {
       cert: readFileSync(config.apiTlsCertFile),

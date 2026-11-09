@@ -27,6 +27,6 @@ export function useRoomActivity() {
 export function RoomActivityBadge({ room, activity }: { room: string; activity: RoomOccupancyResponse | null }) {
   const found = activity?.rooms.find((item) => item.room === room);
   return <span role="note" aria-label={`${room}: ${found ? found.level : "scan activity unavailable"}`}>
-    {found ? `Scan activity: ${found.level}${found.percentage === null ? "" : ` (${found.percentage}% of capacity)`}` : "Scan activity unavailable"}
+    {found ? `Scan activity: ${found.level}` : "Scan activity unavailable"}
   </span>;
 }
