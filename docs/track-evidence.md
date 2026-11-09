@@ -80,6 +80,29 @@ The human confirmed a Pro trial. Functional validation remains "Not enabled"
 and requires Enterprise; CI-failure diagnosis still needs separate observed
 failure-analysis evidence. No claim is made that either was demonstrated.
 
+## Elasticsearch real issues
+
+### Search 502 during E5 warm-up (natural incident)
+
+- What happened: during the E5 inference seed on the kind cluster, the first deployed
+  `GET /api/search?mode=hybrid` returned 502 `search_unavailable` while keyword search and
+  a direct `companion_svc` RRF query returned 200. The API mapped every Elasticsearch
+  failure to a generic 502, so the original ES error body was not preserved and the cause
+  of that one request is unconfirmed. The related seed failure (429 `inference_exception`,
+  "no ML nodes with sufficient capacity") and its fix (`xpack.ml.max_machine_memory_percent`
+  30% to 50%, by ecan0-omp) are under Radar, "Real incident: Elasticsearch ML capacity".
+- What changed (task #35): `EsError` keeps the ES `error.type` and HTTP status; the span
+  gets the allowlisted `error.type` attribute; the search error handler writes one log line
+  with the type and status only (no query text, ids, credentials or ES body). ES overload
+  (429, `inference_exception`, `circuit_breaking_exception`,
+  `es_rejected_execution_exception`) now returns 503 `search_overloaded` with
+  `Retry-After`; other ES failures stay 502. Hybrid does not fall back to keyword on
+  overload, so an incident stays visible. Tests: `Elasticsearch failures are diagnosable`
+  in `api/test/search.routes.test.ts` and `EsError classification` in `api/test/es.test.ts`
+  (realistic 429 and 400 ES bodies, production logger options).
+- Not captured: a Dash0 trace or log of this request, or a Radar investigation of it. None
+  is claimed.
+
 ## Radar
 
 - Cluster: new local kind cluster `conference-companion` (Kubernetes v1.37.0, arm64),
