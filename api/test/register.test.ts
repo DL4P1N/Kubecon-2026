@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import { trace } from "@opentelemetry/api";
-import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
 import type { MeResponse, RegisterResponse } from "@cc/shared";
 import { createTokenService } from "../src/auth/token.js";
 import { createEsClient } from "../src/es/client.js";
@@ -57,7 +57,7 @@ const validBody = {
 };
 
 const exporter = new InMemorySpanExporter();
-const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
+const provider = new TracerProvider({ spanProcessors: [new SimpleSpanProcessor({ exporter })] });
 
 describe("POST /api/register and GET /api/me", () => {
   let app: FastifyInstance;

@@ -10,6 +10,7 @@ import type {
 } from "@cc/shared";
 import type { EsClient } from "../es/client.js";
 import { withSpan } from "../telemetry/span.js";
+import { timeSearch } from "../telemetry/metrics.js";
 import {
   LEG_KEYWORD,
   LEG_SEMANTIC,
@@ -94,7 +95,7 @@ export async function runSearch(es: EsClient, opts: RunSearchOptions): Promise<R
     opts.mode === "hybrid"
       ? buildHybridBody(opts.text, opts.size, opts.filters)
       : buildKeywordBody(opts.text, opts.size, opts.filters);
-  return withSpan("search", { "search.mode": opts.mode }, async (span) => {
+  return timeSearch(opts.mode, () => withSpan("search", { "search.mode": opts.mode }, async (span) => {
     const started = Date.now();
     const call = () => es.request<EsSearchResponse>("POST", `/${TALKS_INDEX}/_search`, body);
     // In hybrid mode Elasticsearch embeds the query text itself (semantic_text
@@ -107,7 +108,7 @@ export async function runSearch(es: EsClient, opts: RunSearchOptions): Promise<R
     }));
     span.setAttribute("search.hits", hits.length);
     return { hits, tookMs: res.body.took ?? Date.now() - started, body };
-  });
+  }));
 }
 
 export async function searchTalks(
