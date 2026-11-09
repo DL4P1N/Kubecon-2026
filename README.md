@@ -1,5 +1,7 @@
 # Kubecon 2026
 
+Secured Elasticsearch: see [deployment and bootstrap](docs/es-deployment.md).
+
 ## Development
 
 Node 20+ and npm workspaces: `shared/` (API contract in `shared/src/contract.ts`), `api/` (Fastify, stub routes), `web/` (Vite + React).
