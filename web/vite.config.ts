@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  define: { "import.meta.env.NAV_ESTIMATOR": JSON.stringify(process.env.NAV_ESTIMATOR === "on" ? "on" : "off") },
   server: {
     port: 5173,
     // Dev: forward API calls to the Fastify server.

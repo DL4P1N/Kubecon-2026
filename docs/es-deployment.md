@@ -6,6 +6,11 @@ native inference. On a 7.65 GiB Docker host this leaves limited headroom for
 kind and the app; inspect memory during model deployment. ELSER is outside
 this budget. E5 on arm64 still requires live model deployment verification.
 
+Set `xpack.ml.max_machine_memory_percent=50` (2 GiB ML allowance). Live
+arm64 deployment showed the default 30% budget could not allocate E5 at
+this container limit and returned 429 insufficient-capacity errors. The
+cluster owner persists the same setting in the Kubernetes manifest.
+
 ## Local Compose
 
 Generate short-lived demo certificates (seven days) with `bash scripts/es-certs.sh`.
@@ -39,7 +44,9 @@ ES_USERNAME/ES_PASSWORD. The script grants monitor_inference and index
 management/read/write only for the five aliases and their versioned indices.
 Index management is needed for the merged application's mapping/alias setup;
 the role has no cluster-settings or user-management privileges. Trial-license
-status is returned by Elasticsearch; an already-used trial cannot be restarted.
+status is checked first: existing trial/Platinum/Enterprise licenses skip
+activation. If no inference license is active and the trial was already used,
+bootstrap reports that the license owner must activate an appropriate license.
 
 ## Kubernetes
 
@@ -70,13 +77,14 @@ curl --fail --cacert "$ES_CA_CERT" -u "companion_svc:$ES_PASSWORD" \
   -H 'Content-Type: application/json' -X POST "$ES_URL/talks/_doc/security-smoke" \
   -d '{"title":"Synthetic security smoke test"}'
 curl --cacert "$ES_CA_CERT" -u "companion_svc:$ES_PASSWORD" \
-  -H 'Content-Type: application/json' -X PUT "$ES_URL/_cluster/settings" \
-  -d '{"persistent":{}}'
+  "$ES_URL/_cluster/settings"
 ```
 
 The last request must return HTTP 403. Delete the smoke document afterward
-using the same service credentials. Live authentication, inference, and
-memory checks remain pending until the cluster owner runs them.
+using the same service credentials. Live kind validation confirmed
+authentication (200), writes through the talks alias (201), and denied
+cluster-settings reads/writes and user administration (403). Inference
+endpoint lookup passed; model execution and memory checks remain pending.
 
 References: [Elastic TLS settings](https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/security-settings),
 [E5 model](https://www.elastic.co/docs/explore-analyze/machine-learning/nlp/ml-nlp-e5).

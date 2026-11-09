@@ -5,5 +5,7 @@ dist/
 .env.*
 !.env.example
 coverage/
+test-results/
+playwright-report/
 .DS_Store
 deploy/compose/certs/

@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: companion-retention
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 1800
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          containers:
+            - name: retention
+              # Use the same release tag as the API Deployment.
+              image: ghcr.io/dl4p1n/kubecon-2026-api:main
+              command: ["node", "dist/retention-cli.js"]
+              envFrom:
+                - configMapRef:
+                    name: companion-app-config
+                - secretRef:
+                    name: companion-app-secrets
+              env:
+                - name: NODE_EXTRA_CA_CERTS
+                  value: /etc/elasticsearch/ca.crt
+              volumeMounts:
+                - name: es-ca
+                  mountPath: /etc/elasticsearch
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: es-ca
+              secret:
+                secretName: elasticsearch-ca
