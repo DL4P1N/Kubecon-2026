@@ -15,9 +15,14 @@
   },
   "dependencies": {
     "@cc/shared": "*",
-    "fastify": "^5.1.0"
+    "@fastify/rate-limit": "^11.2.2",
+    "@opentelemetry/api": "~1.9.0",
+    "fastify": "^5.1.0",
+    "jose": "^6.2.17",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@opentelemetry/sdk-trace-base": "^2.12.1",
     "@types/node": "^20.17.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.3",
