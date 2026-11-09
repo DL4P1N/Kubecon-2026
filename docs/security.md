@@ -90,7 +90,7 @@ status are logged.
 `api/test/security.test.ts` covers:
 
 - One 429 body shape (`statusCode`, `error`, `message`) across scopes with
-  default and custom error handlers (search, status, register, suggest, talks; the talk routes have their own test in `api/test/talks.test.ts`).
+  default and custom error handlers (search, status, register, suggest).
 - The largest valid onboarding tag set (1000 × 100 chars) gets a 200, not a
   413, and 1001 entries get a clean 400.
 - 429 with the shared body on search, catalog topics, status, interests
@@ -108,3 +108,5 @@ status are logged.
 
 Register and access-scan limits are covered by `proxy.test.ts` and
 `access.test.ts`.
+The talk routes' 429 body and `Retry-After` are checked in
+`api/test/talks.test.ts`.
