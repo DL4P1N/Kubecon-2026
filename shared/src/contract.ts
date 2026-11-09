@@ -294,6 +294,7 @@ export const routes = {
   search: { method: "GET", path: "/api/search" },
   saveSchedule: { method: "POST", path: "/api/schedule" },
   getSchedule: { method: "GET", path: "/api/schedule" },
+  exportCalendar: { method: "GET", path: "/api/schedule.ics" },
   accessToken: { method: "POST", path: "/api/access/token" },
   accessScan: { method: "POST", path: "/api/access/scan" },
   interestsAggregate: { method: "GET", path: "/api/interests/aggregate" },

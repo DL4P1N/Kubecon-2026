@@ -10,6 +10,7 @@ import {
   type SearchResponse,
 } from "@cc/shared";
 import { requireAttendee, type TokenService } from "../auth/token.js";
+import { createCalendar } from "../calendar/ical.js";
 import { EsError, isEsOverload, type EsClient } from "../es/client.js";
 import type { StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
@@ -235,6 +236,25 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       const attendeeId = await resolveAttendee(req, reply);
       if (attendeeId === null) return reply;
       return loadSchedule(es, store, attendeeId, now());
+    }),
+  );
+
+  app.get<{ Querystring: { talkId?: string } }>(routes.exportCalendar.path, async (req, reply) =>
+    scheduleSpan("schedule.export", "GET", routes.exportCalendar.path, reply, async () => {
+      reply.header("Cache-Control", "private, no-store");
+      const attendeeId = await resolveAttendee(req, reply);
+      if (attendeeId === null) return reply;
+      const talkId: unknown = req.query.talkId;
+      if (talkId !== undefined && (typeof talkId !== "string" || talkId.length < 1 || talkId.length > 200)) {
+        return reply.code(400).send(bad("talkId must be a single string of 1 to 200 characters"));
+      }
+      const at = now();
+      const schedule = await loadSchedule(es, store, attendeeId, at);
+      const talks = schedule.items.map((item) => item.talk).filter((talk) => talkId === undefined || talk.id === talkId);
+      if (talkId !== undefined && talks.length === 0) return reply.code(404).send({ error: "talk_not_in_schedule" });
+      return reply.type("text/calendar; charset=utf-8")
+        .header("Content-Disposition", 'attachment; filename="conference-schedule.ics"')
+        .send(createCalendar(talks, at));
     }),
   );
 }
