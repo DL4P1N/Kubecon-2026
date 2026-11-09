@@ -42,3 +42,17 @@ Still pending: CI-failure diagnosis and the review link for the demo.
 
 - Workload evidence: pending.
 - Notes: pending.
+
+## Accessibility
+
+- Real-browser check: Edge on Windows, 2026-11-09; 11 Playwright tests passed.
+- Axe WCAG 2 A/AA and WCAG 2.1 AA checks on register, onboarding, schedule
+  (with generated QR), populated keyword/hybrid search and kiosk at 375px and
+  1280px widths: zero serious or critical violations. No horizontal overflow.
+- Keyboard-only registration: skip link to main, visible focus outline,
+  labelled fields, topic selection, both consent choices off, submit and
+  arrival at onboarding verified. Added skip link and wrapping navigation.
+- Run `npm run test:a11y -w web`; on a machine using installed Edge set
+  `PLAYWRIGHT_CHANNEL=msedge`. CI installs Chromium and runs the same checks.
+- Tests use synthetic, mocked API responses. This verifies rendered UI and
+  keyboard behavior, not backend correctness or a manual screen-reader audit.
