@@ -2,18 +2,21 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ExperienceLevel, SearchHit } from "@cc/shared";
 import { api } from "../api.js";
+import { rememberSkipped } from "../skippedTalks.js";
 import { TopicChoices } from "./TopicChoices.js";
 import "./attendee.css";
 
+/**
+ * Talk ids with valid times in score order. Overlaps are left in on purpose: the
+ * server drops them greedily and reports them as `skipped`, so /schedule can
+ * show what was left out and offer a swap.
+ */
 export function selectTalks(hits: SearchHit[]): string[] {
-  const chosen: SearchHit[] = [];
-  for (const hit of [...hits].sort((a, b) => b.score - a.score)) {
-    const start = Date.parse(hit.talk.start);
-    const end = Date.parse(hit.talk.end);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) continue;
-    if (chosen.every(({ talk }) => end <= Date.parse(talk.start) || start >= Date.parse(talk.end))) chosen.push(hit);
-  }
-  return chosen.map(({ talk }) => talk.id);
+  return [...hits].sort((a, b) => b.score - a.score).filter(({ talk }) => {
+    const start = Date.parse(talk.start);
+    const end = Date.parse(talk.end);
+    return Number.isFinite(start) && Number.isFinite(end) && start < end;
+  }).map(({ talk }) => talk.id);
 }
 
 export function Onboarding() {
@@ -41,7 +44,7 @@ export function Onboarding() {
         setError("No matching talks found. Try a broader topic or a shorter description.");
         return;
       }
-      await api.saveSchedule({ talkIds });
+      rememberSkipped((await api.saveSchedule({ talkIds })).skipped);
       navigate("/schedule");
     } catch {
       setError("We could not build your schedule. Please try again. If your session expired, register again.");

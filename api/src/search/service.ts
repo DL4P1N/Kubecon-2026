@@ -226,7 +226,7 @@ export async function buildAndSaveSchedule(
   opts: BuildAndSaveOptions,
 ): Promise<ScheduleResponse> {
   const now = opts.now ?? new Date();
-  const { chosen, dropped } = await withSpan("schedule.build", {}, async () =>
+  const { chosen, dropped, skipped } = await withSpan("schedule.build", {}, async () =>
     buildSchedule(candidates, opts.maxTalks ?? DEFAULT_MAX_TALKS),
   );
   await opts.store.save(
@@ -239,6 +239,9 @@ export async function buildAndSaveSchedule(
     items: chosen.map((c) => ({ talk: c.talk, reason: reasonFor(c) })),
     updatedAt: now.toISOString(),
     ...(allDropped.length > 0 ? { droppedTalkIds: allDropped } : {}),
+    ...(skipped.length > 0
+      ? { skipped: skipped.map((s) => ({ talkId: s.talk.id, conflictsWith: s.conflictsWith, talk: s.talk })) }
+      : {}),
   };
 }
 
