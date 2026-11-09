@@ -5,20 +5,19 @@ import {
   type AccessTokenResponse,
   type HealthResponse,
   type InterestAggregateResponse,
-  type MeResponse,
-  type RegisterRequest,
-  type RegisterResponse,
   type ScanRequest,
   type ScanResponse,
 } from "@cc/shared";
 import type { Config } from "./config.js";
 import { createEsClient, type EsClient } from "./es/client.js";
+import { createTokenService, type TokenService } from "./auth/token.js";
+import { createEmbedder } from "./es/embeddings.js";
 import { MOCK_TALKS } from "./mock-data.js";
+import { registerRoutes } from "./routes/register.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
 
 const VERSION = "0.1.0";
 const STUB_ATTENDEE_ID = "attendee-stub-1";
-const TOKEN_TTL_MS = 5 * 60 * 1000;
 
 const inMinutes = (ms: number) => new Date(Date.now() + ms).toISOString();
 
@@ -27,14 +26,21 @@ export interface ServerDeps {
   es?: EsClient;
   /** Overrides for the search/onboarding/schedule routes (attendee resolver, store, clock). */
   search?: Omit<SearchRouteDeps, "es">;
+  /** Attendee token service; defaults to HS256 with TOKEN_SIGNING_KEY. */
+  tokens?: TokenService;
 }
 
 /**
  * Builds the Fastify app. Search, onboarding and schedule are real
- * (Elasticsearch, see routes/search.ts); the remaining /api routes are STUBS
+ * (Elasticsearch, see routes/search.ts), as are registration and /api/me
+ * (routes/register.ts); the remaining /api routes are STUBS
  * returning contract-shaped mock data until their tasks land.
  */
 export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInstance {
+  // Refuses to start with a missing (or, in production, placeholder) signing key.
+  const tokens = deps.tokens ?? createTokenService({ key: config.tokenSigningKey, nodeEnv: config.nodeEnv });
+  const es = deps.es ?? createEsClient(config);
+  const embedder = createEmbedder(process.env, es);
   const app = Fastify({ logger: false });
 
   app.get(routes.health.path, async (): Promise<HealthResponse> => ({
@@ -43,28 +49,15 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
     time: new Date().toISOString(),
   }));
 
-  app.post<{ Body: RegisterRequest }>(routes.register.path, async (req, reply) => {
-    const body = req.body;
-    if (!body || typeof body.name !== "string" || body.name.trim() === "") {
-      return reply.code(400).send({ error: "invalid_request", message: "name is required" });
-    }
-    const res: RegisterResponse = {
-      attendeeId: STUB_ATTENDEE_ID,
-      token: `stub.${STUB_ATTENDEE_ID}`,
-      expiresAt: inMinutes(TOKEN_TTL_MS),
-    };
-    return reply.code(201).send(res);
+  // Module 1: POST /api/register + GET /api/me (routes/register.ts).
+  app.register(registerRoutes, {
+    es,
+    tokens,
+    embed: (text) => embedder.embed(text),
+    rateLimitPerMinute: config.registerRateLimitPerMinute,
   });
 
-  app.get(routes.me.path, async (): Promise<MeResponse> => ({
-    attendeeId: STUB_ATTENDEE_ID,
-    name: "Stub Attendee",
-    interests: ["kubernetes", "observability"],
-    consent: { clusterMap: true, qrCheckin: true },
-    onboarded: false,
-  }));
-
-  registerSearchRoutes(app, { es: deps.es ?? createEsClient(config), ...deps.search });
+  registerSearchRoutes(app, { es, ...deps.search });
 
   app.post(routes.accessToken.path, async (): Promise<AccessTokenResponse> => ({
     token: `stub.${STUB_ATTENDEE_ID}`,
