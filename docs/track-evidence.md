@@ -43,6 +43,18 @@ Still pending: CI-failure diagnosis and the review link for the demo.
 - Workload evidence: pending.
 - Notes: pending.
 
+## Dash0
+
+- End-to-end trace (browser -> api -> Elasticsearch) for one `/api/search`
+  request: screenshot goes here (`docs/evidence/dash0-search-trace.png`),
+  with the trace id. Pending: needs the deployed collector with Dash0 credentials.
+- Allowlist proof: the same trace's span attributes show `search.mode` and no
+  `attendee.id` (unit test: `api/test/telemetry.test.ts`). Screenshot: pending.
+- Metrics: `http.server.request.duration` by `http.route`,
+  `companion.search.duration`, `access.scans` dashboard. Screenshot: pending.
+- SLO (p95 search latency) and Agent0 / Dash0 MCP investigation: pending.
+- How to reproduce locally: `docs/observability.md`.
+
 ## Accessibility
 
 - Real-browser check: Edge on Windows, 2026-11-09; 11 Playwright tests passed.
