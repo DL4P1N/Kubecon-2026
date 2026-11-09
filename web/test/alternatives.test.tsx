@@ -21,7 +21,7 @@ it("loads on demand and lists alternatives with room, time and why", async () =>
   ]));
   render(<Alternatives talk={source} load={load} />);
   expect(load).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Room full? Similar talks now" }));
+  fireEvent.click(screen.getByRole("button", { name: "Room full? Similar talks now for Talk src" }));
   const list = await screen.findByRole("list");
   expect(load).toHaveBeenCalledWith("src");
   const items = within(list).getAllByRole("listitem");
@@ -56,7 +56,7 @@ it("button is disabled while loading and exposes expanded state", async () => {
   const button = screen.getByRole("button");
   expect(button.getAttribute("aria-expanded")).toBe("false");
   fireEvent.click(button);
-  const loading = await screen.findByRole("button", { name: "Finding similar talks…" });
+  const loading = await screen.findByRole("button", { name: "Finding similar talks… for Talk src" });
   expect((loading as HTMLButtonElement).disabled).toBe(true);
   expect(loading.getAttribute("aria-expanded")).toBe("true");
   resolve(response([]));
@@ -70,4 +70,10 @@ it("client calls the public endpoint with an encoded id and size, and throws the
   await fetchAlternatives("a b/c", 2);
   expect(fetchMock).toHaveBeenCalledWith("/api/talks/a%20b%2Fc/alternatives?size=2");
   await expect(fetchAlternatives("x")).rejects.toMatchObject({ status: 503 });
+});
+
+it("gives each button a distinct accessible name that includes the talk title", () => {
+  render(<><Alternatives talk={mk("a", "Hall A")} load={vi.fn()} /><Alternatives talk={mk("b", "Hall B")} load={vi.fn()} /></>);
+  const names = screen.getAllByRole("button").map((b) => b.getAttribute("aria-label"));
+  expect(names).toEqual(["Room full? Similar talks now for Talk a", "Room full? Similar talks now for Talk b"]);
 });

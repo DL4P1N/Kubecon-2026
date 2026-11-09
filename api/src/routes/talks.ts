@@ -10,14 +10,14 @@ import {
   findRelated,
   findTalk,
 } from "../talks/alternatives.js";
+import { RETRY_AFTER_SECONDS } from "./search.js";
+import type { StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
 
 export const TALKS_CACHE_MS = 60_000;
 /** Kept for the alternatives tests and docs: same 60 s window. */
 export const ALTERNATIVES_CACHE_MS = TALKS_CACHE_MS;
 const MAX_CACHE_ENTRIES = 500;
-/** Seconds clients should wait before retrying after an Elasticsearch overload. */
-const RETRY_AFTER_SECONDS = 5;
 const TALK_ID = /^[A-Za-z0-9._:-]{1,100}$/;
 
 export interface TalkRouteOptions {
@@ -25,6 +25,8 @@ export interface TalkRouteOptions {
   /** Per client IP per minute. Default 60. */
   rateLimitPerMinute?: number;
   now?: () => number;
+  /** When set, semantic searches report their latency and outcome (never their content) to /api/status. */
+  tracker?: StatusTracker;
 }
 
 /**
@@ -51,6 +53,19 @@ export const talkRoutes: FastifyPluginAsync<TalkRouteOptions> = async (app, opts
     if (status && status >= 400 && status < 500) return reply.code(status).send({ error: status === 429 ? "rate_limited" : "invalid_request" });
     return reply.code(500).send({ error: "internal_error" });
   });
+
+  /** Alternatives and related are semantic searches, so they count toward the hybrid leg on the status page. */
+  async function observed<T>(fn: () => Promise<T>): Promise<T> {
+    const start = performance.now();
+    try {
+      const out = await fn();
+      opts.tracker?.recordSearch("hybrid", performance.now() - start, "ok");
+      return out;
+    } catch (err) {
+      opts.tracker?.recordSearch("hybrid", performance.now() - start, err instanceof EsError && isEsOverload(err) ? "overloaded" : "error");
+      throw err;
+    }
+  }
 
   const rateLimitConfig = { rateLimit: { max: opts.rateLimitPerMinute ?? 60, timeWindow: "1 minute" } };
 
@@ -104,13 +119,13 @@ export const talkRoutes: FastifyPluginAsync<TalkRouteOptions> = async (app, opts
     const { id } = req.params;
     const size = parseSize(req.query.size, DEFAULT_ALTERNATIVES, MAX_ALTERNATIVES);
     if (!TALK_ID.test(id) || size === undefined) return badRequest(reply, MAX_ALTERNATIVES);
-    return serve("talks.alternatives", ALTERNATIVES_PATH, `alt|${id}|${size}`, reply, () => findAlternatives(opts.es, id, size), (v) => v.alternatives.length);
+    return serve("talks.alternatives", ALTERNATIVES_PATH, `alt|${id}|${size}`, reply, () => observed(() => findAlternatives(opts.es, id, size)), (v) => v.alternatives.length);
   });
 
   app.get<{ Params: { id: string }; Querystring: { size?: string } }>(RELATED_PATH, { config: rateLimitConfig }, async (req, reply) => {
     const { id } = req.params;
     const size = parseSize(req.query.size, DEFAULT_RELATED, MAX_ALTERNATIVES);
     if (!TALK_ID.test(id) || size === undefined) return badRequest(reply, MAX_ALTERNATIVES);
-    return serve("talks.related", RELATED_PATH, `rel|${id}|${size}`, reply, () => findRelated(opts.es, id, size), (v) => v.related.length);
+    return serve("talks.related", RELATED_PATH, `rel|${id}|${size}`, reply, () => observed(() => findRelated(opts.es, id, size)), (v) => v.related.length);
   });
 };
