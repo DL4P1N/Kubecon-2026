@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  labels:
+    app.kubernetes.io/name: otel-collector
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      # This is deliberately an allowlist, not a denylist. New attributes are
+      # removed until they are reviewed and documented in telemetry-allowlist.md.
+      transform/allowlist:
+        error_mode: ignore
+        trace_statements:
+          - context: resource
+            statements:
+              - keep_keys(attributes, ["service.name", "service.version", "service.namespace", "deployment.environment"])
+          - context: span
+            statements:
+              - keep_keys(attributes, ["http.request.method", "http.response.status_code", "url.path", "server.address", "server.port", "rpc.system", "rpc.service", "rpc.method", "db.system", "db.operation.name", "db.namespace", "room.id", "access.decision", "search.mode", "search.hits"])
+        log_statements:
+          - context: resource
+            statements:
+              - keep_keys(attributes, ["service.name", "service.version", "service.namespace", "deployment.environment"])
+          - context: log
+            statements:
+              - keep_keys(attributes, ["log.severity", "http.request.method", "http.response.status_code", "url.path", "room.id", "access.decision", "search.mode", "search.hits"])
+        metric_statements:
+          - context: resource
+            statements:
+              - keep_keys(attributes, ["service.name", "service.version", "service.namespace", "deployment.environment"])
+          - context: datapoint
+            statements:
+              - keep_keys(attributes, ["http.request.method", "http.response.status_code", "url.path", "room.id", "access.decision", "search.mode"])
+      batch: {}
+
+    exporters:
+      otlphttp/dash0:
+        endpoint: ${env:DASH0_OTLP_ENDPOINT}
+        headers:
+          Authorization: Bearer ${env:DASH0_AUTH_TOKEN}
+      debug:
+        verbosity: detailed
+
+    service:
+      telemetry:
+        logs:
+          level: info
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [transform/allowlist, batch]
+          exporters: [otlphttp/dash0, debug]
+        logs:
+          receivers: [otlp]
+          processors: [transform/allowlist, batch]
+          exporters: [otlphttp/dash0, debug]
+        metrics:
+          receivers: [otlp]
+          processors: [transform/allowlist, batch]
+          exporters: [otlphttp/dash0, debug]
