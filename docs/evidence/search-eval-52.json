@@ -1,0 +1,1042 @@
+{
+ "task": 52,
+ "title": "Attendee-vocabulary query expansion: live relevance measurement",
+ "generatedAt": "2026-11-09T21:21:01.656Z",
+ "code": {
+  "commit": "1759f24",
+  "files": [
+   "api/src/search/queries.ts",
+   "api/test/queries.test.ts",
+   "scripts/search-eval.ts"
+  ]
+ },
+ "environment": {
+  "index": "talks",
+  "docCount": 417,
+  "esEndpoint": "https://127.0.0.1:19201",
+  "tlsCa": "deploy/compose/certs/tls.crt (validated against the endpoint IP)",
+  "semanticField": "content_semantic",
+  "inference": "Elasticsearch built-in .multilingual-e5-small-elasticsearch",
+  "pageSize": 10
+ },
+ "method": {
+  "judgedQueries": "scripts/search-eval.ts EVAL_SET: 12 paraphrased attendee questions, 1-3 hand-picked relevant ids each; unchanged by this task",
+  "commands": [
+   "npx tsx scripts/search-eval.ts --variants current,pre-expansion (canonical markdown)",
+   "temporary collector importing buildKeywordBody/buildHybridBody/expandQueryText and the same EVAL_SET for per-query ranks, leg ablation and timings"
+  ],
+  "winDefinition": "hybrid reciprocal rank > keyword reciprocal rank for the same query; tie = equal",
+  "warmUp": "one hybrid warm-up request before measuring (E5 allocation)"
+ },
+ "productionTuningMeasured": {
+  "excludeTracks": [],
+  "fusion": "rrf",
+  "rankConstant": 60,
+  "rankWindowSize": 50,
+  "semanticWeight": 1,
+  "fuzziness": "AUTO",
+  "fuzzyPrefixLength": 1,
+  "queryExpansion": "both"
+ },
+ "preExpansionTuning": {
+  "excludeTracks": [],
+  "fusion": "rrf",
+  "rankConstant": 60,
+  "rankWindowSize": 50,
+  "semanticWeight": 1,
+  "fuzziness": "AUTO",
+  "fuzzyPrefixLength": 1,
+  "queryExpansion": "off"
+ },
+ "variants": {
+  "keywordOn": {
+   "hit3": 9,
+   "mrr": 0.75
+  },
+  "keywordOff": {
+   "hit3": 0,
+   "mrr": 0.042
+  },
+  "hybridOn": {
+   "hit3": 10,
+   "mrr": 0.815
+  },
+  "hybridOff": {
+   "hit3": 4,
+   "mrr": 0.313
+  },
+  "semanticOn": {
+   "hit3": 10,
+   "mrr": 0.642
+  },
+  "semanticOff": {
+   "hit3": 2,
+   "mrr": 0.103
+  }
+ },
+ "deltas": {
+  "hybridOnVsOff": {
+   "wins": 8,
+   "ties": 4,
+   "losses": 0
+  },
+  "hybridOnVsKeywordOn": {
+   "wins": 3,
+   "ties": 8,
+   "losses": 1
+  },
+  "semanticOnVsOff": {
+   "wins": 10,
+   "ties": 2,
+   "losses": 0
+  }
+ },
+ "ablation": {
+  "description": "same hybrid body, expansion applied to one leg only, to attribute the win",
+  "variants": {
+   "off": {
+    "hit3": 4,
+    "mrr": 0.313
+   },
+   "both": {
+    "hit3": 10,
+    "mrr": 0.815
+   },
+   "keywordExpandedOnly": {
+    "hit3": 4,
+    "mrr": 0.408
+   },
+   "semanticExpandedOnly": {
+    "hit3": 4,
+    "mrr": 0.351
+   }
+  },
+  "vsOff": {
+   "off": {
+    "wins": 0,
+    "ties": 12,
+    "losses": 0
+   },
+   "both": {
+    "wins": 8,
+    "ties": 4,
+    "losses": 0
+   },
+   "keywordExpandedOnly": {
+    "wins": 6,
+    "ties": 5,
+    "losses": 1
+   },
+   "semanticExpandedOnly": {
+    "wins": 3,
+    "ties": 8,
+    "losses": 1
+   }
+  },
+  "vsKeywordOn": {
+   "off": {
+    "wins": 2,
+    "ties": 3,
+    "losses": 7
+   },
+   "both": {
+    "wins": 3,
+    "ties": 8,
+    "losses": 1
+   },
+   "keywordExpandedOnly": {
+    "wins": 2,
+    "ties": 4,
+    "losses": 6
+   },
+   "semanticExpandedOnly": {
+    "wins": 1,
+    "ties": 5,
+    "losses": 6
+   }
+  },
+  "keywordModeExpanded": {
+   "hit3": 9,
+   "mrr": 0.75
+  }
+ },
+ "timingsMs": {
+  "medianKeywordOn": 58.1,
+  "medianHybridOn": 144.7,
+  "medianHybridOff": 105.3,
+  "note": "median over the 12 queries; first post-warm-up query was 360 ms, later queries 89-286 ms"
+ },
+ "expansionHits": {
+  "1": "supply chain security sigstore attestation sbom provenance signing",
+  "2": "on-call incident response alert triage AI SRE",
+  "3": "kubernetes cost optimization finops rightsizing",
+  "4": "kubernetes authorization RBAC OPA policy",
+  "5": "RAG retrieval augmented generation self-hosted LLM vector search",
+  "6": "container image pull latency startup",
+  "7": "kubernetes secrets rotation external secrets",
+  "8": "autoscaling HPA KEDA",
+  "9": "",
+  "10": "GPU sharing time-slicing DRA",
+  "11": "agent sandbox isolation runtime",
+  "12": "backup restore disaster recovery velero"
+ },
+ "perQuery": [
+  {
+   "n": 1,
+   "q": "make sure nobody can tamper with the software I ship to customers",
+   "relevant": [
+    "kcna26-1370530",
+    "kcna26-1289646",
+    "kcna26-1247300"
+   ],
+   "expansionTerms": "supply chain security sigstore attestation sbom provenance signing",
+   "keywordOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1,
+     7,
+     10
+    ],
+    "hit3": true
+   },
+   "keywordOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 0.333,
+    "relevantRanks": [
+     6,
+     3,
+     5
+    ],
+    "hit3": true
+   },
+   "hybridOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "semanticOn": {
+    "rr": 0.333,
+    "relevantRanks": [
+     null,
+     4,
+     3
+    ],
+    "hit3": true
+   },
+   "semanticOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "ms": {
+    "keywordOn": 110.7,
+    "hybridOn": 359.7,
+    "hybridOff": 105.3
+   },
+   "ablationRR": {
+    "both": 0.3333333333333333,
+    "keywordExpandedOnly": 0.14285714285714285,
+    "semanticExpandedOnly": 0,
+    "off": 0
+   }
+  },
+  {
+   "n": 2,
+   "q": "my pager keeps going off at night and I want a computer to help figure out why",
+   "relevant": [
+    "kcna26-1244963",
+    "kcna26-1250770",
+    "kcna26-1238718"
+   ],
+   "expansionTerms": "on-call incident response alert triage AI SRE",
+   "keywordOn": {
+    "rr": 1,
+    "relevantRanks": [
+     null,
+     1,
+     9
+    ],
+    "hit3": true
+   },
+   "keywordOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 1,
+    "relevantRanks": [
+     10,
+     2,
+     1
+    ],
+    "hit3": true
+   },
+   "hybridOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "semanticOn": {
+    "rr": 0.333,
+    "relevantRanks": [
+     null,
+     null,
+     3
+    ],
+    "hit3": true
+   },
+   "semanticOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "ms": {
+    "keywordOn": 91.2,
+    "hybridOn": 196.4,
+    "hybridOff": 141.7
+   },
+   "ablationRR": {
+    "both": 1,
+    "keywordExpandedOnly": 0.1,
+    "semanticExpandedOnly": 0.1111111111111111,
+    "off": 0
+   }
+  },
+  {
+   "n": 3,
+   "q": "spend less money on the machines my containers run on",
+   "relevant": [
+    "kcna26-1289666",
+    "kcna26-1250015",
+    "kcna26-1250350"
+   ],
+   "expansionTerms": "kubernetes cost optimization finops rightsizing",
+   "keywordOn": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "keywordOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 0.25,
+    "relevantRanks": [
+     4,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOff": {
+    "rr": 0.25,
+    "relevantRanks": [
+     null,
+     null,
+     4
+    ],
+    "hit3": false
+   },
+   "semanticOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1,
+     null,
+     null
+    ],
+    "hit3": true
+   },
+   "semanticOff": {
+    "rr": 0.125,
+    "relevantRanks": [
+     9,
+     8,
+     null
+    ],
+    "hit3": false
+   },
+   "ms": {
+    "keywordOn": 94.2,
+    "hybridOn": 144.7,
+    "hybridOff": 52.7
+   },
+   "ablationRR": {
+    "both": 0.25,
+    "keywordExpandedOnly": 0.16666666666666666,
+    "semanticExpandedOnly": 0,
+    "off": 0.25
+   }
+  },
+  {
+   "n": 4,
+   "q": "who is allowed to do what inside my cluster",
+   "relevant": [
+    "kcna26-1248120",
+    "kcna26-1289677",
+    "kcna26-1289713"
+   ],
+   "expansionTerms": "kubernetes authorization RBAC OPA policy",
+   "keywordOn": {
+    "rr": 1,
+    "relevantRanks": [
+     3,
+     null,
+     1
+    ],
+    "hit3": true
+   },
+   "keywordOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 1,
+    "relevantRanks": [
+     2,
+     null,
+     1
+    ],
+    "hit3": true
+   },
+   "hybridOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "semanticOn": {
+    "rr": 1,
+    "relevantRanks": [
+     5,
+     2,
+     1
+    ],
+    "hit3": true
+   },
+   "semanticOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "ms": {
+    "keywordOn": 42.7,
+    "hybridOn": 137.7,
+    "hybridOff": 93.2
+   },
+   "ablationRR": {
+    "both": 1,
+    "keywordExpandedOnly": 0,
+    "semanticExpandedOnly": 0.1,
+    "off": 0
+   }
+  },
+  {
+   "n": 5,
+   "q": "let people ask questions about our internal documents without sending them to a third party",
+   "relevant": [
+    "kcna26-1250975",
+    "kcna26-1250985"
+   ],
+   "expansionTerms": "RAG retrieval augmented generation self-hosted LLM vector search",
+   "keywordOn": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "keywordOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 0.2,
+    "relevantRanks": [
+     5,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "semanticOn": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "semanticOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "ms": {
+    "keywordOn": 114.6,
+    "hybridOn": 285.7,
+    "hybridOff": 132.9
+   },
+   "ablationRR": {
+    "both": 0.2,
+    "keywordExpandedOnly": 0,
+    "semanticExpandedOnly": 0,
+    "off": 0
+   }
+  },
+  {
+   "n": 6,
+   "q": "my pods take ages to start because downloading the container takes forever",
+   "relevant": [
+    "kcna26-1250728"
+   ],
+   "expansionTerms": "container image pull latency startup",
+   "keywordOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1
+    ],
+    "hit3": true
+   },
+   "keywordOff": {
+    "rr": 0.25,
+    "relevantRanks": [
+     4
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1
+    ],
+    "hit3": true
+   },
+   "hybridOff": {
+    "rr": 1,
+    "relevantRanks": [
+     1
+    ],
+    "hit3": true
+   },
+   "semanticOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1
+    ],
+    "hit3": true
+   },
+   "semanticOff": {
+    "rr": 0.333,
+    "relevantRanks": [
+     3
+    ],
+    "hit3": true
+   },
+   "ms": {
+    "keywordOn": 49.2,
+    "hybridOn": 113.6,
+    "hybridOff": 80.3
+   },
+   "ablationRR": {
+    "both": 1,
+    "keywordExpandedOnly": 1,
+    "semanticExpandedOnly": 1,
+    "off": 1
+   }
+  },
+  {
+   "n": 7,
+   "q": "keep passwords and API keys out of my config files",
+   "relevant": [
+    "kcna26-1250972",
+    "kcna26-1247134"
+   ],
+   "expansionTerms": "kubernetes secrets rotation external secrets",
+   "keywordOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1,
+     2
+    ],
+    "hit3": true
+   },
+   "keywordOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 1,
+    "relevantRanks": [
+     2,
+     1
+    ],
+    "hit3": true
+   },
+   "hybridOff": {
+    "rr": 0.5,
+    "relevantRanks": [
+     null,
+     2
+    ],
+    "hit3": true
+   },
+   "semanticOn": {
+    "rr": 1,
+    "relevantRanks": [
+     4,
+     1
+    ],
+    "hit3": true
+   },
+   "semanticOff": {
+    "rr": 0.333,
+    "relevantRanks": [
+     null,
+     3
+    ],
+    "hit3": true
+   },
+   "ms": {
+    "keywordOn": 44.2,
+    "hybridOn": 164.7,
+    "hybridOff": 86.4
+   },
+   "ablationRR": {
+    "both": 1,
+    "keywordExpandedOnly": 1,
+    "semanticExpandedOnly": 1,
+    "off": 0.5
+   }
+  },
+  {
+   "n": 8,
+   "q": "automatically add more copies of my service when traffic spikes",
+   "relevant": [
+    "kcna26-1249409",
+    "kcna26-1247103",
+    "kcna26-1246812"
+   ],
+   "expansionTerms": "autoscaling HPA KEDA",
+   "keywordOn": {
+    "rr": 1,
+    "relevantRanks": [
+     2,
+     1,
+     10
+    ],
+    "hit3": true
+   },
+   "keywordOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 1,
+    "relevantRanks": [
+     2,
+     1,
+     3
+    ],
+    "hit3": true
+   },
+   "hybridOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "semanticOn": {
+    "rr": 1,
+    "relevantRanks": [
+     4,
+     1,
+     2
+    ],
+    "hit3": true
+   },
+   "semanticOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "ms": {
+    "keywordOn": 58.1,
+    "hybridOn": 99.3,
+    "hybridOff": 70
+   },
+   "ablationRR": {
+    "both": 1,
+    "keywordExpandedOnly": 0.2,
+    "semanticExpandedOnly": 0,
+    "off": 0
+   }
+  },
+  {
+   "n": 9,
+   "q": "release a new version to a small slice of users first so a bad deploy does not break everything",
+   "relevant": [
+    "kcna26-1247840",
+    "kcna26-1250076"
+   ],
+   "expansionTerms": null,
+   "keywordOn": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "keywordOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 1,
+    "relevantRanks": [
+     null,
+     1
+    ],
+    "hit3": true
+   },
+   "hybridOff": {
+    "rr": 1,
+    "relevantRanks": [
+     null,
+     1
+    ],
+    "hit3": true
+   },
+   "semanticOn": {
+    "rr": 0.2,
+    "relevantRanks": [
+     null,
+     5
+    ],
+    "hit3": false
+   },
+   "semanticOff": {
+    "rr": 0.2,
+    "relevantRanks": [
+     null,
+     5
+    ],
+    "hit3": false
+   },
+   "ms": {
+    "keywordOn": 35.7,
+    "hybridOn": 89,
+    "hybridOff": 130.5
+   },
+   "ablationRR": {
+    "both": 1,
+    "keywordExpandedOnly": 1,
+    "semanticExpandedOnly": 1,
+    "off": 1
+   }
+  },
+  {
+   "n": 10,
+   "q": "split one expensive graphics card between several jobs",
+   "relevant": [
+    "kcna26-1243199",
+    "kcna26-1241974",
+    "kcna26-1250789"
+   ],
+   "expansionTerms": "GPU sharing time-slicing DRA",
+   "keywordOn": {
+    "rr": 1,
+    "relevantRanks": [
+     2,
+     1,
+     8
+    ],
+    "hit3": true
+   },
+   "keywordOff": {
+    "rr": 0.25,
+    "relevantRanks": [
+     4,
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1,
+     2,
+     6
+    ],
+    "hit3": true
+   },
+   "hybridOff": {
+    "rr": 1,
+    "relevantRanks": [
+     1,
+     null,
+     null
+    ],
+    "hit3": true
+   },
+   "semanticOn": {
+    "rr": 0.5,
+    "relevantRanks": [
+     2,
+     5,
+     6
+    ],
+    "hit3": true
+   },
+   "semanticOff": {
+    "rr": 0.25,
+    "relevantRanks": [
+     5,
+     9,
+     4
+    ],
+    "hit3": false
+   },
+   "ms": {
+    "keywordOn": 53.9,
+    "hybridOn": 132.3,
+    "hybridOff": 107.8
+   },
+   "ablationRR": {
+    "both": 1,
+    "keywordExpandedOnly": 1,
+    "semanticExpandedOnly": 1,
+    "off": 1
+   }
+  },
+  {
+   "n": 11,
+   "q": "run code written by an AI model without it harming the rest of my system",
+   "relevant": [
+    "kcna26-1247804",
+    "kcna26-1247753"
+   ],
+   "expansionTerms": "agent sandbox isolation runtime",
+   "keywordOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1,
+     null
+    ],
+    "hit3": true
+   },
+   "keywordOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1,
+     null
+    ],
+    "hit3": true
+   },
+   "hybridOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "semanticOn": {
+    "rr": 0.333,
+    "relevantRanks": [
+     3,
+     null
+    ],
+    "hit3": true
+   },
+   "semanticOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "ms": {
+    "keywordOn": 74.1,
+    "hybridOn": 124,
+    "hybridOff": 76.8
+   },
+   "ablationRR": {
+    "both": 1,
+    "keywordExpandedOnly": 0.14285714285714285,
+    "semanticExpandedOnly": 0,
+    "off": 0
+   }
+  },
+  {
+   "n": 12,
+   "q": "get my stateful apps back after someone deletes the cluster by accident",
+   "relevant": [
+    "kcna26-1289913",
+    "kcna26-1289726"
+   ],
+   "expansionTerms": "backup restore disaster recovery velero",
+   "keywordOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1,
+     null
+    ],
+    "hit3": true
+   },
+   "keywordOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "hybridOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1,
+     null
+    ],
+    "hit3": true
+   },
+   "hybridOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "semanticOn": {
+    "rr": 1,
+    "relevantRanks": [
+     1,
+     null
+    ],
+    "hit3": true
+   },
+   "semanticOff": {
+    "rr": 0,
+    "relevantRanks": [
+     null,
+     null
+    ],
+    "hit3": false
+   },
+   "ms": {
+    "keywordOn": 56.7,
+    "hybridOn": 189.9,
+    "hybridOff": 106
+   },
+   "ablationRR": {
+    "both": 1,
+    "keywordExpandedOnly": 0.14285714285714285,
+    "semanticExpandedOnly": 0,
+    "off": 0
+   }
+  }
+ ],
+ "notes": [
+  "The shipped tuning is queryExpansion: \"both\": the curated vocabulary bridge is appended to the BM25 text AND the semantic leg text. This is not semantic-leg-only; the ablation shows each leg alone keeps hybrid hit@3 at 4/12, while both together reach 10/12.",
+  "Hybrid vs keyword under the shipped tuning is 3 wins / 8 ties / 1 loss because keyword mode also receives the expansion (9/12 hit@3). The pre-#52 comparison was 5 wins / 7 ties / 0 losses with keyword at 0/12; the hybrid-vs-keyword margin narrowed because the keyword baseline improved, not because hybrid regressed (hybrid vs pre-expansion is 8/4/0 with no per-query RR loss).",
+  "No judged query triggers two expansion rows and the ninth query (small canary release) triggers none, so the map does not cross-fire on this set. The broadest trigger phrase is \"third party\" (row 5); it is generic and could append RAG vocabulary to unrelated queries, amplified in keyword mode.",
+  "Judgments and relevant id sets were not modified; no reindex, mapping, seed or inference change was made."
+ ]
+}
