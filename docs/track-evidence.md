@@ -286,7 +286,7 @@ kubectl radar diagnose statefulset/elasticsearch \
   or SLO correctness. The 6h slow-burn rule required a 5-minute evaluation
   interval; the record describes that API constraint and subsequent apply.
   No new live calls or traffic were generated to publish this record.
-  **pending live verification**. `deploy/dash0/dashboard.yaml` (PersesDashboard:
+  **Live panel/SLO data verification remains pending.** `deploy/dash0/dashboard.yaml` (PersesDashboard:
   SLO tiles, burn rate, rate/p95/5xx by route, search p95 by mode, access scans,
   browser page load), `deploy/dash0/check-rules.yaml` (PrometheusRule: p95 of
   `/api/search` + `/api/onboarding` < 500 ms over 1h, non-5xx >= 99% over 1h,
