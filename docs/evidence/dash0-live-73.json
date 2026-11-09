@@ -1,0 +1,2907 @@
+{
+  "task": 73,
+  "release": "9c047d7",
+  "deployment": {
+    "api": "cc-api:9c047d7",
+    "web": "cc-web:9c047d7",
+    "namespace": "conference-companion",
+    "context": "kind-conference-companion"
+  },
+  "data_source": {
+    "api": "https://api.us-west-2.aws.dash0.com",
+    "dataset": "default",
+    "access": "Read-only Dash0 CLI queries with the owner-supplied auth token in process environment only."
+  },
+  "traffic": {
+    "command": "npx tsx scripts/traffic.ts --url http://127.0.0.1:18086 --minutes 3",
+    "requested_minutes": 3,
+    "launch_observed_at": "2026-11-09T23:27:13.666854+00:00",
+    "rate_rps": 2,
+    "max_synthetic_registrations": 5,
+    "earlier_run": "An initial --minutes 10 run was interrupted at the owner request before launching this three-minute run. Earlier traffic remains visible in rolling Dash0 queries; the run is not an isolated load benchmark.",
+    "wall_time_seconds": 181.57,
+    "end_approximation": "2026-11-09T23:30:15.236854+00:00",
+    "end_time_note": "Launch observation plus tool-reported wall time; not an instrumented generator timestamp.",
+    "completed": true,
+    "request_count": 362,
+    "status_codes": {
+      "200": 357,
+      "201": 5
+    },
+    "client_p50_ms": 57,
+    "client_p95_ms": 442,
+    "route_summary": [
+      {
+        "route": "GET /api/schedule",
+        "requests": 17,
+        "p50_ms": 17,
+        "p95_ms": 27,
+        "status_codes": {
+          "200": 17
+        }
+      },
+      {
+        "route": "GET /api/search hybrid",
+        "requests": 83,
+        "p50_ms": 105,
+        "p95_ms": 138,
+        "status_codes": {
+          "200": 83
+        }
+      },
+      {
+        "route": "GET /api/search hybrid (warm-up)",
+        "requests": 1,
+        "p50_ms": 108,
+        "p95_ms": 108,
+        "status_codes": {
+          "200": 1
+        }
+      },
+      {
+        "route": "GET /api/search keyword",
+        "requests": 95,
+        "p50_ms": 58,
+        "p95_ms": 76,
+        "status_codes": {
+          "200": 95
+        }
+      },
+      {
+        "route": "GET /api/status",
+        "requests": 53,
+        "p50_ms": 7,
+        "p95_ms": 14,
+        "status_codes": {
+          "200": 53
+        }
+      },
+      {
+        "route": "GET catalog (keyword)",
+        "requests": 42,
+        "p50_ms": 26,
+        "p95_ms": 32,
+        "status_codes": {
+          "200": 42
+        }
+      },
+      {
+        "route": "POST /api/access/scan",
+        "requests": 13,
+        "p50_ms": 15,
+        "p95_ms": 20,
+        "status_codes": {
+          "200": 13
+        }
+      },
+      {
+        "route": "POST /api/access/token",
+        "requests": 13,
+        "p50_ms": 13,
+        "p95_ms": 17,
+        "status_codes": {
+          "200": 13
+        }
+      },
+      {
+        "route": "POST /api/onboarding",
+        "requests": 23,
+        "p50_ms": 271,
+        "p95_ms": 390,
+        "status_codes": {
+          "200": 23
+        }
+      },
+      {
+        "route": "POST /api/register",
+        "requests": 5,
+        "p50_ms": 1512,
+        "p95_ms": 2002,
+        "status_codes": {
+          "201": 5
+        }
+      },
+      {
+        "route": "POST /api/schedule",
+        "requests": 17,
+        "p50_ms": 650,
+        "p95_ms": 1294,
+        "status_codes": {
+          "200": 17
+        }
+      }
+    ]
+  },
+  "dashboard": {
+    "name": "Conference Companion - Health",
+    "id": "api-50861000-3add-4685-9392-7731d88ab114",
+    "definition_fetched_at": "2026-11-09T23:28:52.981568+00:00"
+  },
+  "native_slo_definitions": [
+    {
+      "apiVersion": "openslo.com/v1",
+      "kind": "SLO",
+      "metadata": {
+        "annotations": {
+          "dash0.com/created-at": "2026-11-09T19:58:23.219164Z",
+          "dash0.com/display-name": "Search + onboarding latency (p95 < 500 ms)",
+          "dash0.com/enabled": "true",
+          "dash0.com/updated-at": "2026-11-09T19:58:23.219164Z",
+          "dash0.com/window-start": "2026-11-09T19:58:23.219164Z"
+        },
+        "labels": {
+          "dash0.com/dataset": "default",
+          "dash0.com/id": "slo_01m70y7vzqedfvy4memrzw2y5n",
+          "dash0.com/origin": "conference-companion-search-latency",
+          "dash0.com/source": "api",
+          "dash0.com/version": "1",
+          "slo": "companion-search-latency",
+          "team": "conference-companion"
+        },
+        "name": "companion-search-latency"
+      },
+      "spec": {
+        "budgetingMethod": "Occurrences",
+        "description": "95 percent of /api/search and /api/onboarding requests complete within 500 ms (equivalent to p95 < 500 ms).",
+        "indicator": {
+          "metadata": {
+            "name": "companion-search-latency-ratio"
+          },
+          "spec": {
+            "ratioMetric": {
+              "counter": true,
+              "good": {
+                "metricSource": {
+                  "spec": {
+                    "query": "http_server_request_duration_seconds_bucket{service_name=\"companion-api\",http_route=~\"/api/search|/api/onboarding\",le=\"0.5\"}"
+                  },
+                  "type": "Prometheus"
+                }
+              },
+              "total": {
+                "metricSource": {
+                  "spec": {
+                    "query": "http_server_request_duration_seconds_count{service_name=\"companion-api\",http_route=~\"/api/search|/api/onboarding\"}"
+                  },
+                  "type": "Prometheus"
+                }
+              }
+            }
+          }
+        },
+        "objectives": [
+          {
+            "displayName": "95% under 500 ms",
+            "target": 0.95
+          }
+        ],
+        "service": "companion-api",
+        "timeWindow": [
+          {
+            "duration": "28d",
+            "isRolling": true
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "openslo.com/v1",
+      "kind": "SLO",
+      "metadata": {
+        "annotations": {
+          "dash0.com/created-at": "2026-11-09T19:58:22.810229Z",
+          "dash0.com/display-name": "API availability (non-5xx >= 99%)",
+          "dash0.com/enabled": "true",
+          "dash0.com/updated-at": "2026-11-09T19:58:22.810229Z",
+          "dash0.com/window-start": "2026-11-09T19:58:22.810229Z"
+        },
+        "labels": {
+          "dash0.com/dataset": "default",
+          "dash0.com/id": "slo_01m70y7vk3fd7a8w5nk128w4zw",
+          "dash0.com/origin": "conference-companion-availability",
+          "dash0.com/source": "api",
+          "dash0.com/version": "1",
+          "slo": "companion-availability",
+          "team": "conference-companion"
+        },
+        "name": "companion-availability"
+      },
+      "spec": {
+        "budgetingMethod": "Occurrences",
+        "description": "99 percent of companion-api responses are not 5xx.",
+        "indicator": {
+          "metadata": {
+            "name": "companion-availability-ratio"
+          },
+          "spec": {
+            "ratioMetric": {
+              "counter": true,
+              "good": {
+                "metricSource": {
+                  "spec": {
+                    "query": "http_server_request_duration_seconds_count{service_name=\"companion-api\",http_response_status_code!~\"5..\"}"
+                  },
+                  "type": "Prometheus"
+                }
+              },
+              "total": {
+                "metricSource": {
+                  "spec": {
+                    "query": "http_server_request_duration_seconds_count{service_name=\"companion-api\"}"
+                  },
+                  "type": "Prometheus"
+                }
+              }
+            }
+          }
+        },
+        "objectives": [
+          {
+            "displayName": "99% non-5xx",
+            "target": 0.99
+          }
+        ],
+        "service": "companion-api",
+        "timeWindow": [
+          {
+            "duration": "28d",
+            "isRolling": true
+          }
+        ]
+      }
+    }
+  ],
+  "trace": {
+    "trace_id": "7e51d2bbd4a45dc9cc3610cdc00eebb1",
+    "observed_at": "2026-11-09T23:26:02.175548+00:00",
+    "query": "dash0 traces get <trace-id> --from now-15m -o json",
+    "redaction": "Resource attributes, auth-token marker, trace-state, events and non-allowlisted span attributes omitted. This is a selected trace view, not an exhaustive privacy audit.",
+    "spans": [
+      {
+        "service": "companion-api",
+        "name": "GET /api/search",
+        "span_id": "6d885a074e4eeaf3",
+        "parent_span_id": "",
+        "start_time_unix_nano": "1794266751314000000",
+        "duration_ms": 140.283,
+        "status": 0,
+        "attributes": {
+          "http.request.method": "GET",
+          "http.response.status_code": "200",
+          "http.route": "/api/search",
+          "server.address": "127.0.0.1",
+          "server.port": "80"
+        }
+      },
+      {
+        "service": "companion-api",
+        "name": "onResponse - async (app) => { -- await applyRateLimit(app); -> @fastify/rate-limit",
+        "span_id": "876727c4cc0ec365",
+        "parent_span_id": "18cf942973be9d56",
+        "start_time_unix_nano": "1794266751454000000",
+        "duration_ms": 0.209166,
+        "status": 0,
+        "attributes": {}
+      },
+      {
+        "service": "companion-api",
+        "name": "handler - async (app) => { -- await applyRateLimit(app); -> @fastify/rate-limit",
+        "span_id": "5771be78ffb09db6",
+        "parent_span_id": "18cf942973be9d56",
+        "start_time_unix_nano": "1794266751317000000",
+        "duration_ms": 136.765417,
+        "status": 0,
+        "attributes": {
+          "http.route": "/api/search"
+        }
+      },
+      {
+        "service": "companion-api",
+        "name": "request",
+        "span_id": "18cf942973be9d56",
+        "parent_span_id": "6d885a074e4eeaf3",
+        "start_time_unix_nano": "1794266751316000000",
+        "duration_ms": 137.472,
+        "status": 0,
+        "attributes": {
+          "http.request.method": "GET",
+          "http.response.status_code": "200",
+          "http.route": "/api/search"
+        }
+      },
+      {
+        "service": "companion-api",
+        "name": "POST",
+        "span_id": "9cb4f6a8f9b87753",
+        "parent_span_id": "0413b1a1ccffc36d",
+        "start_time_unix_nano": "1794266751318000000",
+        "duration_ms": 134.619083,
+        "status": 0,
+        "attributes": {
+          "http.request.method": "POST",
+          "http.response.status_code": "200",
+          "server.address": "elasticsearch",
+          "server.port": "9200"
+        }
+      },
+      {
+        "service": "companion-api",
+        "name": "embed",
+        "span_id": "0413b1a1ccffc36d",
+        "parent_span_id": "aade6e047e05ea56",
+        "start_time_unix_nano": "1794266751317000000",
+        "duration_ms": 136.069792,
+        "status": 0,
+        "attributes": {}
+      },
+      {
+        "service": "companion-api",
+        "name": "search",
+        "span_id": "aade6e047e05ea56",
+        "parent_span_id": "5771be78ffb09db6",
+        "start_time_unix_nano": "1794266751317000000",
+        "duration_ms": 136.138208,
+        "status": 0,
+        "attributes": {
+          "search.hits": "10",
+          "search.mode": "hybrid"
+        }
+      }
+    ]
+  },
+  "limitations": [
+    "API query results are not screenshots of Dash0 dashboards or SLO pages and do not verify UI rendering.",
+    "Dashboard rate/latency queries use their configured 5-minute or 1-hour lookback, which includes preceding activity and other clients.",
+    "Native SLOs use rolling 28-day objectives; short run measurements cannot establish 28-day compliance.",
+    "Trace evidence omits non-allowlisted fields and Dash0-added resource auth markers; it is not an exhaustive privacy audit."
+  ],
+  "screenshot_status": {
+    "dashboard": "pending signed-in browser",
+    "latency_slo": "pending signed-in browser",
+    "availability_slo": "pending signed-in browser",
+    "trace": "pending signed-in browser"
+  },
+  "observed_at": "2026-11-09T23:31:11.353860+00:00",
+  "instant_queries": {
+    "access_deny_ratio": {
+      "query": "(sum(rate(access_scans_total{service_name=\"companion-api\", access_decision=\"deny\"}[1h])) or vector(0)) / sum(rate(access_scans_total{service_name=\"companion-api\"}[1h]))",
+      "observed_at": "2026-11-09T23:31:10.173516+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {},
+              "value": [
+                1794267070.31,
+                "0"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "access_scans_by_room": {
+      "query": "sum by (room_id, access_decision) (rate(access_scans_total{service_name=\"companion-api\"}[5m])) * 60",
+      "observed_at": "2026-11-09T23:31:10.170846+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Salt Palace | Level 2 | 250 D-F"
+              },
+              "value": [
+                1794267070.302,
+                "0.2"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Hyatt Regency | Level 4 | Regency Ballroom A"
+              },
+              "value": [
+                1794267070.302,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Hyatt Regency | Level 2 | Salt Lake Ballroom C"
+              },
+              "value": [
+                1794267070.302,
+                "0.4"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Salt Palace | Level 1 | Halls A-C, Halls 1-5"
+              },
+              "value": [
+                1794267070.302,
+                "0.2"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Hyatt Regency | Level 4 | Regency Ballroom B"
+              },
+              "value": [
+                1794267070.302,
+                "0.4"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Salt Palace | Level 1 | 151"
+              },
+              "value": [
+                1794267070.302,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Salt Palace | Level 1 | Hall DE"
+              },
+              "value": [
+                1794267070.302,
+                "0.2"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Hyatt Regency | Level 2 | Salt Lake Ballroom DE"
+              },
+              "value": [
+                1794267070.302,
+                "0.6"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Salt Palace | Level 2 | 251 A-C"
+              },
+              "value": [
+                1794267070.302,
+                "0.2"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Salt Palace | Level 1 | Grand Ballroom GI"
+              },
+              "value": [
+                1794267070.302,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Salt Palace | Level 1 | Solutions Showcase | Hall 5 | Cosmic Canyon Zone | Project Pavilion"
+              },
+              "value": [
+                1794267070.302,
+                "0.2"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Salt Palace | Level 2 | 255 BC"
+              },
+              "value": [
+                1794267070.302,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Hyatt Regency | Level 4 | Regency Ballroom CD"
+              },
+              "value": [
+                1794267070.302,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Salt Palace | Level 1 | Solutions Showcase | Halls 5 | Cosmic Canyon Zone | Cloud Native Theater"
+              },
+              "value": [
+                1794267070.302,
+                "0.6"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Hyatt Regency | Level 4 | Regency Ballroom B-D"
+              },
+              "value": [
+                1794267070.302,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Salt Palace | Level 2 | 250 A-C"
+              },
+              "value": [
+                1794267070.302,
+                "0.2"
+              ]
+            },
+            {
+              "metric": {
+                "access_decision": "allow",
+                "room_id": "Salt Palace | Level 2 | 251 D-F"
+              },
+              "value": [
+                1794267070.302,
+                "0.2"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "error_rate_5xx_by_route": {
+      "query": "sum by (http_route, http_response_status_code) (rate(http_server_request_duration_seconds_count{service_name=\"companion-api\", http_response_status_code=~\"5..\"}[5m]))",
+      "observed_at": "2026-11-09T23:31:10.089892+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": []
+        }
+      }
+    },
+    "error_ratio_5xx": {
+      "query": "(sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\", http_response_status_code=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\"}[5m]))",
+      "observed_at": "2026-11-09T23:31:10.127744+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {},
+              "value": [
+                1794267070.257,
+                "0"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "p95_by_route": {
+      "query": "histogram_quantile(0.95, sum by (le, http_route) (rate(http_server_request_duration_seconds_bucket{service_name=\"companion-api\"}[5m])))",
+      "observed_at": "2026-11-09T23:31:10.066891+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "http_route": "/api/schedule"
+              },
+              "value": [
+                1794267070.257,
+                "1.8999999999999992"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/rooms/occupancy"
+              },
+              "value": [
+                1794267070.257,
+                "NaN"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/register"
+              },
+              "value": [
+                1794267070.257,
+                "2.425"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/onboarding"
+              },
+              "value": [
+                1794267070.257,
+                "0.47833333333333333"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/access/scan"
+              },
+              "value": [
+                1794267070.257,
+                "0.023499999999999997"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/search"
+              },
+              "value": [
+                1794267070.257,
+                "0.21072727272727268"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/suggest"
+              },
+              "value": [
+                1794267070.257,
+                "NaN"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/interests/aggregate"
+              },
+              "value": [
+                1794267070.257,
+                "NaN"
+              ]
+            },
+            {
+              "metric": {},
+              "value": [
+                1794267070.257,
+                "NaN"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/catalog/topics"
+              },
+              "value": [
+                1794267070.257,
+                "NaN"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/talks/:id/related"
+              },
+              "value": [
+                1794267070.257,
+                "NaN"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/healthz"
+              },
+              "value": [
+                1794267070.257,
+                "0.004749999999999999"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/status"
+              },
+              "value": [
+                1794267070.257,
+                "0.008849999999999998"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/talks/:id"
+              },
+              "value": [
+                1794267070.257,
+                "NaN"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/access/token"
+              },
+              "value": [
+                1794267070.257,
+                "0.019"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/interests/clusters"
+              },
+              "value": [
+                1794267070.257,
+                "NaN"
+              ]
+            },
+            {
+              "metric": {
+                "http_route": "/api/talks/:id/alternatives"
+              },
+              "value": [
+                1794267070.257,
+                "NaN"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "page_load_p95": {
+      "query": "histogram_quantile(0.95, sum(rate({otel_metric_name=\"dash0.spans.duration\", service_name=\"companion-web\", otel_span_name=\"documentLoad\"}[5m])))",
+      "observed_at": "2026-11-09T23:31:10.103938+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {},
+              "value": [
+                1794267070.332,
+                "NaN"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "page_loads": {
+      "query": "sum(rate({otel_metric_name=\"dash0.spans\", service_name=\"companion-web\", otel_span_name=\"browser.error\"}[5m])) * 60",
+      "observed_at": "2026-11-09T23:31:10.100391+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {},
+              "value": [
+                1794267070.31,
+                "0"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "request_rate_by_route": {
+      "query": "sum by (http_request_method, http_route) (rate(http_server_request_duration_seconds_count{service_name=\"companion-api\"}[5m]))",
+      "observed_at": "2026-11-09T23:31:10.162055+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "http_request_method": "POST",
+                "http_route": "/api/access/scan"
+              },
+              "value": [
+                1794267070.257,
+                "0.05563197288670571"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "POST",
+                "http_route": "/api/access/token"
+              },
+              "value": [
+                1794267070.257,
+                "0.05563197288670571"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET"
+              },
+              "value": [
+                1794267070.257,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/catalog/topics"
+              },
+              "value": [
+                1794267070.257,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/talks/:id/related"
+              },
+              "value": [
+                1794267070.257,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/talks/:id"
+              },
+              "value": [
+                1794267070.257,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/talks/:id/alternatives"
+              },
+              "value": [
+                1794267070.257,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/search"
+              },
+              "value": [
+                1794267070.257,
+                "1.0013755119607028"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/schedule"
+              },
+              "value": [
+                1794267070.257,
+                "0.08344795933005857"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "POST",
+                "http_route": "/api/register"
+              },
+              "value": [
+                1794267070.257,
+                "0.017384991527095536"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "POST",
+                "http_route": "/api/schedule"
+              },
+              "value": [
+                1794267070.257,
+                "0.08344795933005857"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/interests/clusters"
+              },
+              "value": [
+                1794267070.257,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "POST",
+                "http_route": "/api/onboarding"
+              },
+              "value": [
+                1794267070.257,
+                "0.09040195594089678"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/status"
+              },
+              "value": [
+                1794267070.257,
+                "0.23991288307391836"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/suggest"
+              },
+              "value": [
+                1794267070.257,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/rooms/occupancy"
+              },
+              "value": [
+                1794267070.257,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/interests/aggregate"
+              },
+              "value": [
+                1794267070.257,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/healthz"
+              },
+              "value": [
+                1794267070.257,
+                "0.2677288695172712"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "search_p95_by_mode": {
+      "query": "histogram_quantile(0.95, sum by (le, search_mode) (rate(companion_search_duration_seconds_bucket{service_name=\"companion-api\"}[5m])))",
+      "observed_at": "2026-11-09T23:31:10.127940+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "search_mode": "keyword"
+              },
+              "value": [
+                1794267070.311,
+                "0.07127118644067797"
+              ]
+            },
+            {
+              "metric": {
+                "search_mode": "hybrid"
+              },
+              "value": [
+                1794267070.311,
+                "0.4107142857142856"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "search_rate_by_mode": {
+      "query": "sum by (search_mode) (rate(companion_search_duration_seconds_count{service_name=\"companion-api\"}[5m]))",
+      "observed_at": "2026-11-09T23:31:10.208174+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "search_mode": "keyword"
+              },
+              "value": [
+                1794267070.295,
+                "0.6118642926850719"
+              ]
+            },
+            {
+              "metric": {
+                "search_mode": "hybrid"
+              },
+              "value": [
+                1794267070.295,
+                "0.5214752494475045"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "slo_availability": {
+      "query": "1 - (sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\", http_response_status_code=~\"5..\"}[1h])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\"}[1h]))",
+      "observed_at": "2026-11-09T23:31:10.105970+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {},
+              "value": [
+                1794267070.26,
+                "1"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "slo_availability_budget": {
+      "query": "1 - ((sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\", http_response_status_code=~\"5..\"}[1h])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\"}[1h]))) / 0.01",
+      "observed_at": "2026-11-09T23:31:10.127709+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {},
+              "value": [
+                1794267070.257,
+                "1"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "slo_burn_rate": {
+      "query": "(1 - sum(rate(http_server_request_duration_seconds_bucket{service_name=\"companion-api\", http_route=~\"/api/search|/api/onboarding\", le=\"0.5\"}[1h])) / sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\", http_route=~\"/api/search|/api/onboarding\"}[1h]))) / 0.05",
+      "observed_at": "2026-11-09T23:31:10.296477+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {},
+              "value": [
+                1794267070.257,
+                "0"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "slo_latency_good_ratio": {
+      "query": "sum(rate(http_server_request_duration_seconds_bucket{service_name=\"companion-api\", http_route=~\"/api/search|/api/onboarding\", le=\"0.5\"}[1h])) / sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\", http_route=~\"/api/search|/api/onboarding\"}[1h]))",
+      "observed_at": "2026-11-09T23:31:10.296453+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {},
+              "value": [
+                1794267070.341,
+                "1"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "slo_latency_p95": {
+      "query": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_name=\"companion-api\", http_route=~\"/api/search|/api/onboarding\"}[1h])))",
+      "observed_at": "2026-11-09T23:31:10.095255+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {},
+              "value": [
+                1794267070.286,
+                "0.2860222459444887"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "native_slo_target": {
+      "query": "max by (slo) ({otel_metric_name=\"dash0.slo.target\",slo=~\"companion-.*\"})",
+      "observed_at": "2026-11-09T23:31:10.096316+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "slo": "companion-search-latency"
+              },
+              "value": [
+                1794267070.28,
+                "0.95"
+              ]
+            },
+            {
+              "metric": {
+                "slo": "companion-availability"
+              },
+              "value": [
+                1794267070.28,
+                "0.99"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "native_slo_burn_fast": {
+      "query": "max by (slo) ({otel_metric_name=\"dash0.slo.burn_rate.fast\",slo=~\"companion-.*\"})",
+      "observed_at": "2026-11-09T23:31:10.129504+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "slo": "companion-availability"
+              },
+              "value": [
+                1794267070.291,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "slo": "companion-search-latency"
+              },
+              "value": [
+                1794267070.291,
+                "0"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "native_slo_burn_slow": {
+      "query": "max by (slo) ({otel_metric_name=\"dash0.slo.burn_rate.slow\",slo=~\"companion-.*\"})",
+      "observed_at": "2026-11-09T23:31:10.086368+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "slo": "companion-search-latency"
+              },
+              "value": [
+                1794267070.26,
+                "0"
+              ]
+            },
+            {
+              "metric": {
+                "slo": "companion-availability"
+              },
+              "value": [
+                1794267070.26,
+                "0.06047178417828425"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "native_slo_good_events_1h": {
+      "query": "max by (slo) ({otel_metric_name=\"dash0.slo.events.good.1h\",slo=~\"companion-.*\"})",
+      "observed_at": "2026-11-09T23:31:10.616303+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "slo": "companion-search-latency"
+              },
+              "value": [
+                1794267070.776,
+                "838"
+              ]
+            },
+            {
+              "metric": {
+                "slo": "companion-availability"
+              },
+              "value": [
+                1794267070.776,
+                "7081"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "native_slo_events_1h": {
+      "query": "max by (slo) ({otel_metric_name=\"dash0.slo.events.1h\",slo=~\"companion-.*\"})",
+      "observed_at": "2026-11-09T23:31:10.598351+00:00",
+      "exit_code": 0,
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "vector",
+          "result": [
+            {
+              "metric": {
+                "slo": "companion-search-latency"
+              },
+              "value": [
+                1794267070.765,
+                "838"
+              ]
+            },
+            {
+              "metric": {
+                "slo": "companion-availability"
+              },
+              "value": [
+                1794267070.765,
+                "7081"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "range_queries": {
+    "request_rate_by_route": {
+      "query": "sum by (http_request_method, http_route) (rate(http_server_request_duration_seconds_count{service_name=\"companion-api\"}[5m]))",
+      "start": "2026-11-09T23:27:13.666854+00:00",
+      "end": "2026-11-09T23:30:15.236854+00:00",
+      "step": "15s",
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "matrix",
+          "result": [
+            {
+              "metric": {
+                "http_request_method": "GET"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0"
+                ],
+                [
+                  1794266848.666,
+                  "0"
+                ],
+                [
+                  1794266863.666,
+                  "0"
+                ],
+                [
+                  1794266878.666,
+                  "0"
+                ],
+                [
+                  1794266893.666,
+                  "0"
+                ],
+                [
+                  1794266908.666,
+                  "0"
+                ],
+                [
+                  1794266923.666,
+                  "0"
+                ],
+                [
+                  1794266938.666,
+                  "0"
+                ],
+                [
+                  1794266953.666,
+                  "0"
+                ],
+                [
+                  1794266968.666,
+                  "0"
+                ],
+                [
+                  1794266983.666,
+                  "0"
+                ],
+                [
+                  1794266998.666,
+                  "0"
+                ],
+                [
+                  1794267013.666,
+                  "0"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/catalog/topics"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.0035083780066799517"
+                ],
+                [
+                  1794266848.666,
+                  "0.003508267231731575"
+                ],
+                [
+                  1794266863.666,
+                  "0.003508390315439373"
+                ],
+                [
+                  1794266878.666,
+                  "0.0035084149332173208"
+                ],
+                [
+                  1794266893.666,
+                  "0"
+                ],
+                [
+                  1794266908.666,
+                  "0"
+                ],
+                [
+                  1794266923.666,
+                  "0"
+                ],
+                [
+                  1794266938.666,
+                  "0"
+                ],
+                [
+                  1794266953.666,
+                  "0"
+                ],
+                [
+                  1794266968.666,
+                  "0"
+                ],
+                [
+                  1794266983.666,
+                  "0"
+                ],
+                [
+                  1794266998.666,
+                  "0"
+                ],
+                [
+                  1794267013.666,
+                  "0"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/interests/aggregate"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0"
+                ],
+                [
+                  1794266848.666,
+                  "0"
+                ],
+                [
+                  1794266863.666,
+                  "0"
+                ],
+                [
+                  1794266878.666,
+                  "0"
+                ],
+                [
+                  1794266893.666,
+                  "0"
+                ],
+                [
+                  1794266908.666,
+                  "0"
+                ],
+                [
+                  1794266923.666,
+                  "0"
+                ],
+                [
+                  1794266938.666,
+                  "0"
+                ],
+                [
+                  1794266953.666,
+                  "0"
+                ],
+                [
+                  1794266968.666,
+                  "0"
+                ],
+                [
+                  1794266983.666,
+                  "0"
+                ],
+                [
+                  1794266998.666,
+                  "0"
+                ],
+                [
+                  1794267013.666,
+                  "0"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/interests/clusters"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0"
+                ],
+                [
+                  1794266848.666,
+                  "0"
+                ],
+                [
+                  1794266863.666,
+                  "0"
+                ],
+                [
+                  1794266878.666,
+                  "0"
+                ],
+                [
+                  1794266893.666,
+                  "0"
+                ],
+                [
+                  1794266908.666,
+                  "0"
+                ],
+                [
+                  1794266923.666,
+                  "0"
+                ],
+                [
+                  1794266938.666,
+                  "0"
+                ],
+                [
+                  1794266953.666,
+                  "0"
+                ],
+                [
+                  1794266968.666,
+                  "0"
+                ],
+                [
+                  1794266983.666,
+                  "0"
+                ],
+                [
+                  1794266998.666,
+                  "0"
+                ],
+                [
+                  1794267013.666,
+                  "0"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/rooms/occupancy"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0"
+                ],
+                [
+                  1794266848.666,
+                  "0"
+                ],
+                [
+                  1794266863.666,
+                  "0"
+                ],
+                [
+                  1794266878.666,
+                  "0"
+                ],
+                [
+                  1794266893.666,
+                  "0"
+                ],
+                [
+                  1794266908.666,
+                  "0"
+                ],
+                [
+                  1794266923.666,
+                  "0"
+                ],
+                [
+                  1794266938.666,
+                  "0"
+                ],
+                [
+                  1794266953.666,
+                  "0"
+                ],
+                [
+                  1794266968.666,
+                  "0"
+                ],
+                [
+                  1794266983.666,
+                  "0"
+                ],
+                [
+                  1794266998.666,
+                  "0"
+                ],
+                [
+                  1794267013.666,
+                  "0"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/schedule"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.14735187628055796"
+                ],
+                [
+                  1794266848.666,
+                  "0.14734722373272616"
+                ],
+                [
+                  1794266863.666,
+                  "0.13682722230213554"
+                ],
+                [
+                  1794266878.666,
+                  "0.14033659732869283"
+                ],
+                [
+                  1794266893.666,
+                  "0.12279581511862075"
+                ],
+                [
+                  1794266908.666,
+                  "0.11226809621375847"
+                ],
+                [
+                  1794266923.666,
+                  "0.1122657329899873"
+                ],
+                [
+                  1794266938.666,
+                  "0.12278849156092238"
+                ],
+                [
+                  1794266953.666,
+                  "0.1157716001740082"
+                ],
+                [
+                  1794266968.666,
+                  "0.10524617079348597"
+                ],
+                [
+                  1794266983.666,
+                  "0.10173618054313088"
+                ],
+                [
+                  1794266998.666,
+                  "0.09822838098579197"
+                ],
+                [
+                  1794267013.666,
+                  "0.09822872558753055"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/search"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "1.1121558281175448"
+                ],
+                [
+                  1794266848.666,
+                  "1.1051041779954462"
+                ],
+                [
+                  1794266863.666,
+                  "1.11917651062516"
+                ],
+                [
+                  1794266878.666,
+                  "1.1121675338298906"
+                ],
+                [
+                  1794266893.666,
+                  "1.133229950951843"
+                ],
+                [
+                  1794266908.666,
+                  "1.1367144741643045"
+                ],
+                [
+                  1794266923.666,
+                  "1.122657329899873"
+                ],
+                [
+                  1794266938.666,
+                  "1.1226376371284332"
+                ],
+                [
+                  1794266953.666,
+                  "1.1401748501985656"
+                ],
+                [
+                  1794266968.666,
+                  "1.1506914673421131"
+                ],
+                [
+                  1794266983.666,
+                  "1.1471631392277173"
+                ],
+                [
+                  1794266998.666,
+                  "1.1647079459743905"
+                ],
+                [
+                  1794267013.666,
+                  "1.1717283695084002"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/status"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.3578545566813551"
+                ],
+                [
+                  1794266848.666,
+                  "0.3367936542462312"
+                ],
+                [
+                  1794266863.666,
+                  "0.3122467380741042"
+                ],
+                [
+                  1794266878.666,
+                  "0.31224892905634155"
+                ],
+                [
+                  1794266893.666,
+                  "0.3017268600057539"
+                ],
+                [
+                  1794266908.666,
+                  "0.29821213056779594"
+                ],
+                [
+                  1794266923.666,
+                  "0.3017141574105909"
+                ],
+                [
+                  1794266938.666,
+                  "0.29820062236224004"
+                ],
+                [
+                  1794266953.666,
+                  "0.2876748852808689"
+                ],
+                [
+                  1794266968.666,
+                  "0.3052138953011093"
+                ],
+                [
+                  1794266983.666,
+                  "0.3087166857860523"
+                ],
+                [
+                  1794266998.666,
+                  "0.2946851429573759"
+                ],
+                [
+                  1794267013.666,
+                  "0.3052106830755414"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/suggest"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0"
+                ],
+                [
+                  1794266848.666,
+                  "0"
+                ],
+                [
+                  1794266863.666,
+                  "0"
+                ],
+                [
+                  1794266878.666,
+                  "0"
+                ],
+                [
+                  1794266893.666,
+                  "0"
+                ],
+                [
+                  1794266908.666,
+                  "0"
+                ],
+                [
+                  1794266923.666,
+                  "0"
+                ],
+                [
+                  1794266938.666,
+                  "0"
+                ],
+                [
+                  1794266953.666,
+                  "0"
+                ],
+                [
+                  1794266968.666,
+                  "0"
+                ],
+                [
+                  1794266983.666,
+                  "0"
+                ],
+                [
+                  1794266998.666,
+                  "0"
+                ],
+                [
+                  1794267013.666,
+                  "0"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/talks/:id"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0"
+                ],
+                [
+                  1794266848.666,
+                  "0"
+                ],
+                [
+                  1794266863.666,
+                  "0"
+                ],
+                [
+                  1794266878.666,
+                  "0"
+                ],
+                [
+                  1794266893.666,
+                  "0"
+                ],
+                [
+                  1794266908.666,
+                  "0"
+                ],
+                [
+                  1794266923.666,
+                  "0"
+                ],
+                [
+                  1794266938.666,
+                  "0"
+                ],
+                [
+                  1794266953.666,
+                  "0"
+                ],
+                [
+                  1794266968.666,
+                  "0"
+                ],
+                [
+                  1794266983.666,
+                  "0"
+                ],
+                [
+                  1794266998.666,
+                  "0"
+                ],
+                [
+                  1794267013.666,
+                  "0"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/talks/:id/alternatives"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0"
+                ],
+                [
+                  1794266848.666,
+                  "0"
+                ],
+                [
+                  1794266863.666,
+                  "0"
+                ],
+                [
+                  1794266878.666,
+                  "0"
+                ],
+                [
+                  1794266893.666,
+                  "0"
+                ],
+                [
+                  1794266908.666,
+                  "0"
+                ],
+                [
+                  1794266923.666,
+                  "0"
+                ],
+                [
+                  1794266938.666,
+                  "0"
+                ],
+                [
+                  1794266953.666,
+                  "0"
+                ],
+                [
+                  1794266968.666,
+                  "0"
+                ],
+                [
+                  1794266983.666,
+                  "0"
+                ],
+                [
+                  1794266998.666,
+                  "0"
+                ],
+                [
+                  1794267013.666,
+                  "0"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/api/talks/:id/related"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0"
+                ],
+                [
+                  1794266848.666,
+                  "0"
+                ],
+                [
+                  1794266863.666,
+                  "0"
+                ],
+                [
+                  1794266878.666,
+                  "0"
+                ],
+                [
+                  1794266893.666,
+                  "0"
+                ],
+                [
+                  1794266908.666,
+                  "0"
+                ],
+                [
+                  1794266923.666,
+                  "0"
+                ],
+                [
+                  1794266938.666,
+                  "0"
+                ],
+                [
+                  1794266953.666,
+                  "0"
+                ],
+                [
+                  1794266968.666,
+                  "0"
+                ],
+                [
+                  1794266983.666,
+                  "0"
+                ],
+                [
+                  1794266998.666,
+                  "0"
+                ],
+                [
+                  1794267013.666,
+                  "0"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "GET",
+                "http_route": "/healthz"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.30172050857447585"
+                ],
+                [
+                  1794266848.666,
+                  "0.2982027146971839"
+                ],
+                [
+                  1794266863.666,
+                  "0.3017215671277861"
+                ],
+                [
+                  1794266878.666,
+                  "0.29821526932347225"
+                ],
+                [
+                  1794266893.666,
+                  "0.3017268600057539"
+                ],
+                [
+                  1794266908.666,
+                  "0.29821213056779594"
+                ],
+                [
+                  1794266923.666,
+                  "0.3017141574105909"
+                ],
+                [
+                  1794266938.666,
+                  "0.29820062236224004"
+                ],
+                [
+                  1794266953.666,
+                  "0.30170780651408197"
+                ],
+                [
+                  1794266968.666,
+                  "0.2981974839148769"
+                ],
+                [
+                  1794266983.666,
+                  "0.301700397472733"
+                ],
+                [
+                  1794266998.666,
+                  "0.2981932994211542"
+                ],
+                [
+                  1794267013.666,
+                  "0.30170251430455813"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "POST",
+                "http_route": "/api/access/scan"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.07016756013359904"
+                ],
+                [
+                  1794266848.666,
+                  "0.06665707740289993"
+                ],
+                [
+                  1794266863.666,
+                  "0.07016780630878747"
+                ],
+                [
+                  1794266878.666,
+                  "0.06665988373112909"
+                ],
+                [
+                  1794266893.666,
+                  "0.07367748907117246"
+                ],
+                [
+                  1794266908.666,
+                  "0.07718431614695895"
+                ],
+                [
+                  1794266923.666,
+                  "0.07718269143061626"
+                ],
+                [
+                  1794266938.666,
+                  "0.07367309493655343"
+                ],
+                [
+                  1794266953.666,
+                  "0.07367283647436886"
+                ],
+                [
+                  1794266968.666,
+                  "0.07016411386232398"
+                ],
+                [
+                  1794266983.666,
+                  "0.07016288313319372"
+                ],
+                [
+                  1794266998.666,
+                  "0.06665497281178741"
+                ],
+                [
+                  1794267013.666,
+                  "0.05963886910671498"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "POST",
+                "http_route": "/api/access/token"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.07016756013359904"
+                ],
+                [
+                  1794266848.666,
+                  "0.06665707740289993"
+                ],
+                [
+                  1794266863.666,
+                  "0.07016780630878747"
+                ],
+                [
+                  1794266878.666,
+                  "0.06665988373112909"
+                ],
+                [
+                  1794266893.666,
+                  "0.07367748907117246"
+                ],
+                [
+                  1794266908.666,
+                  "0.07718431614695895"
+                ],
+                [
+                  1794266923.666,
+                  "0.07718269143061626"
+                ],
+                [
+                  1794266938.666,
+                  "0.07367309493655343"
+                ],
+                [
+                  1794266953.666,
+                  "0.07367283647436886"
+                ],
+                [
+                  1794266968.666,
+                  "0.07016411386232398"
+                ],
+                [
+                  1794266983.666,
+                  "0.07016288313319372"
+                ],
+                [
+                  1794266998.666,
+                  "0.06665497281178741"
+                ],
+                [
+                  1794267013.666,
+                  "0.05963886910671498"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "POST",
+                "http_route": "/api/onboarding"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.11928485222711836"
+                ],
+                [
+                  1794266848.666,
+                  "0.11577281864714198"
+                ],
+                [
+                  1794266863.666,
+                  "0.11577688040949931"
+                ],
+                [
+                  1794266878.666,
+                  "0.11928610772938891"
+                ],
+                [
+                  1794266893.666,
+                  "0.11577891139755671"
+                ],
+                [
+                  1794266908.666,
+                  "0.11577647422043842"
+                ],
+                [
+                  1794266923.666,
+                  "0.1262989496137357"
+                ],
+                [
+                  1794266938.666,
+                  "0.1298049767929751"
+                ],
+                [
+                  1794266953.666,
+                  "0.12278806079061476"
+                ],
+                [
+                  1794266968.666,
+                  "0.12278719925906696"
+                ],
+                [
+                  1794266983.666,
+                  "0.12629318963974867"
+                ],
+                [
+                  1794266998.666,
+                  "0.12629363269601823"
+                ],
+                [
+                  1794267013.666,
+                  "0.12629407575539642"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "POST",
+                "http_route": "/api/register"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0"
+                ],
+                [
+                  1794266848.666,
+                  "0"
+                ],
+                [
+                  1794266863.666,
+                  "0.017541951577196867"
+                ],
+                [
+                  1794266878.666,
+                  "0.017542074666086604"
+                ],
+                [
+                  1794266893.666,
+                  "0.01754225930266011"
+                ],
+                [
+                  1794266908.666,
+                  "0.01754189003339976"
+                ],
+                [
+                  1794266923.666,
+                  "0.017541520779685515"
+                ],
+                [
+                  1794266938.666,
+                  "0.01754121308013177"
+                ],
+                [
+                  1794266953.666,
+                  "0.017541151541516396"
+                ],
+                [
+                  1794266968.666,
+                  "0.017541028465580994"
+                ],
+                [
+                  1794266983.666,
+                  "0.01754072078329843"
+                ],
+                [
+                  1794266998.666,
+                  "0.01754078231889142"
+                ],
+                [
+                  1794267013.666,
+                  "0.01754084385491617"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "http_request_method": "POST",
+                "http_route": "/api/schedule"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.1298099862471582"
+                ],
+                [
+                  1794266848.666,
+                  "0.11928108587887355"
+                ],
+                [
+                  1794266863.666,
+                  "0.10876009977862057"
+                ],
+                [
+                  1794266878.666,
+                  "0.11577769279617159"
+                ],
+                [
+                  1794266893.666,
+                  "0.10876200767649268"
+                ],
+                [
+                  1794266908.666,
+                  "0.11226809621375847"
+                ],
+                [
+                  1794266923.666,
+                  "0.1122657329899873"
+                ],
+                [
+                  1794266938.666,
+                  "0.10875552109681696"
+                ],
+                [
+                  1794266953.666,
+                  "0.1157716001740082"
+                ],
+                [
+                  1794266968.666,
+                  "0.10173796510036977"
+                ],
+                [
+                  1794266983.666,
+                  "0.10524432469979057"
+                ],
+                [
+                  1794266998.666,
+                  "0.1122610068409051"
+                ],
+                [
+                  1794267013.666,
+                  "0.10875323190048027"
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "search_p95_by_mode": {
+      "query": "histogram_quantile(0.95, sum by (le, search_mode) (rate(companion_search_duration_seconds_bucket{service_name=\"companion-api\"}[5m])))",
+      "start": "2026-11-09T23:27:13.666854+00:00",
+      "end": "2026-11-09T23:30:15.236854+00:00",
+      "step": "15s",
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "matrix",
+          "result": [
+            {
+              "metric": {
+                "search_mode": "hybrid"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.4266666666666666"
+                ],
+                [
+                  1794266848.666,
+                  "0.4187499999999999"
+                ],
+                [
+                  1794266863.666,
+                  "0.4254464285714285"
+                ],
+                [
+                  1794266878.666,
+                  "0.4258620689655172"
+                ],
+                [
+                  1794266893.666,
+                  "0.42053571428571423"
+                ],
+                [
+                  1794266908.666,
+                  "0.4144230769230769"
+                ],
+                [
+                  1794266923.666,
+                  "0.42098214285714286"
+                ],
+                [
+                  1794266938.666,
+                  "0.4166666666666665"
+                ],
+                [
+                  1794266953.666,
+                  "0.41201923076923064"
+                ],
+                [
+                  1794266968.666,
+                  "0.41346153846153844"
+                ],
+                [
+                  1794266983.666,
+                  "0.4134615384615384"
+                ],
+                [
+                  1794266998.666,
+                  "0.4166666666666667"
+                ],
+                [
+                  1794267013.666,
+                  "0.41666666666666663"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "search_mode": "keyword"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.07206666666666665"
+                ],
+                [
+                  1794266848.666,
+                  "0.07196917808219178"
+                ],
+                [
+                  1794266863.666,
+                  "0.07190878378378378"
+                ],
+                [
+                  1794266878.666,
+                  "0.07182142857142856"
+                ],
+                [
+                  1794266893.666,
+                  "0.07166666666666667"
+                ],
+                [
+                  1794266908.666,
+                  "0.07166666666666666"
+                ],
+                [
+                  1794266923.666,
+                  "0.07190140845070421"
+                ],
+                [
+                  1794266938.666,
+                  "0.07164930555555556"
+                ],
+                [
+                  1794266953.666,
+                  "0.07151785714285713"
+                ],
+                [
+                  1794266968.666,
+                  "0.07159246575342465"
+                ],
+                [
+                  1794266983.666,
+                  "0.07149647887323943"
+                ],
+                [
+                  1794266998.666,
+                  "0.0716"
+                ],
+                [
+                  1794267013.666,
+                  "0.07153716216216216"
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "search_rate_by_mode": {
+      "query": "sum by (search_mode) (rate(companion_search_duration_seconds_count{service_name=\"companion-api\"}[5m]))",
+      "start": "2026-11-09T23:27:13.666854+00:00",
+      "end": "2026-11-09T23:30:15.236854+00:00",
+      "step": "15s",
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "matrix",
+          "result": [
+            {
+              "metric": {
+                "search_mode": "hybrid"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.6174745291756715"
+                ],
+                [
+                  1794266848.666,
+                  "0.5928971621626362"
+                ],
+                [
+                  1794266863.666,
+                  "0.5859011826783753"
+                ],
+                [
+                  1794266878.666,
+                  "0.6034473685133792"
+                ],
+                [
+                  1794266893.666,
+                  "0.6245044311746999"
+                ],
+                [
+                  1794266908.666,
+                  "0.6244912851890315"
+                ],
+                [
+                  1794266923.666,
+                  "0.6209698356008673"
+                ],
+                [
+                  1794266938.666,
+                  "0.6314836708847437"
+                ],
+                [
+                  1794266953.666,
+                  "0.6420061464195"
+                ],
+                [
+                  1794266968.666,
+                  "0.6314770247609158"
+                ],
+                [
+                  1794266983.666,
+                  "0.6314659481987434"
+                ],
+                [
+                  1794266998.666,
+                  "0.6314681634800913"
+                ],
+                [
+                  1794267013.666,
+                  "0.6314703787769822"
+                ]
+              ]
+            },
+            {
+              "metric": {
+                "search_mode": "keyword"
+              },
+              "values": [
+                [
+                  1794266833.666,
+                  "0.6876420893092705"
+                ],
+                [
+                  1794266848.666,
+                  "0.6911286446511203"
+                ],
+                [
+                  1794266863.666,
+                  "0.7122032340341927"
+                ],
+                [
+                  1794266878.666,
+                  "0.6946661567770295"
+                ],
+                [
+                  1794266893.666,
+                  "0.6876565646642763"
+                ],
+                [
+                  1794266908.666,
+                  "0.6876420893092706"
+                ],
+                [
+                  1794266923.666,
+                  "0.6876276145636722"
+                ],
+                [
+                  1794266938.666,
+                  "0.6770908248930863"
+                ],
+                [
+                  1794266953.666,
+                  "0.6841049101191394"
+                ],
+                [
+                  1794266968.666,
+                  "0.6981329329301236"
+                ],
+                [
+                  1794266983.666,
+                  "0.6981206871752774"
+                ],
+                [
+                  1794266998.666,
+                  "0.7156639186107701"
+                ],
+                [
+                  1794267013.666,
+                  "0.719174598051563"
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "error_ratio_5xx": {
+      "query": "(sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\", http_response_status_code=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\"}[5m]))",
+      "start": "2026-11-09T23:27:13.666854+00:00",
+      "end": "2026-11-09T23:30:15.236854+00:00",
+      "step": "15s",
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "matrix",
+          "result": [
+            {
+              "metric": {},
+              "values": [
+                [
+                  1794266833.666,
+                  "0"
+                ],
+                [
+                  1794266848.666,
+                  "0"
+                ],
+                [
+                  1794266863.666,
+                  "0"
+                ],
+                [
+                  1794266878.666,
+                  "0"
+                ],
+                [
+                  1794266893.666,
+                  "0"
+                ],
+                [
+                  1794266908.666,
+                  "0"
+                ],
+                [
+                  1794266923.666,
+                  "0"
+                ],
+                [
+                  1794266938.666,
+                  "0"
+                ],
+                [
+                  1794266953.666,
+                  "0"
+                ],
+                [
+                  1794266968.666,
+                  "0"
+                ],
+                [
+                  1794266983.666,
+                  "0"
+                ],
+                [
+                  1794266998.666,
+                  "0"
+                ],
+                [
+                  1794267013.666,
+                  "0"
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "slo_latency_good_ratio": {
+      "query": "sum(rate(http_server_request_duration_seconds_bucket{service_name=\"companion-api\", http_route=~\"/api/search|/api/onboarding\", le=\"0.5\"}[1h])) / sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\", http_route=~\"/api/search|/api/onboarding\"}[1h]))",
+      "start": "2026-11-09T23:27:13.666854+00:00",
+      "end": "2026-11-09T23:30:15.236854+00:00",
+      "step": "15s",
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "matrix",
+          "result": [
+            {
+              "metric": {},
+              "values": [
+                [
+                  1794266833.666,
+                  "1"
+                ],
+                [
+                  1794266848.666,
+                  "1"
+                ],
+                [
+                  1794266863.666,
+                  "1"
+                ],
+                [
+                  1794266878.666,
+                  "1"
+                ],
+                [
+                  1794266893.666,
+                  "1"
+                ],
+                [
+                  1794266908.666,
+                  "1"
+                ],
+                [
+                  1794266923.666,
+                  "1"
+                ],
+                [
+                  1794266938.666,
+                  "1"
+                ],
+                [
+                  1794266953.666,
+                  "1"
+                ],
+                [
+                  1794266968.666,
+                  "1"
+                ],
+                [
+                  1794266983.666,
+                  "1"
+                ],
+                [
+                  1794266998.666,
+                  "1"
+                ],
+                [
+                  1794267013.666,
+                  "1"
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "slo_availability": {
+      "query": "1 - (sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\", http_response_status_code=~\"5..\"}[1h])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name=\"companion-api\"}[1h]))",
+      "start": "2026-11-09T23:27:13.666854+00:00",
+      "end": "2026-11-09T23:30:15.236854+00:00",
+      "step": "15s",
+      "response": {
+        "status": "success",
+        "data": {
+          "resultType": "matrix",
+          "result": [
+            {
+              "metric": {},
+              "values": [
+                [
+                  1794266833.666,
+                  "1"
+                ],
+                [
+                  1794266848.666,
+                  "1"
+                ],
+                [
+                  1794266863.666,
+                  "1"
+                ],
+                [
+                  1794266878.666,
+                  "1"
+                ],
+                [
+                  1794266893.666,
+                  "1"
+                ],
+                [
+                  1794266908.666,
+                  "1"
+                ],
+                [
+                  1794266923.666,
+                  "1"
+                ],
+                [
+                  1794266938.666,
+                  "1"
+                ],
+                [
+                  1794266953.666,
+                  "1"
+                ],
+                [
+                  1794266968.666,
+                  "1"
+                ],
+                [
+                  1794266983.666,
+                  "1"
+                ],
+                [
+                  1794266998.666,
+                  "1"
+                ],
+                [
+                  1794267013.666,
+                  "1"
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}
