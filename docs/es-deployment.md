@@ -72,13 +72,14 @@ curl --fail --cacert "$ES_CA_CERT" -u "companion_svc:$ES_PASSWORD" \
   -H 'Content-Type: application/json' -X POST "$ES_URL/talks/_doc/security-smoke" \
   -d '{"title":"Synthetic security smoke test"}'
 curl --cacert "$ES_CA_CERT" -u "companion_svc:$ES_PASSWORD" \
-  -H 'Content-Type: application/json' -X PUT "$ES_URL/_cluster/settings" \
-  -d '{"persistent":{}}'
+  "$ES_URL/_cluster/settings"
 ```
 
 The last request must return HTTP 403. Delete the smoke document afterward
-using the same service credentials. Live authentication, inference, and
-memory checks remain pending until the cluster owner runs them.
+using the same service credentials. Live kind validation confirmed
+authentication (200), writes through the talks alias (201), and denied
+cluster-settings reads/writes and user administration (403). Inference
+endpoint lookup passed; model execution and memory checks remain pending.
 
 References: [Elastic TLS settings](https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/security-settings),
 [E5 model](https://www.elastic.co/docs/explore-analyze/machine-learning/nlp/ml-nlp-e5).
