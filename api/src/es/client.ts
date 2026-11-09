@@ -7,13 +7,50 @@ import type { Config } from "../config.js";
  * companion_svc service account, never the superuser.
  */
 export class EsError extends Error {
+  /**
+   * Short, safe classification of the failure: the Elasticsearch `error.type`
+   * (for example `inference_exception`) or `http_<status>` when the body has none.
+   * Never contains query text, so it may go on spans and into logs.
+   */
+  readonly errorType: string;
+
   constructor(
     readonly status: number,
     message: string,
+    esType?: string,
   ) {
     super(message);
     this.name = "EsError";
+    this.errorType = esType ?? `http_${status}`;
   }
+}
+
+const SAFE_TYPE = /^[a-z][a-z0-9_.]{0,79}$/;
+
+/**
+ * Extracts the Elasticsearch error type from an error response body, preferring
+ * the innermost `root_cause` (the real failure under `search_phase_execution_exception`).
+ * Only the allowlisted-shape type string is returned, never `reason` text.
+ */
+export function esErrorType(body: unknown): string | undefined {
+  const err = (body as { error?: unknown } | null | undefined)?.error as
+    | { type?: unknown; root_cause?: { type?: unknown }[] }
+    | undefined;
+  if (!err || typeof err !== "object") return undefined;
+  const candidates = [err.root_cause?.[0]?.type, err.type];
+  return candidates.find((t): t is string => typeof t === "string" && SAFE_TYPE.test(t));
+}
+
+const OVERLOAD_TYPES = new Set([
+  "inference_exception",
+  "circuit_breaking_exception",
+  "es_rejected_execution_exception",
+  "rejected_execution_exception",
+]);
+
+/** True when ES is shedding load (429 or an inference/capacity rejection): clients should retry later. */
+export function isEsOverload(err: EsError): boolean {
+  return err.status === 429 || OVERLOAD_TYPES.has(err.errorType);
 }
 
 export interface EsClient {
@@ -45,10 +82,6 @@ export function createEsClient(cfg: EsConfig, fetchImpl: typeof fetch = fetch): 
       body: rawBody,
     });
     const text = method === "HEAD" ? "" : await res.text();
-    if (!res.ok && !allow.includes(res.status)) {
-      // Error bodies from ES do not contain our credentials; keep them short.
-      throw new EsError(res.status, `${method} ${path} -> ${res.status} ${text.slice(0, 500)}`);
-    }
     let parsed: unknown = undefined;
     if (text) {
       try {
@@ -56,6 +89,10 @@ export function createEsClient(cfg: EsConfig, fetchImpl: typeof fetch = fetch): 
       } catch {
         parsed = text;
       }
+    }
+    if (!res.ok && !allow.includes(res.status)) {
+      // Error bodies from ES do not contain our credentials; keep them short.
+      throw new EsError(res.status, `${method} ${path} -> ${res.status} ${text.slice(0, 500)}`, esErrorType(parsed));
     }
     return { status: res.status, body: parsed };
   }

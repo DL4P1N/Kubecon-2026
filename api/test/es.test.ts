@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createEmbedder, EsInferenceEmbedder, hashEmbed, LocalHashEmbedder } from "../src/es/embeddings.js";
-import { createEsClient } from "../src/es/client.js";
+import { createEsClient, EsError, esErrorType, isEsOverload } from "../src/es/client.js";
 import { assertInferenceEndpoint, DEFAULT_INFERENCE_ID, resolveInferenceId } from "../src/es/inference.js";
 import { buildMappings, ensureIndices, INDEX_NAMES, indexBody, physicalName, SCHEMA_VERSION } from "../src/es/mappings.js";
 import { loadTalks, seedTalks } from "../src/es/seed.js";
@@ -212,5 +212,35 @@ describe("talk catalog", () => {
 
   it("names the physical index with a version", () => {
     expect(physicalName("talks")).toMatch(/^talks-v\d+$/);
+  });
+});
+
+describe("EsError classification", () => {
+  it("parses error.type from the innermost root_cause and flags overload", async () => {
+    const body = {
+      error: { root_cause: [{ type: "inference_exception", reason: "no ML nodes with sufficient capacity" }], type: "search_phase_execution_exception" },
+      status: 429,
+    };
+    const es = esWith(fetchStub(() => new Response(JSON.stringify(body), { status: 429 })));
+    const err = await es.request("POST", "/talks/_search", {}).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EsError);
+    expect(err).toMatchObject({ status: 429, errorType: "inference_exception" });
+    expect(isEsOverload(err as EsError)).toBe(true);
+  });
+
+  it("falls back to http_<status> for non-JSON or typeless bodies and rejects unsafe type strings", async () => {
+    const plain = await esWith(fetchStub(() => new Response("bad gateway", { status: 502 })))
+      .request("GET", "/x")
+      .catch((e: unknown) => e);
+    expect(plain).toMatchObject({ status: 502, errorType: "http_502" });
+    expect(isEsOverload(plain as EsError)).toBe(false);
+    expect(esErrorType({ error: { type: "Bad Type With Spaces and query text" } })).toBeUndefined();
+    expect(esErrorType({ error: { type: "parsing_exception" } })).toBe("parsing_exception");
+  });
+
+  it("treats circuit breaking and rejected execution as overload even without a 429", () => {
+    expect(isEsOverload(new EsError(503, "x", "circuit_breaking_exception"))).toBe(true);
+    expect(isEsOverload(new EsError(503, "x", "es_rejected_execution_exception"))).toBe(true);
+    expect(isEsOverload(new EsError(400, "x", "parsing_exception"))).toBe(false);
   });
 });

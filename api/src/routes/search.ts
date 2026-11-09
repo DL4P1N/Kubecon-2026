@@ -9,7 +9,7 @@ import {
   type SearchMode,
   type SearchResponse,
 } from "@cc/shared";
-import { EsError, type EsClient } from "../es/client.js";
+import { EsError, isEsOverload, type EsClient } from "../es/client.js";
 import { DEFAULT_MAX_TALKS, type ScoredTalk } from "../search/schedule.js";
 import {
   buildAndSaveSchedule,
@@ -24,6 +24,8 @@ import {
 export const MAX_QUERY_LENGTH = 500;
 export const DEFAULT_SIZE = 10;
 export const MAX_SIZE = 50;
+/** Seconds clients should wait before retrying after an Elasticsearch overload (503). */
+export const RETRY_AFTER_SECONDS = 5;
 const MAX_SCHEDULE_IDS = 100;
 const LEVELS = new Set(["beginner", "intermediate", "advanced"]);
 
@@ -90,9 +92,22 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
   const store = deps.scheduleStore ?? createScheduleStore(es);
   const now = deps.now ?? (() => new Date());
 
-  app.setErrorHandler((err: Error, _req, reply) => {
+  app.setErrorHandler((err: Error, req, reply) => {
     if (err instanceof EsError) {
+      const overloaded = isEsOverload(err);
+      // One diagnostic line with the ES error type and status only. Never the
+      // message/body (can contain query text), the URL query, attendee ids or credentials.
+      req.log.warn(
+        { "error.type": err.errorType, "es.status": err.status, "http.route": req.routeOptions?.url, overloaded },
+        "elasticsearch request failed",
+      );
       // Do not echo ES error bodies to clients; they can contain query text.
+      if (overloaded) {
+        return reply
+          .code(503)
+          .header("Retry-After", String(RETRY_AFTER_SECONDS))
+          .send({ error: "search_overloaded" });
+      }
       return reply.code(502).send({ error: "search_unavailable" });
     }
     const status = (err as { statusCode?: number }).statusCode;

@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
+import Fastify from "fastify";
 import type { FastifyRequest } from "fastify";
 import type { OnboardingResponse, ScheduleResponse, SearchResponse } from "@cc/shared";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
-import { STUB_ATTENDEE_ID, defaultResolveAttendee } from "../src/routes/search.js";
+import { RETRY_AFTER_SECONDS, STUB_ATTENDEE_ID, defaultResolveAttendee, registerSearchRoutes } from "../src/routes/search.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
 import { esHit, fakeEs, talk, type FakeHandler } from "./helpers.js";
 
@@ -103,6 +104,119 @@ describe("GET /api/search", () => {
     const res = await app.inject({ method: "GET", url: "/api/search?q=x" });
     expect(res.statusCode).toBe(502);
     expect(res.json()).toEqual({ error: "search_unavailable" });
+  });
+});
+
+// Realistic Elasticsearch error bodies. The reason text echoes the query on purpose:
+// nothing from it may reach the client, a span or the log.
+const SECRET = "zebra-secret-query";
+const ES_429_NO_ML_CAPACITY = {
+  error: {
+    root_cause: [
+      {
+        type: "inference_exception",
+        reason: `Could not start deployment because no ML nodes with sufficient capacity were found [query: ${SECRET}]`,
+      },
+    ],
+    type: "search_phase_execution_exception",
+    reason: "all shards failed",
+    phase: "query",
+    grouped: true,
+    failed_shards: [],
+  },
+  status: 429,
+};
+const ES_400_PARSING = {
+  error: {
+    root_cause: [{ type: "parsing_exception", reason: `[rrf] unknown field [bogus] near "${SECRET}"`, line: 1, col: 40 }],
+    type: "parsing_exception",
+    reason: `[rrf] unknown field [bogus] near "${SECRET}"`,
+    line: 1,
+    col: 40,
+  },
+  status: 400,
+};
+
+/**
+ * Fastify app with a capturing logger. Only the diagnostic line is captured: Fastify's
+ * default request serializer logs the raw URL, which the production logger options
+ * (telemetry/logger.ts, task #12) strip separately.
+ */
+function appWithLogs(es: ReturnType<typeof fakeEs>) {
+  const lines: string[] = [];
+  const keep = (l: string) => {
+    if (JSON.parse(l).msg === "elasticsearch request failed") lines.push(l);
+  };
+  const app = Fastify({ logger: { level: "info", stream: { write: keep } } });
+  registerSearchRoutes(app, { es });
+  return { app, lines };
+}
+
+describe("Elasticsearch failures are diagnosable", () => {
+  it("maps a 429 inference capacity error to 503 + Retry-After, with error.type on spans and one log line", async () => {
+    const es = fakeEs(() => ({ status: 429, body: ES_429_NO_ML_CAPACITY }));
+    const { app, lines } = appWithLogs(es);
+    const res = await app.inject({ method: "GET", url: `/api/search?q=${SECRET}&mode=hybrid` });
+
+    expect(res.statusCode).toBe(503);
+    expect(res.headers["retry-after"]).toBe(String(RETRY_AFTER_SECONDS));
+    expect(res.json()).toEqual({ error: "search_overloaded" });
+    // Hybrid must not silently fall back to keyword: exactly one ES call, the hybrid one.
+    expect(es.calls).toHaveLength(1);
+
+    expect(spans.find((s) => s.name === "search")!.set["error.type"]).toBe("inference_exception");
+    expect(spans.find((s) => s.name === "embed")!.set["error.type"]).toBe("inference_exception");
+
+    const diag = lines.map((l) => JSON.parse(l));
+    expect(diag).toHaveLength(1);
+    expect(diag[0]).toMatchObject({ "error.type": "inference_exception", "es.status": 429, overloaded: true, level: 40 });
+
+    const everything = JSON.stringify({ spans, lines, body: res.body, headers: res.headers });
+    expect(everything).not.toContain(SECRET);
+    expect(everything).not.toContain("ML nodes");
+    expect(everything).not.toContain("authorization");
+  });
+
+  it("keeps a 400 parsing error as 502 search_unavailable and records its type", async () => {
+    const es = fakeEs(() => ({ status: 400, body: ES_400_PARSING }));
+    const { app, lines } = appWithLogs(es);
+    const res = await app.inject({ method: "GET", url: `/api/search?q=${SECRET}` });
+
+    expect(res.statusCode).toBe(502);
+    expect(res.headers["retry-after"]).toBeUndefined();
+    expect(res.json()).toEqual({ error: "search_unavailable" });
+    expect(spans.find((s) => s.name === "search")!.set["error.type"]).toBe("parsing_exception");
+    const diag = lines.map((l) => JSON.parse(l));
+    expect(diag).toHaveLength(1);
+    expect(diag[0]).toMatchObject({ "error.type": "parsing_exception", "es.status": 400, overloaded: false });
+    expect(JSON.stringify({ spans, lines, body: res.body })).not.toContain(SECRET);
+  });
+
+  it("falls back to http_<status> when the body has no error type", async () => {
+    const es = fakeEs(() => ({ status: 500, body: "<html>proxy error</html>" }));
+    const { app } = appWithLogs(es);
+    const res = await app.inject({ method: "GET", url: "/api/search?q=x" });
+    expect(res.statusCode).toBe(502);
+    expect(spans.find((s) => s.name === "search")!.set["error.type"]).toBe("http_500");
+  });
+
+  it("applies to onboarding and schedule paths too", async () => {
+    const es = fakeEs(() => ({ status: 429, body: ES_429_NO_ML_CAPACITY }));
+    const { app } = appWithLogs(es);
+    const onboarding = await app.inject({
+      method: "POST",
+      url: "/api/onboarding",
+      payload: { answers: { topics: ["security"], freeText: SECRET } },
+    });
+    expect(onboarding.statusCode).toBe(503);
+    expect(onboarding.headers["retry-after"]).toBe(String(RETRY_AFTER_SECONDS));
+    expect(onboarding.json()).toEqual({ error: "search_overloaded" });
+
+    spans.length = 0;
+    const save = await app.inject({ method: "POST", url: "/api/schedule", payload: { talkIds: ["a"] } });
+    expect(save.statusCode).toBe(503);
+    expect(spans.find((s) => s.name === "talks.fetch")!.set["error.type"]).toBe("inference_exception");
+    expect(JSON.stringify({ spans, bodies: [onboarding.body, save.body] })).not.toContain(SECRET);
   });
 });
 
