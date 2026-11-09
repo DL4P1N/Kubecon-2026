@@ -213,6 +213,17 @@ kubectl radar diagnose statefulset/elasticsearch \
 - Metrics: `http.server.request.duration` by `http.route`,
   `companion.search.duration`, `access.scans` dashboard. Screenshot: pending.
 - SLO (p95 search latency) and Agent0 / Dash0 MCP investigation: pending.
+- Dashboard, SLOs and check rules as code (#14, PR [#33](https://github.com/DL4P1N/Kubecon-2026/pull/33)):
+  **pending live verification**. `deploy/dash0/dashboard.yaml` (PersesDashboard:
+  SLO tiles, burn rate, rate/p95/5xx by route, search p95 by mode, access scans,
+  browser page load), `deploy/dash0/check-rules.yaml` (PrometheusRule: p95 of
+  `/api/search` + `/api/onboarding` < 500 ms over 1h, non-5xx >= 99% over 1h,
+  multi-window burn rates) and `deploy/dash0/slos/` (native Dash0 OpenSLO SLOs,
+  28d). Offline checks only: YAML parses and all 29 PromQL expressions parse.
+  The same PR fixes `companion.search.duration` buckets, which had made every
+  p95 read about 4.75 s. Apply steps and screenshot list: `docs/dash0.md`.
+  Screenshots pending: `docs/evidence/dash0-health-dashboard.png`,
+  `dash0-search-p95-by-mode.png`, `dash0-check-rules.png`, `dash0-slo.png`.
 - How to reproduce locally: `docs/observability.md`.
 
 ## Accessibility
