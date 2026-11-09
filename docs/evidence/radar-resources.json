@@ -556,7 +556,7 @@
           "reason": "UnexpectedJob",
           "message": "Saw a job that the controller did not create or forgot: smoke47-retention-4be5c5",
           "count": 5,
-          "lastSeen": "2026-11-09T13:48:09-07:00",
+          "lastSeen": "2026-11-09T20:48:09Z",
           "objects": [
             {
               "kind": "CronJob",
@@ -570,7 +570,7 @@
           "reason": "UnexpectedJob",
           "message": "Saw a job that the controller did not create or forgot: smoke47-clusters-3d6b63",
           "count": 5,
-          "lastSeen": "2026-11-09T13:48:08-07:00",
+          "lastSeen": "2026-11-09T20:48:08Z",
           "objects": [
             {
               "kind": "CronJob",
@@ -646,7 +646,7 @@
       "Every container stayed far below its CPU limit: peak 200.2 mCPU (ES, 10.0% of its 2 CPU limit), api 41.3 mCPU (4.1% of 1 CPU), collector 38.2 mCPU (7.6% of 500m), web 2.4 mCPU (0.5% of 500m).",
       "Every container stayed far below its memory limit: ES peak 2376.6 MiB = 58.0% of 4 GiB, api 54.5/512 MiB = 10.6%, collector 68.9/512 MiB = 13.4%, web 15.8/128 MiB = 12.3%.",
       "No OOMKill, no restarts (all 0), and PSI Avg10/Avg60/Avg300 are 0 for CPU, memory and I/O in all 40 container-samples: no observable stall or reclaim pressure during the sampled window.",
-      "Requests are also satisfied: peak CPU 200.2 mCPU (ES) vs 500m request, others <=41.3 mCPU vs 100m/50m requests; working set exceeds only the small web/api requests, consistent with their generous limits.",
+      "Requests are also satisfied throughout: peak CPU 200.2 mCPU (ES) against a 500m request, others at or below 41.3 mCPU against 100m/50m requests, and every peak working set stayed below its request as well as its limit, so no sample showed demand above the configured guarantees.",
       "10 samples over ~11 s under gentle synthetic search load is enough to rule out saturation on this baseline, but is not a soak or peak-load benchmark; resizing on this window would be arbitrary."
     ],
     "elasticsearch_constraints_preserved": {
@@ -662,7 +662,7 @@
     "Radar metrics fields are null because no metrics-server/Prometheus backs them; this is unavailability, not zero usage. No metric was invented.",
     "The sampled traffic was operator-generated read-only search (labelled test load); it is not production traffic and no fault was injected.",
     "PSI Total counters are cumulative since container start; only the Avg10/60/300 gauges describe recent pressure.",
-    "No screenshot: this session's headless browser hung on Radar canvas screenshots (Puppeteer and CDP Page.captureScreenshot). Raw Radar MCP JSON is committed verbatim instead; a real UI capture remains open for an owner with a working browser.",
+    "No screenshot: this session's headless browser hung on Radar canvas screenshots (Puppeteer and CDP Page.captureScreenshot). Committed Radar MCP payloads are excerpts (selected fields) instead; a real UI capture remains open for an owner with a working browser.",
     "ES ML inference health was not re-measured here; the prior operator verification in docs/demo/radar-ml-verification.json remains the reference."
   ]
 }

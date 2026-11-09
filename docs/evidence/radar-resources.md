@@ -76,7 +76,7 @@ At collection time Radar reported, for namespace `conference-companion`:
   `relatedIssuesTotal: 0` for all four workloads.
 - 2 warning event groups, both `UnexpectedJob` from the retention/clusters
   CronJobs (`smoke47-retention-*`, `smoke47-clusters-*`, 5 occurrences each,
-  last seen 2026-11-09T13:48Z — from the #47 smoke run). These are CronJob
+  last seen 2026-11-09T20:48Z — from the #47 smoke run). These are CronJob
   bookkeeping warnings owned by task #47, not resource pressure.
 
 PSI `Avg10`/`Avg60`/`Avg300` were `0` for CPU, memory and I/O in all 40
@@ -112,7 +112,7 @@ no resource, manifest, or CronJob file was modified by this task.
 - Radar metrics are unavailable, so no Radar usage claim is made.
 - No screenshot is attached: in this session the headless browser hung on
   Radar's canvas view for both Puppeteer `page.screenshot` and CDP
-  `Page.captureScreenshot`. The raw Radar MCP responses are committed verbatim
+  `Page.captureScreenshot`. The committed Radar MCP payloads are excerpts: selected fields, not the complete response
   in the JSON instead. A real UI capture of the resource/topology view remains
   open and can be added by an owner with a working browser; it does not change
   the measurements above.
