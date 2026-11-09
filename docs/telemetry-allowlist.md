@@ -34,6 +34,17 @@ already strips them in `api/src/telemetry/logger.ts`).
 
 ## Local validation
 
+Browser Web Vitals reuse the existing metric-point `http.route` allowlist in
+both collectors; no new attribute keys are needed. Only fixed page templates
+or `/unknown` are emitted, with `/talks/:id` replacing talk identifiers.
+`companion.web.vitals.{lcp,inp,ttfb}` histograms use seconds; `cls` is unitless.
+The standard `web-vitals` callbacks report document measurements, attributed
+to the initial route (not SPA navigation timings). Reports can recur after a
+tab is hidden and restored; p75 represents reported observations, not unique
+attendees. Metric IDs, performance entries, DOM selectors, URLs and queries
+are never recorded. No interaction means INP may be absent. Live Dash0
+receipt remains a deployment check.
+
 Start the debug-enabled collector with `docker compose -f deploy/compose/docker-compose.yml up`.
 Send an OTLP trace that includes `attendee.id`, `geo.location`, and
 `search.mode`. The collector's `debug` exporter must display `search.mode` but
