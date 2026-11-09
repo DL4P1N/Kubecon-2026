@@ -36,6 +36,9 @@ Cached aggregate routes are cheap and get the most headroom.
 | `POST /api/access/scan` | Signed QR token, entitlement checked server-side | 600 | none | zod: token, room (known room catalog) | `allow`/`deny`, room, reason. Never the attendee ID |
 | `GET /api/interests/aggregate` | none (public organizer view) | 300 | 15 s in memory, single-flight, `Cache-Control: public, max-age=15`; ES copy written at most once a minute | none (no input) | Topic counts with k ≥ 5 suppression (small buckets merged into `other`, dropped if still < 5) |
 | `GET /api/interests/clusters` | `x-organizer-key` (constant-time compare; 503 in production if unset) | 120 | 15 s in memory, after authorization | none (no input) | Cluster labels and sizes ≥ `MIN_CLUSTER_SIZE`. Centroids stay server-side |
+| `GET /api/talks/:id` | none | 60 per client IP (own scope, shared 429 body) | 60 s in memory per talk (≤ 500 entries, shared with the two routes below), `Cache-Control: public, max-age=60` | `:id` matches `[A-Za-z0-9._:-]{1,100}` (400 otherwise); unknown talk 404 | Public talk fields (title, speaker, abstract, track, room, time, tags) |
+| `GET /api/talks/:id/related` | none | 60 per client IP (own scope, per route, shared 429 body) | as above, per talk and size | `:id` as above; `size` int 1 to 10 (default 5) | Public talks similar by meaning, at any time, with the tags they share. Never attendee data |
+| `GET /api/talks/:id/alternatives` | none | 60 per client IP (own scope, per route, shared 429 body) | as above, per talk and size | `:id` as above; `size` int 1 to 10 (default 3) | Public talks overlapping this talk's time in other rooms, with shared tags. Never attendee data |
 | `GET /api/suggest` | none | 120 (shared policy, own scope) | 30 s in-memory per-query cache (≤ 500 entries) | `q` one string, 2 to 100 chars | Public talk titles and speakers |
 | `GET /api/catalog/topics` | none | 300 | 30 s in memory (successes only), single-flight, `Cache-Control: public, max-age=30` | none (no input) | Public catalog tags. Never attendee interests |
 | `GET /api/rooms/*` (room occupancy) | covered by #42 review (PR #41) | covered by #42 review | covered by #42 review | covered by #42 review | covered by #42 review |
@@ -87,7 +90,7 @@ status are logged.
 `api/test/security.test.ts` covers:
 
 - One 429 body shape (`statusCode`, `error`, `message`) across scopes with
-  default and custom error handlers (search, status, register, suggest).
+  default and custom error handlers (search, status, register, suggest, talks; the talk routes have their own test in `api/test/talks.test.ts`).
 - The largest valid onboarding tag set (1000 × 100 chars) gets a 200, not a
   413, and 1001 entries get a clean 400.
 - 429 with the shared body on search, catalog topics, status, interests

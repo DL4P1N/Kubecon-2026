@@ -111,6 +111,11 @@ describe("GET /api/talks/:id/related", () => {
     const codes: number[] = [];
     for (let i = 0; i < 5; i++) codes.push((await get("/api/talks/src/related")).statusCode);
     expect(codes).toEqual([200, 200, 200, 200, 429]);
+    const limited = await get("/api/talks/src/related");
+    expect(limited.statusCode).toBe(429);
+    // One 429 body in every scope (see docs/security.md), not a route-specific shape.
+    expect(limited.json()).toEqual({ statusCode: 429, error: "rate_limited", message: expect.stringContaining("too many requests") });
+    expect(limited.headers["retry-after"]).toBeDefined();
     expect((await get("/api/talks/src")).statusCode).toBe(200); // other routes keep their own budget
   });
 });

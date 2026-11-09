@@ -1,4 +1,3 @@
-import rateLimit from "@fastify/rate-limit";
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { ALTERNATIVES_PATH, RELATED_PATH, TALK_PATH } from "@cc/shared";
 import { EsError, isEsOverload, type EsClient } from "../es/client.js";
@@ -10,6 +9,7 @@ import {
   findRelated,
   findTalk,
 } from "../talks/alternatives.js";
+import { applyRateLimit, sendIfRateLimited } from "../http/rateLimit.js";
 import { RETRY_AFTER_SECONDS } from "./search.js";
 import type { StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
@@ -40,9 +40,10 @@ export interface TalkRouteOptions {
 export const talkRoutes: FastifyPluginAsync<TalkRouteOptions> = async (app, opts) => {
   const now = opts.now ?? Date.now;
   const cache = new Map<string, { at: number; value: unknown }>();
-  await app.register(rateLimit, { global: false });
+  await applyRateLimit(app); // shared 429 shape and req.ip key (http/rateLimit.ts)
 
   app.setErrorHandler((err: Error, req, reply) => {
+    if (sendIfRateLimited(err, reply)) return reply;
     if (err instanceof EsError) {
       // Error type and status only; ES bodies can contain query text.
       req.log.warn({ "error.type": err.errorType, "http.route": req.routeOptions?.url }, `elasticsearch request failed with status ${err.status}`);
