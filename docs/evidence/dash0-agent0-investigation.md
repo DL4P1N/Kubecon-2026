@@ -18,4 +18,27 @@ The actual Agent0 response reports one observed companion-api HTTP 400 on `/api/
 
 Agent0 guesses that an empty `q` may trigger validation, but explicitly says telemetry does not confirm the validation cause. Its smallest suggested action is to inspect the `/api/search` handler's validation for empty `q` and whether companion-web avoids issuing an empty-query request; it also cautions that the registration-page relationship is unverified. Do not treat the guess as a confirmed cause.
 
-The MCP initial response includes a thread URL but states that API-token-authenticated conversations are not attributed to a Dash0 user and are not accessible in the Dash0 platform. The deep link is reproduced as returned; this evidence does not imply that the thread can be opened in the product UI. No after-state or remediation result is claimed here.
+The MCP initial response includes a thread URL but states that API-token-authenticated conversations are not attributed to a Dash0 user and are not accessible in the Dash0 platform. The deep link is reproduced as returned; this evidence does not imply that the thread can be opened in the product UI.
+
+## Remediation and observed after-state
+
+The operator removed `url.path` from trace, log and metric-point allowlists,
+retained bounded `http.route`, and rolled out the corrected collector. The
+[actual after export](../demo/dash0-after-spans.json), captured at 20:02:26Z,
+contains API search server spans returning 200 and internal request spans with
+`http.route=/api/search` and an empty `url.path` column. Example traces:
+`a0d366267756331cc02c1104fb472e29` and
+`2101fa365943db43ef89ae9ac2900407`. These are actual subsequent browser searches,
+not injected faults. This verifies the sampled exported attribute correction;
+it does not prove every privacy path or an end-to-end Elasticsearch child span.
+
+The before request was an empty-query 400; the later successful searches used
+valid input. Their 200 responses do not prove the registration bug was fixed.
+That separate contract fix is [PR28](https://github.com/DL4P1N/Kubecon-2026/pull/28).
+The durable collector and manual route-attribute migration is checkpoint commit
+`fe34415`, completed by board task #40's PR. At after-capture time API/web still
+ran `753dd61`; the collector correction was live, while the manual code migration
+had not been deployed. Tests retain code/docs/collector synchronization checks
+and verify raw `url.path` is dropped both at span creation and later mutation.
+The separate raw log-path remediation is
+[PR52](https://github.com/DL4P1N/Kubecon-2026/pull/52).

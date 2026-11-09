@@ -29,8 +29,10 @@ from a known route template, never a request URL, for endpoint diagnostics.
 The same lists live in code as `SPAN_ATTRIBUTE_ALLOWLIST`,
 `LOG_ATTRIBUTE_ALLOWLIST` and `METRIC_ATTRIBUTE_ALLOWLIST` in
 `api/src/telemetry/allowlist.ts`. `withSpan()` and the metric helpers drop
-anything else in-process. Privacy tests exercise exported spans and logs;
-validate collector enforcement against its actual output, not configuration text.
+anything else in-process. The synchronization checks in
+`api/test/telemetry.test.ts` and `api/test/telemetry-privacy.test.ts` ensure the
+code, documentation and both collector configurations agree. Exported-span/log
+tests and captured live output provide separate enforcement evidence.
 
 Log message bodies are not attributes, so `keep_keys` does not cover them.
 The collector therefore also runs `replace_pattern(body, "\\?\\S*", "?[redacted]")`

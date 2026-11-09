@@ -448,6 +448,19 @@ describe("schedule routes", () => {
     expect((live.json() as ScheduleResponse).items.map((i) => i.talk.id)).toEqual(["a"]);
   });
 
+  it("wraps GET /api/schedule in a request span plus attribute-free load and fetch spans", async () => {
+    const { es } = memoryEs([esHit(A, 1)]);
+    const app = server(es);
+    const headers = await asAttendee("ada-1");
+    await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: ["a"] } });
+    spans.length = 0;
+    await app.inject({ method: "GET", url: "/api/schedule", headers });
+    expect(spans.map((s) => s.name)).toEqual(["schedule.get", "schedule.load", "talks.fetch"]);
+    expect(spans[0]!.attrs).toEqual({ "http.request.method": "GET", "http.route": "/api/schedule" });
+    expect(spans[0]!.set).toEqual({ "http.response.status_code": 200 });
+    expect(spans.slice(1).every((s) => Object.keys(s.attrs).length === 0)).toBe(true);
+    expect(JSON.stringify(spans)).not.toContain("ada-1");
+  });
 
   it("returns an empty schedule when nothing was saved", async () => {
     const { es } = memoryEs([]);

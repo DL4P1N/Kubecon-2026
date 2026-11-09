@@ -123,3 +123,20 @@ describe("attendee flow telemetry privacy", () => {
   });
 });
 
+for (const path of ["deploy/k8s/otel-collector/configmap.yaml", "deploy/compose/otel-config.yaml"]) {
+  it(`${path} enforces documented signal and resource allowlists before export`, () => {
+    const config = readRepo(path);
+    for (const [signal, ctx] of [["Trace", "span"], ["Log", "log"], ["Metric point", "datapoint"]]) {
+      const match = new RegExp(`context: ${ctx}\\s+statements:\\s+- keep_keys\\(attributes, (\\[[^\\]]*\\])\\)`).exec(config);
+      expect(match, `${ctx} keep_keys missing`).not.toBeNull();
+      expect(JSON.parse(match![1]!)).toEqual(allowed(signal!));
+    }
+    const resources = [...config.matchAll(/context: resource\s+statements:\s+- keep_keys\(attributes, (\[[^\]]*\])\)/g)];
+    expect(resources).toHaveLength(3);
+    for (const match of resources) expect(JSON.parse(match[1]!)).toEqual(allowed("Resource"));
+    for (const signal of ["traces", "logs", "metrics"]) {
+      expect(config).toMatch(new RegExp(`${signal}:\\s+receivers: \\[otlp\\]\\s+processors: \\[transform/allowlist, batch\\]`));
+    }
+    expect(config).toContain('replace_pattern(body,');
+  });
+}
