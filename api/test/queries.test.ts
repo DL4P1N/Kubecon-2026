@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_TUNING,
   KEYWORD_FIELDS,
   SEMANTIC_FIELD,
   buildHybridBody,
   buildKeywordBody,
+  eligibilityClauses,
   filterClauses,
   levelsFor,
   onboardingFilters,
@@ -65,6 +67,46 @@ describe("buildHybridBody", () => {
   it("widens the rank window for large page sizes", () => {
     const body = buildHybridBody("x", 200) as Obj;
     expect(body.retriever.rrf.rank_window_size).toBe(200);
+  });
+});
+
+describe("tuning", () => {
+  const excl = { ...DEFAULT_TUNING, excludeTracks: ["Contribfest"] };
+  const mustNot = { bool: { must_not: [{ terms: { track: ["Contribfest"] } }] } };
+
+  it("adds the track exclusion after the level/time filters", () => {
+    expect(eligibilityClauses({ levels: ["beginner"] }, excl)).toEqual([{ terms: { level: ["beginner"] } }, mustNot]);
+    expect(eligibilityClauses({}, { ...DEFAULT_TUNING, excludeTracks: [] })).toEqual([]);
+  });
+
+  it("applies the same exclusion in keyword mode and on both hybrid legs", () => {
+    expect((buildKeywordBody("x", 5, {}, excl) as Obj).query.bool.filter).toEqual([mustNot]);
+    for (const leg of (buildHybridBody("x", 5, {}, excl) as Obj).retriever.rrf.retrievers) {
+      expect(leg.standard.query.bool.filter).toEqual([mustNot]);
+    }
+  });
+
+  it("passes RRF rank constant and window from the tuning", () => {
+    const rrf = (buildHybridBody("x", 5, {}, { ...DEFAULT_TUNING, rankConstant: 20, rankWindowSize: 100 }) as Obj).retriever.rrf;
+    expect(rrf.rank_constant).toBe(20);
+    expect(rrf.rank_window_size).toBe(100);
+  });
+
+  it("sets minimum_should_match on the hybrid keyword leg only", () => {
+    const t = { ...DEFAULT_TUNING, hybridKeywordMinimumShouldMatch: "30%" };
+    const [kw, sem] = (buildHybridBody("x", 5, {}, t) as Obj).retriever.rrf.retrievers;
+    expect(kw.standard.query.bool.must[0].multi_match.minimum_should_match).toBe("30%");
+    expect(sem.standard.query.bool.must[0].semantic).toBeDefined();
+    expect((buildKeywordBody("x", 5, {}, t) as Obj).query.bool.must[0].multi_match.minimum_should_match).toBeUndefined();
+  });
+
+  it("builds a weighted linear retriever with min-max normalization", () => {
+    const body = buildHybridBody("x", 5, {}, { ...DEFAULT_TUNING, fusion: "linear", semanticWeight: 2 }) as Obj;
+    expect(body.retriever.rrf).toBeUndefined();
+    const [kw, sem] = body.retriever.linear.retrievers;
+    expect(kw).toMatchObject({ weight: 1, normalizer: "minmax", retriever: { standard: { _name: "keyword" } } });
+    expect(sem).toMatchObject({ weight: 2, normalizer: "minmax", retriever: { standard: { _name: "semantic" } } });
+    expect(body.retriever.linear.rank_window_size).toBe(DEFAULT_TUNING.rankWindowSize);
   });
 });
 
