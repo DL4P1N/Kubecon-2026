@@ -77,7 +77,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   });
 
   registerSearchRoutes(app, { es, tokens, tracker, ...deps.search });
-  app.register(alternativesRoutes, { es, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/talks/:id/alternatives
+  app.register(alternativesRoutes, { es, tracker, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/talks/:id/alternatives
   registerStatusRoutes(app, { es, tracker, version: VERSION, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/status
   registerClusterRoutes(app, { es }); // Module 4: GET /api/interests/clusters
 

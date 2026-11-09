@@ -27,7 +27,7 @@ export function Alternatives({ talk, load = fetchAlternatives }: { talk: Talk; l
 
   return (
     <div className="alternatives">
-      <button type="button" aria-expanded={state !== "idle"} aria-controls={regionId} disabled={state === "loading"} onClick={onClick}>
+      <button type="button" aria-label={`${state === "loading" ? "Finding similar talks…" : "Room full? Similar talks now"} for ${talk.title}`} aria-expanded={state !== "idle"} aria-controls={regionId} disabled={state === "loading"} onClick={onClick}>
         {state === "loading" ? "Finding similar talks…" : "Room full? Similar talks now"}
       </button>
       <div id={regionId} aria-live="polite">

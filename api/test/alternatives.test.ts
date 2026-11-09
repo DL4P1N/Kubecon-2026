@@ -5,6 +5,7 @@ import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
 import { alternativesRoutes, ALTERNATIVES_CACHE_MS } from "../src/routes/alternatives.js";
 import { buildAlternativesBody, similarityText, sharedTags, NON_SESSION_TRACKS } from "../src/talks/alternatives.js";
+import { createStatusTracker, type StatusTracker } from "../src/status/tracker.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
 import { esHit, fakeEs, talk, type FakeHandler } from "./helpers.js";
 
@@ -20,13 +21,13 @@ const SRC = talk("src", 9, 10, { room: "Hall A", tags: ["security", "supply-chai
 const ALT1 = talk("alt1", 9, 10, { room: "Hall B", tags: ["security", "sigstore"] });
 const ALT2 = talk("alt2", 9, 11, { room: "Hall C", tags: ["observability"] });
 
-function setup(opts: { hits?: ReturnType<typeof esHit>[]; searchStatus?: number; searchError?: string } = {}) {
+function setup(opts: { hits?: ReturnType<typeof esHit>[]; searchStatus?: number; searchError?: string; source?: typeof SRC; tracker?: StatusTracker } = {}) {
   const state = { clock: 1_000_000 };
   const handler: FakeHandler = (call) => {
     if (call.path.startsWith("/talks/_search")) {
       const body = call.body as { query?: { terms?: { id?: string[] } } };
       const ids = body.query?.terms?.id;
-      if (ids) return { body: { hits: { hits: ids.includes("src") ? [esHit(SRC, 1)] : [] } } }; // talk lookup by id
+      if (ids) return { body: { hits: { hits: ids.includes("src") ? [esHit(opts.source ?? SRC, 1)] : [] } } }; // talk lookup by id
       if (opts.searchStatus) return { status: opts.searchStatus, body: { error: { type: opts.searchError ?? "boom" } } };
       return { body: { took: 4, hits: { hits: opts.hits ?? [esHit(ALT1, 2.5), esHit(ALT2, 1.2)] } } };
     }
@@ -34,7 +35,7 @@ function setup(opts: { hits?: ReturnType<typeof esHit>[]; searchStatus?: number;
   };
   const es = fakeEs(handler);
   const app = Fastify();
-  app.register(alternativesRoutes, { es, now: () => state.clock, rateLimitPerMinute: 5 });
+  app.register(alternativesRoutes, { es, now: () => state.clock, rateLimitPerMinute: 5, tracker: opts.tracker });
   const get = (url: string) => app.inject({ method: "GET", url });
   const altSearches = () => es.calls.filter((c) => c.path.startsWith("/talks/_search") && !(c.body as { query?: { terms?: unknown } }).query?.terms);
   return { app, es, state, get, altSearches };
@@ -146,4 +147,30 @@ it("is registered on the real server, without any attendee token", async () => {
   const res = await app.inject({ method: "GET", url: "/api/talks/src/alternatives" });
   expect(res.statusCode).toBe(200);
   expect((res.json() as AlternativesResponse).alternatives.map((a) => a.talk.id)).toEqual(["alt1"]);
+});
+
+describe("review fixes (#46)", () => {
+  it("returns an empty list, not a 502, when the talk has no start/end", async () => {
+    const { get, altSearches } = setup({ source: { ...SRC, start: "", end: "" } });
+    const res = await get("/api/talks/src/alternatives");
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as AlternativesResponse).alternatives).toEqual([]);
+    expect(altSearches()).toHaveLength(0); // no `range lt ""` query is sent
+  });
+  it("keeps hits when the talk has an empty room (\"\" === \"\" must not drop them)", async () => {
+    const { get } = setup({ source: { ...SRC, room: "" }, hits: [esHit({ ...ALT1, room: "" }, 2)] });
+    const body = (await get("/api/talks/src/alternatives")).json() as AlternativesResponse;
+    expect(body.alternatives.map((a) => a.talk.id)).toEqual(["alt1"]);
+  });
+  it("omits the room clause from the query when the talk has no room", () => {
+    const bool = (buildAlternativesBody({ ...SRC, room: "" }, 3) as { query: { bool: { must_not: unknown[] } } }).query.bool;
+    expect(bool.must_not).toEqual([{ term: { id: "src" } }, { terms: { track: [...NON_SESSION_TRACKS] } }]);
+  });
+  it("reports semantic searches to the status tracker (ok and overloaded) without content", async () => {
+    const calls: unknown[][] = [];
+    const tracker = { ...createStatusTracker(), recordSearch: (...a: unknown[]) => void calls.push(a) } as StatusTracker;
+    await setup({ tracker }).get("/api/talks/src/alternatives");
+    await setup({ tracker, searchStatus: 429 }).get("/api/talks/src/alternatives");
+    expect(calls.map((c) => [c[0], c[2]])).toEqual([["hybrid", "ok"], ["hybrid", "overloaded"]]);
+  });
 });

@@ -3,12 +3,12 @@ import type { FastifyPluginAsync } from "fastify";
 import { ALTERNATIVES_PATH, type AlternativesResponse } from "@cc/shared";
 import { EsError, isEsOverload, type EsClient } from "../es/client.js";
 import { DEFAULT_ALTERNATIVES, MAX_ALTERNATIVES, findAlternatives } from "../talks/alternatives.js";
+import { RETRY_AFTER_SECONDS } from "./search.js";
+import type { StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
 
 export const ALTERNATIVES_CACHE_MS = 60_000;
 const MAX_CACHE_ENTRIES = 500;
-/** Seconds clients should wait before retrying after an Elasticsearch overload. */
-const RETRY_AFTER_SECONDS = 5;
 const TALK_ID = /^[A-Za-z0-9._:-]{1,100}$/;
 
 export interface AlternativesRouteOptions {
@@ -16,6 +16,8 @@ export interface AlternativesRouteOptions {
   /** Per client IP per minute. Default 60. */
   rateLimitPerMinute?: number;
   now?: () => number;
+  /** When set, semantic searches report their latency and outcome (never their content) to /api/status. */
+  tracker?: StatusTracker;
 }
 
 /**
@@ -28,6 +30,19 @@ export const alternativesRoutes: FastifyPluginAsync<AlternativesRouteOptions> = 
   const now = opts.now ?? Date.now;
   const cache = new Map<string, { at: number; value: AlternativesResponse }>();
   await app.register(rateLimit, { global: false });
+
+  /** The alternatives query is a semantic search, so it counts toward the hybrid leg on the status page. */
+  async function observed<T>(fn: () => Promise<T>): Promise<T> {
+    const start = performance.now();
+    try {
+      const out = await fn();
+      opts.tracker?.recordSearch("hybrid", performance.now() - start, "ok");
+      return out;
+    } catch (err) {
+      opts.tracker?.recordSearch("hybrid", performance.now() - start, err instanceof EsError && isEsOverload(err) ? "overloaded" : "error");
+      throw err;
+    }
+  }
 
   app.setErrorHandler((err: Error, req, reply) => {
     if (err instanceof EsError) {
@@ -56,7 +71,7 @@ export const alternativesRoutes: FastifyPluginAsync<AlternativesRouteOptions> = 
         const hit = cache.get(key);
         let value = hit && now() - hit.at < ALTERNATIVES_CACHE_MS ? hit.value : undefined;
         if (!value) {
-          value = await findAlternatives(opts.es, id, size);
+          value = await observed(() => findAlternatives(opts.es, id, size));
           if (!value) {
             span.setAttribute("http.response.status_code", 404);
             return reply.code(404).send({ error: "not_found" });
