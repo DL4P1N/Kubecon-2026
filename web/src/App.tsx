@@ -1,4 +1,5 @@
 import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { InterestMap } from "./pages/InterestMap.js";
 import { Kiosk } from "./pages/Kiosk.js";
 import { Onboarding } from "./pages/Onboarding.js";
 import { Register } from "./pages/Register.js";
@@ -19,6 +20,7 @@ export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { n
           <Link to="/schedule">Schedule</Link>
           <Link to="/search">Search</Link>
           <Link to="/kiosk">Kiosk</Link>
+          <Link to="/map">Interest map</Link>
         </nav>
       </header>
       <main id="main-content" tabIndex={-1}>
@@ -29,6 +31,7 @@ export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { n
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/search" element={<Search />} />
           <Route path="/kiosk" element={<Kiosk />} />
+          <Route path="/map" element={<InterestMap />} />
           {navEnabled && <Route path="/nav-demo" element={<Suspense fallback={<p role="status">Loading replay…</p>}><NavDemo /></Suspense>} />}
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>
