@@ -16,10 +16,10 @@ JSON
 # JSON encoding prevents password characters from corrupting the request.
 node -e 'process.stdout.write(JSON.stringify({password:process.env.ES_PASSWORD,roles:["companion_app"]}))' |
   request -X PUT "$ES_URL/_security/user/companion_svc" --data-binary @-
-license_type=$(request "$ES_URL/_license" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).license.type))')
-case "$license_type" in
-  trial|platinum|enterprise)
-    echo "Inference-capable license already active: $license_type"
+license_state=$(request "$ES_URL/_license" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const l=JSON.parse(s).license;process.stdout.write(`${l.type}:${l.status}`)})')
+case "$license_state" in
+  trial:active|platinum:active|enterprise:active)
+    echo "Inference-capable license already active: ${license_state%%:*}"
     ;;
   *)
     eligible=$(request "$ES_URL/_license/trial_status" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(String(JSON.parse(s).eligible_to_start_trial)))')
