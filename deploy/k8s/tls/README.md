@@ -31,10 +31,18 @@ of those deployments. The public certificate covers localhost/127.0.0.1 and
 the web Service DNS names. For a public hostname, issue a certificate covering
 that hostname from an appropriate trusted CA before exposing the Service.
 Radar's admin UI must remain private.
-If ingress-nginx is installed, adapt and apply `ingress.example.yaml`; it
+If ingress-nginx is installed, adapt `ingress.example.yaml` and apply
+`-k deploy/k8s/tls/ingress` rather than the direct-service overlay; it
 terminates attendee TLS and verifies TLS again to the web backend. Its host
 and Secret namespace annotation must match the provisioned release. The
 example is deliberately not auto-applied on kind hosts without a controller.
+The ingress overlay also sets `TRUST_PROXY=2` for ingress -> web -> API;
+the direct-service overlay keeps `TRUST_PROXY=1`. Nginx preserves the forwarded
+chain, and the API trusts only the configured nearest hops. The ingress must
+overwrite untrusted external forwarded headers, and API/web Services must not
+be externally exposed around that ingress. Restart API after changing hops.
+Do not use the two-hop overlay for direct web access: it would trust one hop too
+many. Render the selected overlay to confirm the intended topology first.
 
 ## Verify without bypassing trust
 
