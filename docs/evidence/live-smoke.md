@@ -28,6 +28,12 @@ Dash0 SLO/dashboard screenshot.
 | Organizer | Organizer key added privately to the existing app Secret before rollout. Browser map, clusters and organizer views rendered; independent wrong/right-key HTTP tests were not run. |
 | Privacy | Corrected live collector retained; actual captured trace has normalized route labels and no `url.path` attribute. No credentials or attendee IDs are included in these artifacts. |
 
+These counts describe different phases, not a single frozen population. The
+one-off post-seed batch processed 12 attendees before the browser registrations.
+Later browser observations show 15 opted-in attendees and a scheduled cluster
+run with sizes 8 and 6 and one suppressed attendee. Both snapshots are retained
+in the JSON artifacts with their phase identified.
+
 ## Browser → API → Elasticsearch proof
 
 Actual Dash0 trace: `2f1b274e968409bdc3738454008f2cd9`.
