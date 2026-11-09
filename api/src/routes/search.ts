@@ -13,6 +13,7 @@ import { requireAttendee, type TokenService } from "../auth/token.js";
 import { EsError, isEsOverload, type EsClient } from "../es/client.js";
 import type { StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
+import { onboardingText } from "../search/queries.js";
 import { DEFAULT_MAX_TALKS, type ScoredTalk } from "../search/schedule.js";
 import {
   buildAndSaveSchedule,
@@ -170,7 +171,9 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
     async (req, reply): Promise<OnboardingResponse | void> => {
       const parsed = parseAnswers(req.body?.answers);
       if ("error" in parsed) return reply.code(400).send(bad(parsed.error));
-      return observed("hybrid", () => onboardingSearch(es, parsed.answers, req.query.debug === "1"));
+      const run = () => onboardingSearch(es, parsed.answers, req.query.debug === "1");
+      // An empty answer set returns without querying Elasticsearch, so it says nothing about hybrid health.
+      return onboardingText(parsed.answers) === "" ? run() : observed("hybrid", run);
     },
   );
 

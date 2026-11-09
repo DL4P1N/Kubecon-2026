@@ -155,4 +155,20 @@ describe("GET /api/status", () => {
     expect(body.errorRate).toEqual({ requests: 20, serverErrors: 2, ratio: 0.1 });
     expect(body.status).toBe("degraded");
   });
+
+  it("does not count an empty onboarding submit (never reaches ES) as a hybrid success", async () => {
+    const { app, world, es } = setup();
+    world.hybridFails = "overload";
+    const failed = await app.inject({ method: "GET", url: "/api/search?q=x&mode=hybrid" });
+    expect(failed.statusCode).toBe(503);
+    const searchesBefore = es.calls.filter((c) => c.path.startsWith("/talks/_search")).length;
+    const empty = await app.inject({ method: "POST", url: "/api/onboarding", payload: { answers: { topics: [] } } });
+    expect(empty.statusCode).toBe(200);
+    expect(es.calls.filter((c) => c.path.startsWith("/talks/_search"))).toHaveLength(searchesBefore); // no ES query ran
+    world.clock += STATUS_CACHE_MS + 1;
+    const { body } = await getStatus(app);
+    expect(body.search.hybrid.state).toBe("warming_up");
+    expect(body.status).toBe("degraded");
+    expect(body.search.hybrid.samples).toBe(0);
+  });
 });
