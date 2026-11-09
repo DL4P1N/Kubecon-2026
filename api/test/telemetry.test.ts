@@ -120,7 +120,7 @@ describe("allowlist mirrors the collector config", () => {
 
 describe("sdk + logger", () => {
   it("does not start the SDK when OTEL_EXPORTER_OTLP_ENDPOINT is unset", () => {
-    expect(startTelemetry({})).toBe(false);
+    expect(startTelemetry("companion-test", {})).toBe(false);
   });
 
   it("serializes requests without query strings, headers or bodies", () => {

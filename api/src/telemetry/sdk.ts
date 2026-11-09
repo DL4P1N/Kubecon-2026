@@ -22,14 +22,19 @@ let sdk: NodeSDK | undefined;
  *
  * Exporters are OTLP/HTTP (JSON) and read the standard OTEL_EXPORTER_OTLP_*
  * env vars; they append /v1/traces, /v1/metrics, /v1/logs to the endpoint.
+ *
+ * Short-lived processes (e.g. a CLI or CronJob) that are not preloaded with
+ * instrument.ts can call `startTelemetry("companion-retention")` first and
+ * `await shutdownTelemetry()` before exiting so buffered spans are flushed.
+ * `serviceName` wins over OTEL_SERVICE_NAME, which wins over companion-api.
  */
-export function startTelemetry(env: NodeJS.ProcessEnv = process.env): boolean {
+export function startTelemetry(serviceName?: string, env: NodeJS.ProcessEnv = process.env): boolean {
   if (sdk) return true;
   if (!env.OTEL_EXPORTER_OTLP_ENDPOINT || env.OTEL_SDK_DISABLED === "true") return false;
 
   sdk = new NodeSDK({
     resource: resourceFromAttributes({
-      "service.name": env.OTEL_SERVICE_NAME ?? SERVICE_NAME,
+      "service.name": serviceName ?? env.OTEL_SERVICE_NAME ?? SERVICE_NAME,
       "service.version": env.npm_package_version ?? "0.1.0",
       "service.namespace": "conference-companion",
       "deployment.environment": env.DEPLOYMENT_ENVIRONMENT ?? "dev",

@@ -37,7 +37,7 @@ and a plain `npm run dev:api` never try to export.
 | File | What |
 | --- | --- |
 | `instrument.ts` | Preloaded with `node --import` (start/dev scripts, Dockerfile CMD) so instrumentation patches modules before the app loads. |
-| `sdk.ts` | `NodeSDK` with resource `service.name=companion-api`, OTLP/HTTP exporters for traces, metrics, logs. Instrumentations: `http` (server spans + `http.server.request.duration`), `@fastify/otel` (route/handler spans, sets `http.route`), `undici` (outgoing `fetch`, i.e. the ES client), `pino` (log correlation + OTLP log sending). `shutdownTelemetry()` flushes on SIGTERM. |
+| `sdk.ts` | `NodeSDK` with resource `service.name=companion-api`, OTLP/HTTP exporters for traces, metrics, logs. Instrumentations: `http` (server spans + `http.server.request.duration`), `@fastify/otel` (route/handler spans, sets `http.route`), `undici` (outgoing `fetch`, i.e. the ES client), `pino` (log correlation + OTLP log sending). `shutdownTelemetry()` flushes on SIGTERM. `startTelemetry(serviceName?)` is also callable directly from CLIs. |
 | `span.ts` | `withSpan(name, attrs, fn)`: custom spans whose attributes (at start and via `span.setAttribute`) are filtered through the allowlist, so `attendee.id` is dropped before export. Errors record `error.type` only, never the message. `setSpanRunner(fake)` swaps the implementation in tests. |
 | `metrics.ts` | `recordSearchLatency(seconds, mode)` / `timeSearch(mode, fn)` (already wrapped around `runSearch` in `api/src/search/service.ts`) -> histogram `companion.search.duration` (s, by `search.mode`); `recordAccessScan(decision, room)` -> counter `access.scans` (by `access.decision`, `room.id`; PromQL name `access_scans_total`). |
 | `logger.ts` | `loggerOptions` for `Fastify({ logger })`: pino JSON to stdout, request serializer emits only method, path without query, route and status; redacts `authorization`, cookies, bodies, tokens and `attendeeId`. |
@@ -58,6 +58,29 @@ const res = await timeSearch(mode, () =>
 );
 recordAccessScan(decision, room);
 ```
+
+### Short-lived processes (CLI, CronJob)
+
+Scripts that run outside the server (for example the retention CLI) are not
+preloaded with `instrument.ts`. They start and flush the SDK themselves:
+
+```ts
+import { startTelemetry, shutdownTelemetry } from "./telemetry/sdk.js";
+import { withSpan } from "./telemetry/span.js";
+
+startTelemetry("companion-retention"); // no-op without OTEL_EXPORTER_OTLP_ENDPOINT
+try {
+  await withSpan("retention.run", {}, async () => { /* ... */ });
+} finally {
+  await shutdownTelemetry(); // flushes spans/metrics/logs before exit
+}
+```
+
+Call `startTelemetry` before importing modules you want auto-instrumented
+(outgoing `fetch` via undici is traced regardless, since it uses diagnostics
+channels). Alternatively run the script with
+`node --import ./dist/telemetry/instrument.js` and `OTEL_SERVICE_NAME=...`,
+then call only `shutdownTelemetry()` at the end.
 
 ### Logs: OTLP, not stdout scraping
 
