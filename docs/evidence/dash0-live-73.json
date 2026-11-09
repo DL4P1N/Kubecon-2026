@@ -274,6 +274,7 @@
   "trace": {
     "trace_id": "7e51d2bbd4a45dc9cc3610cdc00eebb1",
     "observed_at": "2026-11-09T23:26:02.175548+00:00",
+    "provenance": "Root span started ~23:25:51Z, before the three-minute run launched at 23:27:13Z; this trace comes from the earlier interrupted run.",
     "query": "dash0 traces get <trace-id> --from now-15m -o json",
     "redaction": "Resource attributes, auth-token marker, trace-state, events and non-allowlisted span attributes omitted. This is a selected trace view, not an exhaustive privacy audit.",
     "spans": [
