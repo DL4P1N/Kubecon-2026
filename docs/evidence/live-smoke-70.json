@@ -1,0 +1,250 @@
+{
+  "task": 70,
+  "observed_from": "2026-11-09T23:33:23.425433+00:00",
+  "observed_through": "2026-11-09T23:37:44.629441+00:00",
+  "release": "9c047d7",
+  "images": {
+    "api": "cc-api:9c047d7",
+    "web": "cc-web:9c047d7"
+  },
+  "context": "kind-conference-companion",
+  "namespace": "conference-companion",
+  "application_url": "http://127.0.0.1:18086",
+  "data_classification": "Only two newly registered synthetic attendees; no real attendee entitlements were changed.",
+  "session_checks": [
+    {
+      "case": "session A",
+      "http": 200,
+      "correct_own_profile": true,
+      "other_profile_absent": true,
+      "response_keys": [
+        "attendeeId",
+        "consent",
+        "interests",
+        "name",
+        "onboarded"
+      ]
+    },
+    {
+      "case": "session B",
+      "http": 200,
+      "correct_own_profile": true,
+      "other_profile_absent": true,
+      "response_keys": [
+        "attendeeId",
+        "consent",
+        "interests",
+        "name",
+        "onboarded"
+      ]
+    },
+    {
+      "case": "no token",
+      "http": 401,
+      "error": "unauthorized"
+    },
+    {
+      "case": "tampered signature",
+      "http": 401,
+      "error": "unauthorized"
+    }
+  ],
+  "redacted_profiles": {
+    "A": {
+      "attendeeId": "[synthetic A identifier redacted]",
+      "name": "SYNTHETIC STORY70 A 233323",
+      "interests": [
+        "security"
+      ],
+      "consent": {
+        "clusterMap": false,
+        "qrCheckin": true
+      },
+      "onboarded": false
+    },
+    "B": {
+      "attendeeId": "[synthetic B identifier redacted]",
+      "name": "SYNTHETIC STORY70 B 233323",
+      "interests": [
+        "observability"
+      ],
+      "consent": {
+        "clusterMap": false,
+        "qrCheckin": true
+      },
+      "onboarded": false
+    }
+  },
+  "qr_api": {
+    "ttl_seconds": 60,
+    "payload_claim_names": [
+      "aud",
+      "exp",
+      "iat",
+      "iss",
+      "sub"
+    ],
+    "audience": "access",
+    "identity_claim": "sub; no name/email/interests/room claims",
+    "same_token_for_all_scans": true,
+    "elapsed_seconds": 2.242,
+    "steps": [
+      {
+        "phase": "initial allow",
+        "http": 200,
+        "decision": "allow",
+        "room": "Hyatt Regency | Level 2 | Salt Lake Ballroom DE",
+        "reason": null,
+        "same_access_token": true,
+        "identity_absent_from_response": true,
+        "observed_at": "2026-11-09T23:33:46.496434+00:00"
+      },
+      {
+        "phase": "revoked deny",
+        "http": 200,
+        "decision": "deny",
+        "room": "Hyatt Regency | Level 2 | Salt Lake Ballroom DE",
+        "reason": "not_entitled",
+        "same_access_token": true,
+        "identity_absent_from_response": true,
+        "observed_at": "2026-11-09T23:33:46.697952+00:00"
+      },
+      {
+        "phase": "restored allow",
+        "http": 200,
+        "decision": "allow",
+        "room": "Hyatt Regency | Level 2 | Salt Lake Ballroom DE",
+        "reason": null,
+        "same_access_token": true,
+        "identity_absent_from_response": true,
+        "observed_at": "2026-11-09T23:33:47.712337+00:00"
+      }
+    ]
+  },
+  "qr_browser": {
+    "input_method": "token text, not camera; no QR image captured",
+    "same_token_for_all_scans": true,
+    "elapsed_seconds": 2.615,
+    "steps": [
+      {
+        "phase": "allow",
+        "same_access_token": true,
+        "expected": "Access granted",
+        "observed_text": "\u2713\n\nAccess granted\n\nHyatt Regency | Level 2 | Salt Lake Ballroom DE",
+        "captured_at": "2026-11-09T23:35:52.531Z",
+        "screenshot": "docs/demo/live-smoke-70-qr-allow.png"
+      },
+      {
+        "phase": "revoked",
+        "same_access_token": true,
+        "expected": "Access denied",
+        "observed_text": "\u2715\n\nAccess denied\n\nHyatt Regency | Level 2 | Salt Lake Ballroom DE\n\nThis pass does not include this room.",
+        "captured_at": "2026-11-09T23:35:53.099Z",
+        "screenshot": "docs/demo/live-smoke-70-qr-revoked.png"
+      },
+      {
+        "phase": "restored",
+        "same_access_token": true,
+        "expected": "Access granted",
+        "observed_text": "\u2713\n\nAccess granted\n\nHyatt Regency | Level 2 | Salt Lake Ballroom DE",
+        "captured_at": "2026-11-09T23:35:54.105Z",
+        "screenshot": "docs/demo/live-smoke-70-qr-restored.png"
+      }
+    ],
+    "screenshot_redaction": "Actual browser screenshots cropped to .kiosk-result-region; token field and all other page content are excluded."
+  },
+  "entitlement_mutation": {
+    "index": "entitlements",
+    "target": "Only synthetic attendee A, identified from this run registration response",
+    "revocation": "Replace rooms with [] while preserving every other field",
+    "write_visibility": "Elasticsearch PUT with refresh=wait_for",
+    "restoration": "Original complete _source restored in finally after both sequences; subsequent GET matched original exactly",
+    "original_restored": true,
+    "rollback_guarantee": "Each mutation sequence restored the original document in a finally block."
+  },
+  "api_stdout_privacy": {
+    "observed_at": "2026-11-09T23:36:25.169560+00:00",
+    "since": "2026-11-09T23:33:23.425433+00:00",
+    "line_count": 240,
+    "contains_synthetic_attendee_ids": false,
+    "contains_session_or_access_token": false,
+    "access_scan_route_records": 6,
+    "records_with_decision_key": 0,
+    "records_with_room_key": 0,
+    "note": "API stdout contains generic request/completion records, not a dedicated decision-and-room log record. access.decision and room.id were separately verified in six exported access.scan spans. Raw logs are not persisted."
+  },
+  "exported_scan_span_evidence": {
+    "query": "dash0 spans query --filter \"service.name is companion-api\" --filter \"otel.span.name is access.scan\" --from <observed_from> --limit 30 -o json",
+    "selected_fields_only": true,
+    "spans": [
+      {
+        "name": "access.scan",
+        "start_time_unix_nano": "1794267353962000000",
+        "attributes": {
+          "access.decision": "allow",
+          "room.id": "Hyatt Regency | Level 2 | Salt Lake Ballroom DE"
+        },
+        "contains_test_attendee_or_token": false
+      },
+      {
+        "name": "access.scan",
+        "start_time_unix_nano": "1794267352950000000",
+        "attributes": {
+          "access.decision": "deny",
+          "room.id": "Hyatt Regency | Level 2 | Salt Lake Ballroom DE"
+        },
+        "contains_test_attendee_or_token": false
+      },
+      {
+        "name": "access.scan",
+        "start_time_unix_nano": "1794267352385000000",
+        "attributes": {
+          "access.decision": "allow",
+          "room.id": "Hyatt Regency | Level 2 | Salt Lake Ballroom DE"
+        },
+        "contains_test_attendee_or_token": false
+      },
+      {
+        "name": "access.scan",
+        "start_time_unix_nano": "1794267227704000000",
+        "attributes": {
+          "access.decision": "allow",
+          "room.id": "Hyatt Regency | Level 2 | Salt Lake Ballroom DE"
+        },
+        "contains_test_attendee_or_token": false
+      },
+      {
+        "name": "access.scan",
+        "start_time_unix_nano": "1794267226691000000",
+        "attributes": {
+          "access.decision": "deny",
+          "room.id": "Hyatt Regency | Level 2 | Salt Lake Ballroom DE"
+        },
+        "contains_test_attendee_or_token": false
+      },
+      {
+        "name": "access.scan",
+        "start_time_unix_nano": "1794267226488000000",
+        "attributes": {
+          "access.decision": "allow",
+          "room.id": "Hyatt Regency | Level 2 | Salt Lake Ballroom DE"
+        },
+        "contains_test_attendee_or_token": false
+      }
+    ]
+  },
+  "findings": {
+    "authorization_and_identity_checks": "pass",
+    "same_token_revocation_and_restore": "pass",
+    "sampled_stdout_and_scan_span_privacy": "pass",
+    "decision_and_room_in_stdout": "not present; telemetry attributes only",
+    "follow_up_bug_task": 76
+  },
+  "limitations": [
+    "Sampled routes, time window and test identities only; not a complete privacy or penetration test.",
+    "Token-text kiosk path exercised; camera scanning was not tested.",
+    "Exported scan spans were checked, not every log stored in Dash0.",
+    "The two synthetic attendee records remain subject to normal 24-hour retention; entitlements were restored, not deleted.",
+    "No application code, signing keys, cluster deployment or real attendee record was changed."
+  ]
+}

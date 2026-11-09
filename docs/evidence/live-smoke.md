@@ -75,3 +75,73 @@ schedules, resources and security contexts are unchanged.
 Local access remains `http://127.0.0.1:18086`; this is an operator port-forward,
 not a publicly reachable app or evidence of end-to-end transport TLS. The existing
 cluster and Elasticsearch remain running for subsequent #61/#52 work.
+
+## Session isolation and live QR revocation — #70, deployed `9c047d7`
+
+Observed **2026-11-09, 23:33–23:37 UTC** against
+`http://127.0.0.1:18086` on the same dedicated cluster and namespace. Both
+Deployments were verified to run `cc-api:9c047d7` / `cc-web:9c047d7`.
+This supplements, rather than changes, the historical #47 boundary above.
+
+[Timestamped, redacted HTTP checks, screenshots and log/span observations](live-smoke-70.json).
+Only two newly registered synthetic attendees, A and B, were used. No real
+attendee document, application code, signing key or deployment was changed.
+
+### `/api/me` identity and authentication
+
+| Request | Observed result |
+| --- | --- |
+| A's session token | HTTP 200; A's id, display name and interests matched registration; B's id/name absent |
+| B's session token | HTTP 200; B's id, display name and interests matched registration; A's id/name absent |
+| No token | HTTP 401 `unauthorized` |
+| A's token with a changed signature character | HTTP 401 `unauthorized` |
+
+Identifiers and session tokens remained in process memory and are redacted from
+the evidence. The JSON records response keys and field comparisons, not the
+raw identifiers.
+
+### Same fresh QR token: allow → revoke → deny → restore → allow
+
+The room was selected from the live talk catalog:
+`Hyatt Regency | Level 2 | Salt Lake Ballroom DE`.
+The access token's claims were `aud`, `exp`, `iat`, `iss`, `sub`; `sub` was its
+only attendee-identity claim. It carried no name, email, interests or room.
+
+| Synthetic A entitlement | Same-token scan result |
+| --- | --- |
+| Original general pass | HTTP 200, `allow` |
+| `rooms` changed to `[]` server-side | HTTP 200, `deny`, reason `not_entitled` |
+| Original complete document restored | HTTP 200, `allow` |
+
+All three API scans used **one identical token**, completed in **2.242 seconds**
+of its 60-second lifetime, and returned no attendee id or token. Each
+Elasticsearch write used `refresh=wait_for`; restoration ran in `finally`, and
+a subsequent GET matched the original document exactly.
+
+The real kiosk's token-text path independently repeated the same transition
+with a second fresh token, unchanged across its three scans, in 2.615 seconds.
+These are actual browser captures cropped to the decision region; the token
+input and all QR images are excluded:
+
+- [Access granted](../demo/live-smoke-70-qr-allow.png), 23:35:52Z.
+- [Revoked: access denied](../demo/live-smoke-70-qr-revoked.png), 23:35:53Z.
+- [Restored: access granted](../demo/live-smoke-70-qr-restored.png), 23:35:54Z.
+
+### Privacy observation and a logging gap
+
+- Sampled API stdout: **240 lines**, including six access-scan request
+  records; neither synthetic attendee id nor either session/access token was
+  present. Raw logs are not published.
+- Six actual exported `access.scan` spans carried the expected
+  `access.decision` / validated `room.id` values: allow, deny, allow for each
+  sequence. No tested identifier/token appeared in those spans. The JSON
+  retains only selected non-sensitive fields, not resource auth markers.
+- **The requested decision-and-room audit log was absent from stdout.**
+  Those fields existed in spans/metrics, not the generic request/completion
+  log records. Filed **P1 board #76** for this observability requirement;
+  the passing authorization checks must not be described as proof that this
+  logging requirement is implemented.
+
+This is a narrow live check, not a full privacy audit. Camera scanning and
+every Dash0-stored log were not tested. The two synthetic attendee records
+remain subject to normal 24-hour retention; their entitlements were restored.
