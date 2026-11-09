@@ -60,11 +60,16 @@ const camera = vi.hoisted(() => ({
 }));
 vi.mock("html5-qrcode", () => ({
   Html5Qrcode: class {
+    running = false;
     async start(_c: unknown, _cfg: unknown, onSuccess: (t: string) => void) {
       camera.onSuccess = onSuccess;
       if (camera.gate) await new Promise<void>((r) => (camera.release = r));
+      this.running = true;
     }
     async stop() {
+      // Like the real library, stopping a scanner that is not running yet rejects.
+      if (!this.running) throw new Error("scanner is not running");
+      this.running = false;
       camera.stops++;
     }
     clear() {}
