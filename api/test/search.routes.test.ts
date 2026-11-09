@@ -145,7 +145,7 @@ const ES_400_PARSING = {
 function appWithLogs(es: ReturnType<typeof fakeEs>) {
   const lines: string[] = [];
   const keep = (l: string) => {
-    if (JSON.parse(l).msg === "elasticsearch request failed") lines.push(l);
+    if (String(JSON.parse(l).msg).startsWith("elasticsearch request failed")) lines.push(l);
   };
   const app = Fastify({ logger: { level: "info", stream: { write: keep } } });
   registerSearchRoutes(app, { es });
@@ -169,7 +169,12 @@ describe("Elasticsearch failures are diagnosable", () => {
 
     const diag = lines.map((l) => JSON.parse(l));
     expect(diag).toHaveLength(1);
-    expect(diag[0]).toMatchObject({ "error.type": "inference_exception", "es.status": 429, overloaded: true, level: 40 });
+    expect(diag[0]).toMatchObject({
+      "error.type": "inference_exception",
+      "http.route": "/api/search",
+      msg: "elasticsearch request failed with status 429 (overloaded)",
+      level: 40,
+    });
 
     const everything = JSON.stringify({ spans, lines, body: res.body, headers: res.headers });
     expect(everything).not.toContain(SECRET);
@@ -188,7 +193,7 @@ describe("Elasticsearch failures are diagnosable", () => {
     expect(spans.find((s) => s.name === "search")!.set["error.type"]).toBe("parsing_exception");
     const diag = lines.map((l) => JSON.parse(l));
     expect(diag).toHaveLength(1);
-    expect(diag[0]).toMatchObject({ "error.type": "parsing_exception", "es.status": 400, overloaded: false });
+    expect(diag[0]).toMatchObject({ "error.type": "parsing_exception", msg: "elasticsearch request failed with status 400" });
     expect(JSON.stringify({ spans, lines, body: res.body })).not.toContain(SECRET);
   });
 

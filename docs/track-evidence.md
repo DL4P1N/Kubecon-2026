@@ -62,8 +62,9 @@ Still pending: CI-failure diagnosis and the review link for the demo.
   `Elasticsearch failures are diagnosable` in `api/test/search.routes.test.ts`
   and `EsError classification` in `api/test/es.test.ts`.
 - Not yet captured: a Dash0 trace or log of the incident, and a Radar
-  investigation. Add links here if they exist; none are claimed. The `error.type`
-  allowlist entry for the collector comes with the OTel task (#12).
+  investigation. Add links here if they exist; none are claimed. `error.type` and
+  `http.route` are added to the collector allowlist and both collector configs
+  (same lines as the OTel task #12, so the two merge cleanly).
 
 ## Radar
 

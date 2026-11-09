@@ -97,9 +97,11 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       const overloaded = isEsOverload(err);
       // One diagnostic line with the ES error type and status only. Never the
       // message/body (can contain query text), the URL query, attendee ids or credentials.
+      // Attributes are limited to allowlisted keys (error.type, http.route); the numeric
+      // ES status goes in the message text so no new attribute is needed.
       req.log.warn(
-        { "error.type": err.errorType, "es.status": err.status, "http.route": req.routeOptions?.url, overloaded },
-        "elasticsearch request failed",
+        { "error.type": err.errorType, "http.route": req.routeOptions?.url },
+        `elasticsearch request failed with status ${err.status}${overloaded ? " (overloaded)" : ""}`,
       );
       // Do not echo ES error bodies to clients; they can contain query text.
       if (overloaded) {
