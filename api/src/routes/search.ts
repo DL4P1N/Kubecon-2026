@@ -17,6 +17,7 @@ import { EsError, isEsOverload, type EsClient } from "../es/client.js";
 import type { StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
 import { onboardingText } from "../search/queries.js";
+import { parseSearchFilters } from "../search/facets.js";
 import { DEFAULT_MAX_TALKS, type ScoredTalk } from "../search/schedule.js";
 import {
   buildAndSaveSchedule,
@@ -177,7 +178,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
     return reply.code(500).send({ error: "internal_error" });
   });
 
-  app.get<{ Querystring: { q?: string; mode?: string; debug?: string; size?: string } }>(
+  app.get<{ Querystring: { q?: string; mode?: string; debug?: string; size?: string } & Record<string, unknown> }>(
     routes.search.path,
     limitFor(limits.search),
     async (req, reply): Promise<SearchResponse | void> => {
@@ -193,7 +194,9 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       if (!Number.isInteger(size) || size < 1 || size > MAX_SIZE) {
         return reply.code(400).send(bad(`size must be an integer from 1 to ${MAX_SIZE}`));
       }
-      return observed(mode, () => searchTalks(es, q, mode, size, req.query.debug === "1"));
+      const parsedFilters = parseSearchFilters(req.query);
+      if ("error" in parsedFilters) return reply.code(400).send(bad(parsedFilters.error));
+      return observed(mode, () => searchTalks(es, q, mode, size, req.query.debug === "1", parsedFilters.filters));
     },
   );
 

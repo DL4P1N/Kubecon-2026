@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config.js";
 import { buildServer, type ServerDeps } from "../src/server.js";
 import { AGGREGATE_CACHE_MS } from "../src/routes/interests.js";
+import { CATALOG_CACHE_MS } from "../src/routes/catalog.js";
 import { MAX_ANSWER_ITEMS, MAX_FREE_TEXT_LENGTH } from "../src/routes/search.js";
 import { esHit, fakeEs, talk, type FakeHandler } from "./helpers.js";
 
@@ -9,6 +10,9 @@ const A = talk("a", 9, 10);
 
 function setup(deps: Omit<ServerDeps, "es"> = {}) {
   const handler: FakeHandler = (call) => {
+    if (call.path.startsWith("/talks/_search") && (call.body as { size?: number } | undefined)?.size === 0) {
+      return { body: { aggregations: { topics: { buckets: [{ key: "security" }] } } } };
+    }
     if (call.path.startsWith("/talks/_search")) return { body: { took: 1, hits: { hits: [esHit(A, 1)] } } };
     if (call.path === "/talks/_count") return { body: { count: 1 } };
     if (call.path === "/attendees/_search") {
@@ -27,6 +31,7 @@ function setup(deps: Omit<ServerDeps, "es"> = {}) {
 describe("shared rate-limit policy", () => {
   const cases = [
     { name: "search", limits: { search: { max: 2 } }, req: { method: "GET" as const, url: "/api/search?q=kubernetes" } },
+    { name: "catalog topics", limits: { catalogTopics: { max: 2 } }, req: { method: "GET" as const, url: "/api/catalog/topics" } },
     { name: "status", limits: { status: { max: 2 } }, req: { method: "GET" as const, url: "/api/status" } },
     { name: "interests aggregate", limits: { interestsAggregate: { max: 2 } }, req: { method: "GET" as const, url: "/api/interests/aggregate" } },
     { name: "interests clusters", limits: { interestsClusters: { max: 2 } }, req: { method: "GET" as const, url: "/api/interests/clusters" } },
@@ -90,6 +95,25 @@ describe("aggregate caching", () => {
       clock += AGGREGATE_CACHE_MS;
       await app.inject({ method: "GET", url: "/api/interests/aggregate" });
       expect(searches()).toBe(2);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe("catalog caching", () => {
+  it("serves catalog topics from memory within the cache window", async () => {
+    let clock = Date.UTC(2026, 10, 10, 9);
+    const { app, es } = setup({ search: { now: () => new Date(clock) } });
+    try {
+      const aggCalls = () => es.calls.filter((c) => (c.body as { size?: number } | undefined)?.size === 0).length;
+      const first = await app.inject({ method: "GET", url: "/api/catalog/topics" });
+      expect(first.json()).toEqual({ topics: ["security"] });
+      await app.inject({ method: "GET", url: "/api/catalog/topics" });
+      expect(aggCalls()).toBe(1);
+      clock += CATALOG_CACHE_MS;
+      await app.inject({ method: "GET", url: "/api/catalog/topics" });
+      expect(aggCalls()).toBe(2);
     } finally {
       await app.close();
     }

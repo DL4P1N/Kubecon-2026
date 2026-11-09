@@ -26,6 +26,7 @@ export interface RateLimitPolicy {
   interestsAggregate: RouteLimit;
   interestsClusters: RouteLimit;
   me: RouteLimit;
+  catalogTopics: RouteLimit;
 }
 
 export const DEFAULT_RATE_LIMITS: RateLimitPolicy = {
@@ -36,6 +37,7 @@ export const DEFAULT_RATE_LIMITS: RateLimitPolicy = {
   interestsAggregate: { max: 300 },
   interestsClusters: { max: 120 },
   me: { max: 120 },
+  catalogTopics: { max: 300 },
 };
 
 export const RATE_LIMIT_WINDOW = "1 minute";

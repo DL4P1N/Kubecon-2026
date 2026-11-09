@@ -29,7 +29,7 @@ get the most headroom.
 | `POST /api/access/scan` | Signed QR token, entitlement checked server-side | 600 | none | zod: token, room (known room catalog) | `allow`/`deny`, room, reason. Never the attendee ID |
 | `GET /api/interests/aggregate` | none (public organizer view) | 300 | 15 s in memory, single-flight, `Cache-Control: public, max-age=15`; ES copy written at most once a minute | none (no input) | Topic counts with k ≥ 5 suppression (small buckets merged into `other`, dropped if still < 5) |
 | `GET /api/interests/clusters` | `x-organizer-key` (constant-time compare; 503 in production if unset) | 120 | 15 s in memory, after authorization | none (no input) | Cluster labels and sizes ≥ `MIN_CLUSTER_SIZE`. Centroids stay server-side |
-| `GET /api/catalog/topics` | not on `main` yet (PR #28, task #37) | to be applied with the shared policy when it lands (suggest 300 + 30 s cache) | — | — | Public catalog tags |
+| `GET /api/catalog/topics` | none | 300 | 30 s in memory (successes only), single-flight, `Cache-Control: public, max-age=30` | none (no input) | Public catalog tags. Never attendee interests |
 | `GET /api/rooms/*` (room occupancy) | covered by #42 review (PR #41) | covered by #42 review | covered by #42 review | covered by #42 review | covered by #42 review |
 | any unknown route | — | — | — | — | Fixed `404 { "error": "not_found" }`. The raw path/query is not echoed (Fastify's default message did echo it) |
 
@@ -78,8 +78,9 @@ status are logged.
 
 `api/test/security.test.ts` covers:
 
-- 429 with the shared body on search, status, interests aggregate, interests
-  clusters and onboarding.
+- 429 with the shared body on search, catalog topics, status, interests
+  aggregate, interests clusters and onboarding.
+- A catalog topics cache hit makes no second ES call.
 - Per-IP buckets.
 - `/healthz` is never limited.
 - An aggregate cache hit makes no second ES call.
