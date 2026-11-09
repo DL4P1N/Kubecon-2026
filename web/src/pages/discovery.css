@@ -12,3 +12,12 @@
 .checkin-token { overflow-wrap: anywhere; }
 .discovery label:has(input[type=checkbox]) { display: flex; align-items: center; min-height: 44px; gap: .35rem; }
 @media (max-width: 600px) { .search-comparison { grid-template-columns: 1fr; } }
+.search-filters { display: grid; gap: .5rem; margin: 1rem 0; }
+.filter-group { border: 1px solid #cbd5e1; border-radius: .3rem; padding: .25rem .75rem .75rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+.filter-group legend { font-weight: 600; padding: 0 .25rem; }
+.discovery .filter-chip { min-height: 44px; padding: .4rem .8rem; border: 1px solid #164e9b; background: white; color: #164e9b; border-radius: 999px; }
+.discovery .filter-chip[aria-pressed=true] { background: #164e9b; color: white; }
+.discovery .filter-chip:focus-visible, .discovery .filter-clear:focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; }
+.discovery .filter-chip:disabled { opacity: .6; background: white; color: #164e9b; }
+.discovery .filter-chip[aria-pressed=true]:disabled { background: #164e9b; color: white; }
+.discovery .filter-clear { justify-self: start; min-height: 44px; }
