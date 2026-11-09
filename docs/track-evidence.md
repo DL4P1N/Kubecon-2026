@@ -3,6 +3,21 @@
 Capture links, screenshots, and observations here as the demo environment is
 validated.
 
+## What's real vs pending
+
+Audit snapshot: 2026-11-09. Merged implementation and test results are not a
+substitute for a live deployment check. Operator-local URLs are not public
+artifacts; the committed screenshots/JSON and PRs below are the portable evidence.
+
+| Area | Observed or merged evidence | Still pending or not observed |
+| --- | --- | --- |
+| Elasticsearch | [417-talk live 12-query report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162): hybrid 5 wins / 7 ties / 0 losses, hit@3 5/12 vs 0/12, MRR@10 0.306 vs 0.017 | Majority-win criterion not met; [report/docs PR40](https://github.com/DL4P1N/Kubecon-2026/pull/40) is separate from merged evaluator PR27 |
+| Radar | [Actual AI run + follow-up](#actual-radar-ai-investigation-task-30), [merged PR37](https://github.com/DL4P1N/Kubecon-2026/pull/37), committed verdict/screenshot | Original capacity diagnosis was via ES APIs; controlled outage is not a natural incident |
+| Dash0 | [Collector export/scrub probe](#evidence-boundaries); [SDK PR15](https://github.com/DL4P1N/Kubecon-2026/pull/15), [privacy tests PR30](https://github.com/DL4P1N/Kubecon-2026/pull/30), [dashboard/SLO code PR33](https://github.com/DL4P1N/Kubecon-2026/pull/33) merged | Complete app trace and live dashboard/SLO screenshots await verified rollout after [PR #32](https://github.com/DL4P1N/Kubecon-2026/pull/32); Agent0 remediation and raw URL/path findings are being handled in board task #40 |
+| Gitar | [Rules 1/1](#repository-rule-verification-task-34), [fix PR8](https://github.com/DL4P1N/Kubecon-2026/pull/8), [probe fix PR6](https://github.com/DL4P1N/Kubecon-2026/pull/6), [requested retrospective CI diagnosis](gitar-ci-diagnosis.md#verified-diagnosis-after-an-explicit-request-on-an-open-pr) | Automatic CI-failure triggering and auto-apply remain unproven; functional validation not enabled; no Sonar tooling claim |
+| TLS | [TLS overlay PR31](https://github.com/DL4P1N/Kubecon-2026/pull/31) and trust/hostname tests merged | [Live overlay/browser trust validation](../deploy/k8s/tls/README.md) pending; current app/collector transport must not be called verified end-to-end TLS |
+| Demo | [Labelled mock-API UI fallback](demo/recording.md), [runbook/seed PR34](https://github.com/DL4P1N/Kubecon-2026/pull/34) | Real deployed attendee-flow recording and presenter review remain separate gates |
+
 ## Judge swimlanes and claim gates
 
 Lane names are presentation labels, not proof of integration. Follow the Design
@@ -11,75 +26,88 @@ entry only after a real review finding is acted on.
 
 | Judge lane | Design Doc evidence required | Current evidence gap |
 | --- | --- | --- |
-| Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | Rules 1/1 met, acted-on probe finding, and explicitly requested retrospective CI-log diagnosis verified below. Automatic CI triggering and auto-apply unverified. No Sonar tooling claim. |
-| Dash0: Stop Flying Blind | Browser → API → ES trace, search/embedding/access spans, p95 SLO, dashboard, scrubbing proof, real issue investigation | Collector-to-Dash0 export and synthetic attribute scrubbing verified live. Browser/API/ES trace, full privacy test, SLO and issue evidence remain pending. |
+| Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | [Rules 1/1](#repository-rule-verification-task-34), acted-on findings and [explicitly requested CI diagnosis](gitar-ci-diagnosis.md) verified. Automatic triggering/auto-apply remain unproven. No Sonar tooling claim. |
+| Dash0: Stop Flying Blind | Browser → API → ES trace, search/embedding/access spans, p95 SLO, dashboard, scrubbing proof, real issue investigation | Collector probe verified live; [full privacy test PR30](https://github.com/DL4P1N/Kubecon-2026/pull/30) merged. Live app trace, SLO/dashboard data and issue-remediation artifact remain pending. |
 | Radar: AI SRE | Ready Kubernetes workloads, UI and MCP used, real investigation with remediation | Live UI/MCP and an actual safeguarded Codex AI investigation captured below, with evidence, verified follow-up and linked fix. Human review of #30 pending. |
-| Elasticsearch: Find the Right Talk | Real catalog and ES inference per human decisions; BM25 vs hybrid results and query comparison | Live: 417 real talks indexed with ES E5, keyword and hybrid APIs return 200. All five planned comparisons measured; they do not establish a consistent relevance win. Results in `docs/demo/search-comparison-measured.json`; quality work is #36. |
+| Elasticsearch: Find the Right Talk | Real catalog and ES inference per human decisions; BM25 vs hybrid results and query comparison | [12-query live report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162): 417 talks, 5 hybrid wins / 7 ties / 0 losses. Majority-win criterion not met; earlier five-query raw results remain committed. |
 
 Do not substitute scaffold/mock routes for end-to-end acceptance. A `/healthz`
 response alone does not verify Elasticsearch inference or token entitlements.
 Controlled faults must be explicitly labelled as controlled.
 
-Operational priorities: the cluster exists (see Radar section), so next are the real-catalog
-seed with ES inference, the registration → schedule → QR flow, live Dash0 export (needs the
-`dash0-credentials` Secret) and a recorded fallback. TLS gaps are tracked in #24.
+Operational priorities: verify the latest deployed registration → schedule → QR flow,
+the full app telemetry path and live dashboard/SLO data. The real catalog is
+seeded and collector credentials are provisioned. The offline fallback exists;
+live recording and TLS rollout remain pending. See the status table above.
 Conditional map/navigation work must preserve the consent, k≥5 and simulated-replay
 boundaries in the Design Doc.
 
 ## Gitar findings acted on
 
 Gitar requested changes on PR #1 and PR #3; both were merged before the findings
-were addressed. They are fixed in PR #25's branch (`task/25-fix-open-gitar-findings-on-mer`).
-The fix commit is the PR link until the merge hash is known.
+were addressed. The initial fixes merged in [PR #8](https://github.com/DL4P1N/Kubecon-2026/pull/8)
+as [39fe521](https://github.com/DL4P1N/Kubecon-2026/commit/39fe521c).
+Later signed-session/access implementations are linked explicitly below.
 
 - Finding: `TOKEN_SIGNING_KEY` silently falls back to a public hardcoded key in production (`api/src/config.ts`).
   PR: [#1](https://github.com/DL4P1N/Kubecon-2026/pull/1).
   Change: `loadConfig` throws in `NODE_ENV=production` when `TOKEN_SIGNING_KEY`, `ES_URL`, `ES_USERNAME` or `ES_PASSWORD` is missing or empty; the dev fallback stays outside production. Tests: `api/test/config.test.ts`.
-  Fix commit: this fix's PR (hash pending merge).
+  Initial fix merged in [PR #8](https://github.com/DL4P1N/Kubecon-2026/pull/8) (39fe521).
 - Finding: repeated `q` param crashes `/api/search` with a 500 (PR #1).
   PR: [#1](https://github.com/DL4P1N/Kubecon-2026/pull/1).
   Change: the search route rejects non-string `q` with 400 `invalid_request`. Test: `GET /api/search repeated params` in `api/test/search.routes.test.ts`.
-  Fix commit: this fix's PR (hash pending merge).
+  Initial fix merged in [PR #8](https://github.com/DL4P1N/Kubecon-2026/pull/8) (39fe521).
 - Finding: any caller can read or overwrite any attendee's schedule via an unsigned `Bearer stub.<id>` header (`api/src/routes/search.ts`).
   PR: [#3](https://github.com/DL4P1N/Kubecon-2026/pull/3).
-  Change: `defaultResolveAttendee` always returns the stub attendee; `resolveAttendee` stays injectable for tests and for the signed-token work. Test: header spoofing cannot reach another attendee's schedule.
-  Fix commit: this fix's PR (hash pending merge).
+  Initial change: removed caller-selected stub identity. The current signed-session
+  implementation is [PR #22](https://github.com/DL4P1N/Kubecon-2026/pull/22): schedules
+  require a verified attendee token and reject missing, stub, tampered and expired tokens.
+  Initial fix merged in [PR #8](https://github.com/DL4P1N/Kubecon-2026/pull/8) (39fe521).
 - Finding: the 24h schedule `expires_at` is written but never enforced on read (`api/src/search/service.ts`).
   PR: [#3](https://github.com/DL4P1N/Kubecon-2026/pull/3).
-  Change: the schedule store treats a doc whose `expires_at` has passed as missing. The scheduled purge is left to task #15. Test: expired and unexpired docs on `GET /api/schedule`.
-  Fix commit: this fix's PR (hash pending merge).
+  Change: the schedule store treats expired docs as missing. Cleanup is implemented
+  in [PR #11](https://github.com/DL4P1N/Kubecon-2026/pull/11), with standalone telemetry
+  in [PR #29](https://github.com/DL4P1N/Kubecon-2026/pull/29). Live CronJob execution
+  is still separate from these code/test results.
+  Initial fix merged in [PR #8](https://github.com/DL4P1N/Kubecon-2026/pull/8) (39fe521).
 - Finding: `GET /api/schedule` and the talk-id lookup create no OpenTelemetry span (PR #3).
   PR: [#3](https://github.com/DL4P1N/Kubecon-2026/pull/3).
   Change: `schedule.load` and `talks.fetch` spans via `withSpan`, with no attributes (no attendee ids). Test: span names and empty attributes on `GET /api/schedule`.
-  Fix commit: this fix's PR (hash pending merge).
+  Initial fix merged in [PR #8](https://github.com/DL4P1N/Kubecon-2026/pull/8) (39fe521).
 - Finding: default hybrid mode queries `content_semantic`, which was missing from the talks mapping (PR #3).
   PR: [#3](https://github.com/DL4P1N/Kubecon-2026/pull/3).
-  Change: already fixed by task #19 (PR #4), nothing further here.
+  Change: fixed by [real-catalog/semantic_text PR #4](https://github.com/DL4P1N/Kubecon-2026/pull/4).
 - Finding: the room-scan stub grants access without validating tokens (PR #1, high risk).
   PR: [#1](https://github.com/DL4P1N/Kubecon-2026/pull/1).
-  Change: not fixed here. It belongs to task #11 (real token validation), noted there.
+  Change: fixed by [PR #21](https://github.com/DL4P1N/Kubecon-2026/pull/21),
+  which verifies access-audience signed tokens and checks live server-side
+  entitlements on every scan. Tests cover allow, deny, expiry and revocation;
+  cluster/camera acceptance must be verified independently.
 
 - Finding (PR [#6](https://github.com/DL4P1N/Kubecon-2026/pull/6), Gitar "Changes requested"): web startup/liveness probes proxied to API `/healthz`, so an API outage would restart healthy nginx.
   Change: web startup/liveness now probe local `/index.html`; proxied `/healthz` kept for readiness only (`deploy/k8s/app/deployments.yaml`, commit `87ebf1b`).
   Verified live (CONTROLLED API outage, ~40s): `/index.html` stayed 200, `/healthz` returned 504, web `Ready=False`, nginx restarts 0 to 0; API restored and `/healthz` back to 200.
 
-CI-log diagnosis is verified through an explicit retrospective request.
-Automatic CI-failure triggering and auto-apply remain unverified.
+An explicitly requested retrospective CI diagnosis is now verified; see the
+[specific audit](gitar-ci-diagnosis.md). Automatic triggering and auto-apply
+remain unproven.
 
 Task #44 initially audited two real failed Actions runs (PR14 Docker build and PR22
 schedule browser tests). Their current Gitar dashboards contain Code Review,
 without retained CI-analysis output. PR14's missing-fixture finding predates
 the actual failure, so it proves useful review, not CI-log analysis. The fix
 and subsequent green run are linked in the [CI evidence audit](gitar-ci-diagnosis.md).
-The first retrospective request on merged PR14 got a non-diagnostic reply.
-A subsequent explicit request on open PR39 succeeded:
-[Gitar read the real PR23 failure logs and diagnosed an async topic-load test
-race](https://github.com/DL4P1N/Kubecon-2026/pull/39#issuecomment-6749861362).
-The teammate-authored fix `d7282fbb` and its green CI run are linked in the audit.
-This proves requested log access/diagnosis; the fix predates the request and
-was not applied by Gitar. No permission changes or auto-apply were needed.
+The first retrospective request received a generic reply, which is not evidence.
+A later [explicit request on open PR39](https://github.com/DL4P1N/Kubecon-2026/pull/39#issuecomment-6749839603)
+received [substantive log-backed diagnosis](https://github.com/DL4P1N/Kubecon-2026/pull/39#issuecomment-6749861362)
+of PR23's real keyboard-test failure. It identified the asynchronous topic-load
+race and the already-authored readiness-wait fix; the fixed-head CI passed.
+This proves requested CI-log access/analysis, not automatic triggering or a
+Gitar-authored fix. The earlier lack-of-access hypothesis is resolved without
+inventing a settings or plan restriction. See the audit for the distinct
+historical requests and causal limits.
 The owner reports automatic reviews work and the documented toggle is not
-visible in their dashboard. Automatic failure-event diagnosis remains unverified.
+visible in their dashboard. No permission changes or auto-apply were needed.
 
 ### Repository-rule verification (task #34)
 
@@ -93,9 +121,10 @@ preserves all seven project requirements and explicitly limits the result
 to static review. This proves repository-rule execution on this PR, not
 runtime compliance or a separate Knowledge-library fact citation.
 The human confirmed a Pro trial. Functional validation remains "Not enabled"
-and requires Enterprise. CI-log diagnosis was subsequently verified through an
-explicit request (task #44 above); automatic CI-triggered analysis and
-auto-apply were not demonstrated.
+and requires Enterprise.
+Requested retrospective CI diagnosis is verified separately in the
+[CI evidence audit](gitar-ci-diagnosis.md); automatic triggering and auto-apply
+are not claimed.
 
 ## Elasticsearch real issues
 
@@ -116,7 +145,10 @@ auto-apply were not demonstrated.
   `Retry-After`; other ES failures stay 502. Hybrid does not fall back to keyword on
   overload, so an incident stays visible. Tests: `Elasticsearch failures are diagnosable`
   in `api/test/search.routes.test.ts` and `EsError classification` in `api/test/es.test.ts`
-  (realistic 429 and 400 ES bodies, production logger options).
+  (realistic 429 and 400 ES bodies, production logger options). The implementation
+  merged in [PR #26](https://github.com/DL4P1N/Kubecon-2026/pull/26). The later
+  [attendee-facing fallback PR #38](https://github.com/DL4P1N/Kubecon-2026/pull/38)
+  can retry keyword search with an explicit UI notice; the API error remains visible.
 - Not captured: a Dash0 trace or log of this request, or a Radar investigation of it. None
   is claimed.
 
@@ -214,7 +246,10 @@ kubectl radar diagnose statefulset/elasticsearch \
   Its debug exporter retained `search.mode=hybrid` and removed the synthetic private
   `attendee.id` / `geo.location` values. This proves collector-to-Dash0 export and the
   basic scrub, not the browser-to-API-to-ES trace or complete privacy-flow test.
-- TLS is end-to-end only for ES; web to api and api to collector are plaintext HTTP (board #24).
+- ES TLS was verified live. The app/collector TLS overlay merged in
+  [PR #31](https://github.com/DL4P1N/Kubecon-2026/pull/31), with trusted-CA and
+  wrong-host rejection tests. App/collector rollout and browser trust verification
+  remain pending; merged YAML is not evidence of live end-to-end TLS.
 - `TRUST_PROXY=1` is consumed by the upstream #27 implementation; verified inside
   the actual API pod (`trustProxyHops: 1`, Node v22.23.4). Configuration/proxy tests:
   10 passed after installing current upstream dependencies.
@@ -224,9 +259,13 @@ kubectl radar diagnose statefulset/elasticsearch \
 - End-to-end trace (browser -> api -> Elasticsearch) for one `/api/search`
   request: screenshot goes here (`docs/evidence/dash0-search-trace.png`),
   with the trace id. Collector credentials/export are verified; full app-trace proof
-  awaits deployment of the production-image dependency fix (#39).
-- Allowlist proof: the same trace's span attributes show `search.mode` and no
-  `attendee.id` (unit test: `api/test/telemetry.test.ts`). Screenshot: pending.
+  awaits verified app rollout after the
+  [production-image dependency fix PR #32](https://github.com/DL4P1N/Kubecon-2026/pull/32).
+- Privacy test evidence: [merged PR #30](https://github.com/DL4P1N/Kubecon-2026/pull/30)
+  exercises registration, search, allow and revoked scan with an in-memory span
+  exporter and captured logs, and checks collector allowlist configuration. It
+  does not execute a real collector. The corresponding live trace screenshot
+  remains pending; additional raw URL/path findings are being handled in board task #40.
 - Metrics: `http.server.request.duration` by `http.route`,
   `companion.search.duration`, `access.scans` dashboard. Screenshot: pending.
 - SLO (p95 search latency) and Agent0 / Dash0 MCP investigation: pending.
@@ -245,7 +284,8 @@ kubectl radar diagnose statefulset/elasticsearch \
 
 ## Accessibility
 
-- Real-browser check: Edge on Windows, 2026-11-09; 11 Playwright tests passed.
+- Initial real-browser check: Edge on Windows, 2026-11-09; 11 Playwright tests passed
+  for [PR #18](https://github.com/DL4P1N/Kubecon-2026/pull/18).
 - Axe WCAG 2 A/AA and WCAG 2.1 AA checks on register, onboarding, schedule
   (with generated QR), populated keyword/hybrid search and kiosk at 375px and
   1280px widths: zero serious or critical violations. No horizontal overflow.
