@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import type { SearchMode, SearchResponse } from "@cc/shared";
 import { ApiError, api } from "../api.js";
+import { EmptyState, ErrorState } from "../components/PageState.js";
 import "./discovery.css";
 
 type Result = SearchResponse & { debug?: unknown };
@@ -11,6 +12,7 @@ export function Search() {
   const [results, setResults] = useState<Partial<Record<SearchMode, Result>>>({});
   const [errors, setErrors] = useState<Partial<Record<SearchMode, string>>>({});
   const [pending, setPending] = useState(false);
+  const form = useRef<HTMLFormElement>(null);
   // Hybrid was overloaded (503) or failing in Elasticsearch (502): keyword results are shown in its place.
   const [hybridFellBack, setHybridFellBack] = useState(false);
   async function onSubmit(event: FormEvent) {
@@ -45,7 +47,7 @@ export function Search() {
   return <section className="discovery">
     <h1>Search talks</h1>
     <p>Compare exact keyword matches with hybrid search, which also looks for related meaning.</p>
-    <form onSubmit={onSubmit} role="search" aria-busy={pending}>
+    <form ref={form} onSubmit={onSubmit} role="search" aria-busy={pending}>
       <label htmlFor="q">Query</label>
       <input id="q" value={q} maxLength={1000} onChange={(event) => setQ(event.target.value)} placeholder="Securing my Kubernetes supply chain" />
       <label><input type="checkbox" checked={debug} onChange={(event) => setDebug(event.target.checked)} /> Include Elasticsearch query details</label>
@@ -54,11 +56,14 @@ export function Search() {
     <p role="status">{pending ? "Searching both methods…" : Object.keys(results).length > 0 ? "Comparison ready." : "Enter a query to compare results."}</p>
     <div className="search-comparison">{modes.map((mode) => <section key={mode} aria-labelledby={`heading-${mode}`}>
       <h2 id={`heading-${mode}`}>{mode === "keyword" ? "Keyword" : "Hybrid"}</h2>
-      {errors[mode] && <p role="alert">{errors[mode]}</p>}
+      {errors[mode] && <ErrorState onRetry={() => form.current?.requestSubmit()} retryLabel={`Retry ${mode} search`}>{errors[mode]}</ErrorState>}
       {mode === "hybrid" && hybridFellBack && <p role="status">Hybrid search is warming up, so keyword results are shown here instead. Try again in a few seconds.</p>}
       {results[mode] && <>
         <p>{results[mode]!.hits.length} results · {results[mode]!.tookMs} ms</p>
-        {results[mode]!.hits.length === 0 && <p>No matching talks. Try a broader query.</p>}
+        {results[mode]!.hits.length === 0 && <EmptyState>
+          <p>No matching talks.</p>
+          <p>Try broader or fewer words, for example “security” instead of a full sentence, or check the spelling.</p>
+        </EmptyState>}
         <ol className="talk-results">{results[mode]!.hits.map(({ talk, score }) => <li key={talk.id}>
           <h3>{talk.title}</h3><p>{talk.speaker} · {talk.room}</p><p>{talk.abstract}</p>
           <p>Score: {score.toFixed(2)}</p>

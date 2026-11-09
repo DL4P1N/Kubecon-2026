@@ -1,0 +1,9 @@
+.page-state { margin: 1rem 0; }
+.page-state-empty, .page-state-error { border-left: 4px solid #475569; padding: .5rem .75rem; background: #f8fafc; color: #1f2937; }
+.page-state-error { border-left-color: #991b1b; }
+.page-state-error [role=alert] { color: #991b1b; margin: 0 0 .5rem; }
+.page-state-error [role=alert]:last-child { margin-bottom: 0; }
+.page-state-empty > :first-child { margin-top: 0; }
+.page-state-empty > :last-child { margin-bottom: 0; }
+.page-state button { border: 0; border-radius: .3rem; padding: .65rem 1rem; min-height: 44px; background: #164e9b; color: white; cursor: pointer; }
+.page-state a { color: #164e9b; }
