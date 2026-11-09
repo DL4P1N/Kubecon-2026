@@ -17,16 +17,22 @@ export async function runRetention(es: EsClient, now = new Date()): Promise<numb
   const query = retentionQuery(now);
   return withSpan("retention.run", {}, async (span) => {
     let deleted = 0;
+    let incomplete = false;
     for (const index of RETENTION_INDICES) {
-      const { body } = await es.request<{ deleted: number; failures?: unknown[]; timed_out?: boolean; version_conflicts?: number }>(
-        "POST", `/${index}/_delete_by_query?refresh=true&conflicts=proceed`, query,
-      );
-      if (body.timed_out || body.failures?.length || body.version_conflicts || !Number.isFinite(body.deleted) || body.deleted < 0) {
-        throw new Error("Retention cleanup incomplete");
+      try {
+        const { body } = await es.request<{ deleted: number; failures?: unknown[]; timed_out?: boolean; version_conflicts?: number }>(
+          "POST", `/${index}/_delete_by_query?refresh=true&conflicts=proceed`, query,
+        );
+        if (body.timed_out || body.failures?.length || body.version_conflicts || !Number.isFinite(body.deleted) || body.deleted < 0) {
+          incomplete = true;
+        }
+        if (Number.isFinite(body.deleted) && body.deleted > 0) deleted += body.deleted;
+      } catch {
+        incomplete = true;
       }
-      deleted += body.deleted;
     }
     span.setAttribute("retention.deleted", deleted);
+    if (incomplete) throw new Error("Retention cleanup incomplete");
     return deleted;
   });
 }

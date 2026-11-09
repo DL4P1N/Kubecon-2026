@@ -31,6 +31,13 @@ it("deletes old or expired documents and keeps new documents at a fixed clock", 
 it("reports incomplete deletion as failure", async () => {
   const es = { request: vi.fn().mockResolvedValue({ status: 200, body: { deleted: 0, failures: [{}] } }) };
   await expect(runRetention(es as unknown as EsClient, now)).rejects.toThrow("incomplete");
+  expect(es.request).toHaveBeenCalledTimes(3);
+});
+it("continues later indices after a request error", async () => {
+  const request = vi.fn().mockRejectedValueOnce(new Error("unavailable"))
+    .mockResolvedValue({ status: 200, body: { deleted: 2 } });
+  await expect(runRetention({ request } as unknown as EsClient, now)).rejects.toThrow("incomplete");
+  expect(request).toHaveBeenCalledTimes(3);
 });
 it("rejects an invalid clock before issuing deletion requests", () => {
   expect(() => retentionQuery(new Date("invalid"))).toThrow("Invalid retention clock");
