@@ -65,6 +65,17 @@ The fix commit is the PR link until the merge hash is known.
 
 Still pending: CI-failure diagnosis and the review link for the demo.
 
+Task #44 audited the two real failed Actions runs (PR14 Docker build and PR22
+schedule browser tests). Their current Gitar dashboards contain Code Review,
+without retained CI-analysis output. PR14's missing-fixture finding predates
+the actual failure, so it proves useful review, not CI-log analysis. The fix
+and subsequent green run are linked in the [CI evidence audit](gitar-ci-diagnosis.md).
+A read-only retrospective diagnosis was requested; its bot reply gave no CI
+root cause or log analysis, so it is not diagnosis evidence. Admin settings
+confirmation is pending on board question #15. CI diagnosis and auto-apply
+remain unproven; no separate enable toggle or unavailable-plan explanation
+is invented.
+
 ### Repository-rule verification (task #34)
 
 The existing `.gitar/review/` files are review guidance. Prior PR dashboards
