@@ -44,6 +44,18 @@ afterEach(() => {
 const hits = [esHit(A, 0.03, ["keyword", "semantic"]), esHit(C, 0.02, ["semantic"]), esHit(B, 0.01, ["keyword"])];
 
 describe("GET /api/search", () => {
+  it("sends a misspelled query to Elasticsearch with fuzziness in both modes (#55)", async () => {
+    for (const mode of ["keyword", "hybrid"]) {
+      const { es } = memoryEs([esHit(A, 4.2, ["keyword"])]);
+      const app = buildServer(loadConfig({}), { es });
+      const res = await app.inject({ method: "GET", url: `/api/search?q=kuberentes&mode=${mode}` });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.stringify(es.calls[0]!.body);
+      expect(body).toContain('"query":"kuberentes"');
+      expect(body).toContain('"fuzziness":"AUTO"');
+      expect(body).toContain('"prefix_length":1');
+    }
+  });
   it("keyword mode sends a multi_match and returns scored hits", async () => {
     const { es } = memoryEs([esHit(A, 4.2, ["keyword"])]);
     const app = buildServer(loadConfig({}), { es });
@@ -340,7 +352,12 @@ describe("schedule routes", () => {
     const body = res.json() as ScheduleResponse;
     expect(body.items.map((i) => i.talk.id)).toEqual(["b", "c"]);
     expect(body.droppedTalkIds).toEqual(["nope", "a"]);
+    // Only the overlap is a conflict; the unknown id is not.
+    expect(body.skipped?.map(({ talkId, conflictsWith }) => ({ talkId, conflictsWith }))).toEqual([{ talkId: "a", conflictsWith: ["b"] }]);
+    expect(body.skipped?.[0]?.talk?.id).toBe("a");
     expect((docs.get("ada-1") as { talk_ids: string[] }).talk_ids).toEqual(["b", "c"]);
+    const get = await app.inject({ method: "GET", url: "/api/schedule", headers });
+    expect((get.json() as ScheduleResponse).skipped).toBeUndefined();
   });
 
   it("keeps two registered attendees' schedules separate", async () => {
@@ -456,7 +473,7 @@ describe("schedule routes", () => {
     spans.length = 0;
     await app.inject({ method: "GET", url: "/api/schedule", headers });
     expect(spans.map((s) => s.name)).toEqual(["schedule.get", "schedule.load", "talks.fetch"]);
-    expect(spans[0]!.attrs).toEqual({ "http.request.method": "GET", "url.path": "/api/schedule" });
+    expect(spans[0]!.attrs).toEqual({ "http.request.method": "GET", "http.route": "/api/schedule" });
     expect(spans[0]!.set).toEqual({ "http.response.status_code": 200 });
     expect(spans.slice(1).every((s) => Object.keys(s.attrs).length === 0)).toBe(true);
     expect(JSON.stringify(spans)).not.toContain("ada-1");

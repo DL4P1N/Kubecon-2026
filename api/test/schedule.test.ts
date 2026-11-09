@@ -59,6 +59,35 @@ describe("buildSchedule", () => {
   });
 
   it("handles an empty candidate list", () => {
-    expect(buildSchedule([])).toEqual({ chosen: [], dropped: [] });
+    expect(buildSchedule([])).toEqual({ chosen: [], dropped: [], skipped: [] });
+  });
+});
+
+describe("buildSchedule skipped", () => {
+  const skippedIds = (r: ReturnType<typeof buildSchedule>) =>
+    r.skipped.map((s) => ({ talkId: s.talk.id, conflictsWith: s.conflictsWith }));
+
+  it("reports each overlap-dropped talk with the kept talk it conflicts with", () => {
+    const r = buildSchedule([scored("high", 9, 10, 5), scored("low", 9.5, 10.5, 1), scored("free", 11, 12, 0)]);
+    expect(skippedIds(r)).toEqual([{ talkId: "low", conflictsWith: ["high"] }]);
+    expect(r.skipped[0]!.talk.title).toBe("Talk low");
+  });
+
+  it("lists every kept talk a skipped talk overlaps", () => {
+    const r = buildSchedule([scored("a", 9, 10, 3), scored("b", 10, 11, 2), scored("wide", 9, 11, 1)]);
+    expect(skippedIds(r)).toEqual([{ talkId: "wide", conflictsWith: ["a", "b"] }]);
+  });
+
+  it("does not report cap, invalid-time or duplicate drops as conflicts", () => {
+    const bad = { talk: { ...talk("bad", 9, 10), end: "nonsense" }, score: 10 };
+    const r = buildSchedule([bad, scored("a", 9, 10, 3), scored("b", 9, 11, 2), scored("a", 9, 10, 2)], 1);
+    expect(r.dropped).toEqual(["bad", "b"]);
+    expect(r.skipped).toEqual([]);
+  });
+
+  it("reports overlaps found before the cap is reached but not after", () => {
+    const r = buildSchedule([scored("a", 9, 10, 4), scored("clash", 9, 10, 3), scored("b", 11, 12, 2), scored("late", 11, 12, 1)], 2);
+    expect(r.dropped).toEqual(["clash", "late"]);
+    expect(skippedIds(r)).toEqual([{ talkId: "clash", conflictsWith: ["a"] }]);
   });
 });

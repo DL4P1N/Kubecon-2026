@@ -39,11 +39,12 @@ describe("withSpan allowlist", () => {
   it("drops attribute keys that are not allowlisted", async () => {
     const result = await withSpan(
       "search.hybrid",
-      { "search.mode": "hybrid", "attendee.id": "a-123", "geo.location": "52.1,4.3", q: "free text" },
+      { "search.mode": "hybrid", "attendee.id": "a-123", "geo.location": "52.1,4.3", q: "free text", "url.path": "/api/search?q=private-start#private-fragment" },
       async (span) => {
         span.setAttribute("search.hits", 7);
         span.setAttribute("attendee.id", "a-123");
         span.setAttribute("user.email", "x@y.z");
+        span.setAttribute("url.path", "/api/search?q=private-late");
         return 42;
       },
     );
