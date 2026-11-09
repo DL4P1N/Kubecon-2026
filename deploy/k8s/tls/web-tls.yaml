@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  template:
+    spec:
+      containers:
+        - name: web
+          env:
+            - { name: API_UPSTREAM, value: "https://api:3000" }
+            - { name: OTLP_UPSTREAM, value: "https://otel-collector:4318" }
+          startupProbe:
+            httpGet:
+              scheme: HTTPS
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+          livenessProbe:
+            httpGet:
+              scheme: HTTPS
+          volumeMounts:
+            - { name: transport-tls, mountPath: /etc/companion-tls, readOnly: true }
+            - name: tls-template
+              mountPath: /etc/nginx/templates/default.conf.template
+              subPath: default.conf.template
+              readOnly: true
+      volumes:
+        - name: transport-tls
+          secret:
+            secretName: companion-web-tls
+        - name: tls-template
+          configMap:
+            name: companion-nginx-tls

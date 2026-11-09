@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import { readFileSync } from "node:fs";
 import {
   routes,
   type HealthResponse,
@@ -38,6 +39,11 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   const es = deps.es ?? createEsClient(config);
   const embedder = createEmbedder(process.env, es);
   const app = Fastify({
+    ...(config.apiTlsCertFile ? { https: {
+      cert: readFileSync(config.apiTlsCertFile),
+      key: readFileSync(config.apiTlsKeyFile!),
+      minVersion: "TLSv1.2" as const,
+    } } : {}),
     logger: loggerOptions,
     trustProxy: config.trustProxyHops > 0
       ? (_address: string, hop: number) => hop < config.trustProxyHops
