@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import rateLimit from "@fastify/rate-limit";
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { z } from "zod";
 import { routes, type MeResponse, type RegisterResponse } from "@cc/shared";
 import { requireAttendee, type TokenService } from "../auth/token.js";
 import type { EsClient } from "../es/client.js";
+import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor } from "../http/rateLimit.js";
 import { embed as defaultEmbed } from "../es/embeddings.js";
 
 /**
@@ -132,7 +132,7 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
 
   // Scoped to this plugin: only routes that opt in via config.rateLimit are limited.
   // Behind an ingress, set Fastify `trustProxy` so req.ip is the client, not the proxy.
-  await app.register(rateLimit, { global: false });
+  await applyRateLimit(app); // shared 429 shape and req.ip key (http/rateLimit.ts)
 
   app.post(
     routes.register.path,
@@ -198,7 +198,7 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
       }),
   );
 
-  app.get(routes.me.path, async (req, reply) =>
+  app.get(routes.me.path, limitFor(DEFAULT_RATE_LIMITS.me), async (req, reply) =>
     traced("me", "GET", routes.me.path, reply, async () => {
       const id = await requireAttendee(tokens, req, reply);
       if (id === null) return reply;

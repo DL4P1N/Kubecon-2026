@@ -16,6 +16,7 @@ import { registerClusterRoutes } from "./routes/clusters.js";
 import { registerStatusRoutes } from "./routes/status.js";
 import { createStatusTracker, type StatusTracker } from "./status/tracker.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
+import { resolveRateLimits, type RateLimitPolicy } from "./http/rateLimit.js";
 
 const VERSION = "0.1.0";
 
@@ -28,6 +29,8 @@ export interface ServerDeps {
   tokens?: TokenService;
   /** In-process counters behind GET /api/status; tests inject one to control time. */
   status?: StatusTracker;
+  /** Per-IP rate limits (http/rateLimit.ts); tests lower them. /healthz is never limited. */
+  rateLimits?: Partial<RateLimitPolicy>;
 }
 
 /**
@@ -55,6 +58,11 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
 
   // Rolling counters for GET /api/status: status codes only, never paths, bodies or ids.
   const tracker = deps.status ?? createStatusTracker();
+  const limits = resolveRateLimits(deps.rateLimits);
+
+  // Fastify's default 404 body echoes the method and raw URL (including the query
+  // string); answer with a fixed JSON shape instead.
+  app.setNotFoundHandler((_req, reply) => reply.code(404).send({ error: "not_found", message: "route not found" }));
   app.addHook("onResponse", async (req, reply) => {
     const path = req.routeOptions?.url;
     if (path === routes.health.path || path === routes.status.path) return;
@@ -75,14 +83,14 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
     rateLimitPerMinute: config.registerRateLimitPerMinute,
   });
 
-  registerSearchRoutes(app, { es, tokens, tracker, ...deps.search });
-  registerStatusRoutes(app, { es, tracker, version: VERSION, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/status
-  registerClusterRoutes(app, { es }); // Module 4: GET /api/interests/clusters
+  registerSearchRoutes(app, { es, tokens, tracker, rateLimits: limits, ...deps.search });
+  registerStatusRoutes(app, { es, tracker, version: VERSION, rateLimit: limits.status, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/status
+  registerClusterRoutes(app, { es, rateLimit: limits.interestsClusters }); // Module 4: GET /api/interests/clusters
 
   // Module 3: POST /api/access/token + POST /api/access/scan (routes/access.ts).
   app.register(accessRoutes, { es, tokens });
 
-  registerInterestRoutes(app, { es, now: deps.search?.now });
+  registerInterestRoutes(app, { es, now: deps.search?.now, rateLimit: limits.interestsAggregate });
 
   // `config` is wired for later tasks (ES client, token signing, OTel).
   app.decorate("config", config);
