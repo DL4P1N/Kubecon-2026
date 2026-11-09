@@ -17,6 +17,8 @@ export interface Config {
   registerRateLimitPerMinute: number;
   /** Number of trusted reverse-proxy hops; zero ignores forwarded client IPs. */
   trustProxyHops: number;
+  apiTlsCertFile?: string;
+  apiTlsKeyFile?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -32,6 +34,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
   }
   const trustProxyHops = Number(env.TRUST_PROXY ?? 0);
+  if (Boolean(env.API_TLS_CERT_FILE) !== Boolean(env.API_TLS_KEY_FILE)) {
+    throw new Error("API_TLS_CERT_FILE and API_TLS_KEY_FILE must be set together");
+  }
   if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 10) {
     throw new Error("TRUST_PROXY must be an integer from 0 to 10");
   }
@@ -46,6 +51,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     nodeEnv: env.NODE_ENV ?? "development",
     registerRateLimitPerMinute: positiveInt(env.REGISTER_RATE_LIMIT_PER_MINUTE, 60, "REGISTER_RATE_LIMIT_PER_MINUTE"),
     trustProxyHops,
+    apiTlsCertFile: env.API_TLS_CERT_FILE || undefined,
+    apiTlsKeyFile: env.API_TLS_KEY_FILE || undefined,
   };
 }
 

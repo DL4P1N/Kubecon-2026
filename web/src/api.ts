@@ -13,6 +13,7 @@ import type {
   ScheduleResponse,
   SearchMode,
   SearchResponse,
+  StatusResponse,
 } from "@cc/shared";
 
 const TOKEN_KEY = "cc.token";
@@ -79,12 +80,23 @@ async function scanRoom(body: ScanRequest): Promise<ScanResponse> {
 }
 
 export const api = {
+  status: () => call<StatusResponse>(routes.status),
   register: (body: RegisterRequest) => call<RegisterResponse>(routes.register, { body }),
   onboarding: (body: OnboardingRequest) => call<OnboardingResponse>(routes.onboarding, { body }),
   search: (q: string, mode: SearchMode, debug = false) => call<SearchResponse & { debug?: unknown }>(routes.search, {
     query: { q, mode, ...(debug ? { debug: "1" } : {}) },
   }),
   getSchedule: () => call<ScheduleResponse>(routes.getSchedule),
+  calendar: async (talkId?: string): Promise<Blob> => {
+    const token = getToken();
+    const query = talkId === undefined ? "" : `?${new URLSearchParams({ talkId })}`;
+    const res = await fetch(`${routes.exportCalendar.path}${query}`, {
+      headers: { accept: "text/calendar", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      cache: "no-store",
+    });
+    if (!res.ok) throw new ApiError(`Calendar export failed: ${res.status}`, res.status);
+    return res.blob();
+  },
   saveSchedule: (body: SaveScheduleRequest) => call<ScheduleResponse>(routes.saveSchedule, { body }),
   accessToken: () => call<AccessTokenResponse>(routes.accessToken, { body: {} }),
   scan: scanRoom,

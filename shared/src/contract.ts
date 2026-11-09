@@ -33,6 +33,39 @@ export interface HealthResponse {
   time: string; // ISO 8601
 }
 
+// ---------------------------------------------------------------- status
+
+/** Overall service state shown in the header badge. */
+export type ServiceState = "ok" | "degraded" | "down";
+
+/** Hybrid search readiness: "unknown" until a hybrid search has run recently. */
+export type HybridState = "ready" | "warming_up" | "unknown";
+
+export interface SearchLatencyStat {
+  /** Number of searches in the window. */
+  samples: number;
+  /** 95th percentile in milliseconds; null when there are no samples. */
+  p95Ms: number | null;
+}
+
+/**
+ * Public service status. Aggregates only: no attendee data, ids or query text.
+ * Computed from in-process counters, so it reflects this API replica.
+ */
+export interface StatusResponse {
+  status: ServiceState;
+  generatedAt: string; // ISO 8601
+  windowSeconds: number;
+  api: { up: true; version: string };
+  elasticsearch: { reachable: boolean };
+  search: {
+    keyword: SearchLatencyStat;
+    hybrid: SearchLatencyStat & { state: HybridState };
+  };
+  /** Share of HTTP responses in the window that were 5xx (0 to 1). */
+  errorRate: { requests: number; serverErrors: number; ratio: number };
+}
+
 // ---------------------------------------------------------------- register / me
 
 export interface Consent {
@@ -250,12 +283,14 @@ export interface InterestClustersResponse {
 
 export const routes = {
   health: { method: "GET", path: "/healthz" },
+  status: { method: "GET", path: "/api/status" },
   register: { method: "POST", path: "/api/register" },
   me: { method: "GET", path: "/api/me" },
   onboarding: { method: "POST", path: "/api/onboarding" },
   search: { method: "GET", path: "/api/search" },
   saveSchedule: { method: "POST", path: "/api/schedule" },
   getSchedule: { method: "GET", path: "/api/schedule" },
+  exportCalendar: { method: "GET", path: "/api/schedule.ics" },
   accessToken: { method: "POST", path: "/api/access/token" },
   accessScan: { method: "POST", path: "/api/access/scan" },
   interestsAggregate: { method: "GET", path: "/api/interests/aggregate" },

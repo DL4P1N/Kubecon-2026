@@ -6,7 +6,7 @@ least 5.
 
 ## How it works
 
-1. `npm run clusters` (the API image runs `node dist/clusters/job.js`) scrolls
+1. `npm run clusters` (the API image runs `node dist/clusters/cli.js`) scrolls
    through `attendees` for opted-in, unexpired records that have an
    `interest_vector`. Only vectors and interest tags are read, never IDs or names.
 2. **k-means runs in the Node job process.** Elasticsearch stores the input
@@ -56,7 +56,10 @@ Use `EMBEDDINGS_PROVIDER=local` for an offline demo.
 
 The `clusters.run` span carries four counts: `clusters.attendees`, `clusters.k`,
 `clusters.shown`, `clusters.suppressed` (see `docs/telemetry-allowlist.md`). No
-attendee IDs, locations, interests or labels.
+attendee IDs, locations, interests or labels. The CLI (`api/src/clusters/cli.ts`) starts the
+OpenTelemetry SDK as `companion-clusters` (when `OTEL_EXPORTER_OTLP_ENDPOINT` is set) before the
+job runs and flushes it on exit, so the CronJob's span is exported; on failure it prints only the
+error class or Elasticsearch error type, never an error body.
 
 ## Deployment
 

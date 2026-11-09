@@ -1,0 +1,128 @@
+{
+  "agent": "codex",
+  "diagnosis": {
+    "rootCause": "Elasticsearch reported insufficient resources when its multilingual model deployment attempted to scale to two allocations at 19:07:29 UTC. The logs show this application-level capacity failure while Kubernetes reports the replica ready; they do not establish whether inference is currently impaired.",
+    "summary": "Elasticsearch is ready, but insufficient capacity prevented its model deployment from scaling to two allocations.",
+    "certainty": "likely",
+    "unresolved": [
+      "Current model statistics must establish whether allocation recovered and inference is serving.",
+      "Machine-learning capacity statistics must identify the specific resource constraint."
+    ],
+    "steps": [
+      {
+        "text": "Check the model's current allocation. Run `kubectl -n conference-companion exec elasticsearch-0 -c elasticsearch -- bash -c 'curl --silent --show-error --fail --cacert config/certs/tls.crt --user \"elastic:$ELASTIC_PASSWORD\" \"https://localhost:9200/_ml/trained_models/.multilingual-e5-small/_stats\"'`. Inspect deployment state, allocation counts and inference failures.",
+        "kind": "verify"
+      },
+      {
+        "text": "Inspect machine-learning memory capacity. Run `kubectl -n conference-companion exec elasticsearch-0 -c elasticsearch -- bash -c 'curl --silent --show-error --fail --cacert config/certs/tls.crt --user \"elastic:$ELASTIC_PASSWORD\" \"https://localhost:9200/_ml/memory/_stats\"'`. Compare available capacity with the model's requirements before changing resource limits or allocation targets.",
+        "kind": "investigate"
+      }
+    ],
+    "report": "Kubernetes reports the single Elasticsearch replica ready and available. Its readiness check makes an authenticated HTTPS request to Elasticsearch\u2019s root endpoint; that does not test model inference.\n\n[[radar:evidence=0]]\n\nThe application logs reveal a narrower failure. The multilingual model finished importing at 19:05:27 UTC, initially failed deployment, then logged another deployment start at 19:07:10. At 19:07:29, scaling to two allocations\u2014parallel model execution capacity\u2014failed because Elasticsearch reported insufficient resources. This supports a capacity failure for that attempt, not a claim that the model is entirely unavailable now.\n\n[[radar:evidence=1]]\n\nThe startup-probe warning preceded readiness. Later logs also show index recovery and transitions to green shard health; neither proves inference works.\n\n[[radar:evidence=2|compact]]\n\nThe separate pod-state read failed because it used the `apps` API group, so it supplied no pod-state evidence. Current model allocation, inference impact and the precise capacity constraint remain unverified. Check the model and memory statistics before choosing a resource or allocation change; no automatic remediation is justified yet.",
+    "notes": "I\u2019ll check Radar\u2019s diagnosis, then verify any signs of failure or security findings that could affect service now.\n\nThe replica is ready, but Elasticsearch logged a model deployment failure due to insufficient machine-learning capacity. I\u2019ll check later logs for recovery or repeated failures.\n\nThe later logs show the model starting, followed by a failed attempt to scale to two allocations. I\u2019ll verify the pod\u2019s current state and review the five audit findings for live risks.\n\nEvidence ledger:\n- `ev_joksmv27cra4vabogbf7vuglgc_g7poqrawkd6ilhbnaffqs3mrod`: StatefulSet has one desired, ready, available, updated replica; does not verify application requests or model allocation.\n- `ev_joksmv27cra4vabogbf7vuglgc_uxgpc6mczlnnncaq5abzb7ju3x`: Model import completed, deployment later started, and scaling to two allocations failed for insufficient resources; filtered logs do not establish current allocation or user impact.\n- `ev_joksmv27cra4vabogbf7vuglgc_g7poqrawkd6ilhbnaffqs3mrod`: One startup-probe warning preceded readiness; does not establish continuous health afterward.\n- `ev_joksmv27cra4vabogbf7vuglgc_oowf5by3oxwlefxvuqrymh7lhr`: Five workload posture findings and a related certificate expiring November 16; does not show exploitation or an expired certificate.\n- Alternative\u2014currently unavailable Kubernetes replica: contradicted by diagnose\u2019s ready and available replica counts.\n- Alternative\u2014model import failed: contradicted by the log\u2019s completed-import message.\n- Alternative\u2014capacity failure subsequently recovered: untested; current model statistics would settle it.\n- Alternative\u2014specific memory or processor constraint: untested; machine-learning memory and allocation statistics would distinguish it.",
+    "rootCauseEvidence": {
+      "status": "linked",
+      "refs": [
+        "ev_joksmv27cra4vabogbf7vuglgc_uxgpc6mczlnnncaq5abzb7ju3x"
+      ]
+    },
+    "evidence": [
+      {
+        "status": "linked",
+        "ref": "ev_joksmv27cra4vabogbf7vuglgc_g7poqrawkd6ilhbnaffqs3mrod",
+        "role": "context",
+        "claim": "The StatefulSet reports one desired, ready, available and updated replica.",
+        "gap": "point-in-time controller status, not inference or end-to-end requests",
+        "subject": {
+          "group": "apps",
+          "kind": "StatefulSet",
+          "namespace": "conference-companion",
+          "name": "elasticsearch",
+          "observation": "resource"
+        }
+      },
+      {
+        "status": "linked",
+        "ref": "ev_joksmv27cra4vabogbf7vuglgc_uxgpc6mczlnnncaq5abzb7ju3x",
+        "role": "cause",
+        "claim": "Model import completed, but a later attempt to scale the deployment to two allocations failed for insufficient resources.",
+        "gap": "filtered available logs, not current allocation state or user impact",
+        "subject": {
+          "group": "",
+          "kind": "Pod",
+          "namespace": "conference-companion",
+          "name": "elasticsearch-0",
+          "container": "elasticsearch",
+          "stream": "current",
+          "observation": "logs"
+        }
+      },
+      {
+        "status": "linked",
+        "ref": "ev_joksmv27cra4vabogbf7vuglgc_g7poqrawkd6ilhbnaffqs3mrod",
+        "role": "benign",
+        "claim": "The recorded startup-probe failure preceded the replica becoming ready, so it does not establish a current startup failure.",
+        "gap": "one recorded warning, not continuous probe history",
+        "subject": {
+          "group": "",
+          "kind": "Pod",
+          "namespace": "conference-companion",
+          "name": "elasticsearch-0",
+          "observation": "events"
+        }
+      },
+      {
+        "status": "linked",
+        "ref": "ev_joksmv27cra4vabogbf7vuglgc_oowf5by3oxwlefxvuqrymh7lhr",
+        "role": "demoted",
+        "claim": "The workload's five findings concern hardening and a missing liveness probe; they do not establish the model capacity failure.",
+        "gap": "configuration posture, not exploitation or application capacity",
+        "subject": {
+          "group": "apps",
+          "kind": "StatefulSet",
+          "namespace": "conference-companion",
+          "name": "elasticsearch",
+          "observation": "resource"
+        }
+      },
+      {
+        "status": "linked",
+        "ref": "ev_joksmv27cra4vabogbf7vuglgc_oowf5by3oxwlefxvuqrymh7lhr",
+        "role": "demoted",
+        "claim": "The related TLS certificate expires November 16, so the audit reports an upcoming renewal risk rather than current expiration.",
+        "gap": "stored certificate expiry, not the certificate served to clients",
+        "subject": {
+          "group": "",
+          "kind": "Secret",
+          "namespace": "conference-companion",
+          "name": "elasticsearch-tls",
+          "observation": "resource"
+        }
+      }
+    ],
+    "ruledOut": [
+      {
+        "hypothesis": "The Kubernetes replica is currently unavailable.",
+        "evidenceIndex": 0
+      },
+      {
+        "hypothesis": "The model import failed.",
+        "evidenceIndex": 1
+      }
+    ],
+    "remediation": [
+      "Check the model's current allocation. Run `kubectl -n conference-companion exec elasticsearch-0 -c elasticsearch -- bash -c 'curl --silent --show-error --fail --cacert config/certs/tls.crt --user \"elastic:$ELASTIC_PASSWORD\" \"https://localhost:9200/_ml/trained_models/.multilingual-e5-small/_stats\"'`. Inspect deployment state, allocation counts and inference failures.",
+      "Inspect machine-learning memory capacity. Run `kubectl -n conference-companion exec elasticsearch-0 -c elasticsearch -- bash -c 'curl --silent --show-error --fail --cacert config/certs/tls.crt --user \"elastic:$ELASTIC_PASSWORD\" \"https://localhost:9200/_ml/memory/_stats\"'`. Compare available capacity with the model's requirements before changing resource limits or allocation targets."
+    ],
+    "confidence": 0.9,
+    "costUsd": null,
+    "turns": 0,
+    "sessionId": "01a1c1c9-993b-76a1-b4f0-b0831f16723a"
+  },
+  "group": "apps",
+  "kind": "StatefulSet",
+  "name": "elasticsearch",
+  "namespace": "conference-companion",
+  "radar_url": "http://127.0.0.1:9280/?ai-run=run-cc6b489d18",
+  "run": "run-cc6b489d18"
+}

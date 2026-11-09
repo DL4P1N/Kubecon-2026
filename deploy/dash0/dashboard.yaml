@@ -1,0 +1,386 @@
+# Conference Companion health dashboard (Perses format, as Dash0 documents it).
+# Apply with the Dash0 CLI (`dash0 apply -f deploy/dash0/dashboard.yaml`), the
+# Dash0 operator (kubectl apply, needs a Dash0Monitoring resource in the
+# namespace) or paste into Dash0 > Dashboards > Edit as JSON.
+# Metric/label naming and every query are explained in docs/dash0.md.
+# Format reference: https://www.dash0.com/docs/dash0/dashboards/reference-dashboards-as-code
+apiVersion: perses.dev/v1alpha1
+kind: PersesDashboard
+metadata:
+  name: conference-companion-health
+  namespace: conference-companion
+spec:
+  display:
+    name: Conference Companion - Health
+  datasources:
+    default:
+      name: default
+      plugin:
+        kind: PrometheusDataSource
+  layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: SLOs (last 1h)
+        items:
+          - { x: 0, "y": 0, width: 6, height: 4, content: { $ref: "#/spec/panels/slo_latency_p95" } }
+          - { x: 6, "y": 0, width: 6, height: 4, content: { $ref: "#/spec/panels/slo_latency_good_ratio" } }
+          - { x: 12, "y": 0, width: 6, height: 4, content: { $ref: "#/spec/panels/slo_availability" } }
+          - { x: 18, "y": 0, width: 6, height: 4, content: { $ref: "#/spec/panels/slo_availability_budget" } }
+          - { x: 0, "y": 4, width: 24, height: 6, content: { $ref: "#/spec/panels/slo_burn_rate" } }
+    - kind: Grid
+      spec:
+        display:
+          title: API (companion-api)
+        items:
+          - { x: 0, "y": 0, width: 12, height: 8, content: { $ref: "#/spec/panels/request_rate_by_route" } }
+          - { x: 12, "y": 0, width: 12, height: 8, content: { $ref: "#/spec/panels/p95_by_route" } }
+          - { x: 0, "y": 8, width: 12, height: 8, content: { $ref: "#/spec/panels/error_ratio_5xx" } }
+          - { x: 12, "y": 8, width: 12, height: 8, content: { $ref: "#/spec/panels/error_rate_5xx_by_route" } }
+    - kind: Grid
+      spec:
+        display:
+          title: Search (keyword vs hybrid)
+        items:
+          - { x: 0, "y": 0, width: 12, height: 8, content: { $ref: "#/spec/panels/search_p95_by_mode" } }
+          - { x: 12, "y": 0, width: 12, height: 8, content: { $ref: "#/spec/panels/search_rate_by_mode" } }
+    - kind: Grid
+      spec:
+        display:
+          title: Room access
+        items:
+          - { x: 0, "y": 0, width: 16, height: 8, content: { $ref: "#/spec/panels/access_scans_by_room" } }
+          - { x: 16, "y": 0, width: 8, height: 8, content: { $ref: "#/spec/panels/access_deny_ratio" } }
+    - kind: Grid
+      spec:
+        display:
+          title: Browser (companion-web RUM)
+        items:
+          - { x: 0, "y": 0, width: 12, height: 8, content: { $ref: "#/spec/panels/page_load_p95" } }
+          - { x: 12, "y": 0, width: 12, height: 8, content: { $ref: "#/spec/panels/page_loads" } }
+  panels:
+    # ---------------------------------------------------------------- SLOs
+    slo_latency_p95:
+      kind: Panel
+      spec:
+        display:
+          name: p95 latency, /api/search + /api/onboarding (1h)
+          description: SLO target < 500 ms (0.5 s). From http.server.request.duration.
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last-number
+            format:
+              unit: seconds
+            thresholds:
+              steps:
+                - value: 0.4
+                  color: orange
+                - value: 0.5
+                  color: red
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_name="companion-api", http_route=~"/api/search|/api/onboarding"}[1h])))
+    slo_latency_good_ratio:
+      kind: Panel
+      spec:
+        display:
+          name: Search + onboarding requests <= 500 ms (1h)
+          description: Latency SLI as a ratio. The SLO holds while this is >= 95%.
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last-number
+            format:
+              unit: percent-decimal
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: sum(rate(http_server_request_duration_seconds_bucket{service_name="companion-api", http_route=~"/api/search|/api/onboarding", le="0.5"}[1h])) / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_route=~"/api/search|/api/onboarding"}[1h]))
+    slo_availability:
+      kind: Panel
+      spec:
+        display:
+          name: Availability, non-5xx (1h)
+          description: SLO target >= 99%. All companion-api routes.
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last-number
+            format:
+              unit: percent-decimal
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 1 - (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[1h])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[1h]))
+    slo_availability_budget:
+      kind: Panel
+      spec:
+        display:
+          name: Availability error budget left (1h window)
+          description: 1 - (5xx ratio / 1% budget). Below 0 means the 1h budget is spent.
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last-number
+            format:
+              unit: percent-decimal
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 1 - ((sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[1h])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[1h]))) / 0.01
+    slo_burn_rate:
+      kind: Panel
+      spec:
+        display:
+          name: Error budget burn rate (1 = budget lasts exactly the window)
+          description: 5m and 1h burn rates for availability (budget 1%) and latency (budget 5% slower than 500 ms). Fast-burn alert fires when both 5m and 1h exceed 14.4.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: availability burn 5m
+                  query: (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[5m])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[5m])) / 0.01
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: availability burn 1h
+                  query: (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[1h])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[1h])) / 0.01
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: latency burn 5m
+                  query: (1 - sum(rate(http_server_request_duration_seconds_bucket{service_name="companion-api", http_route=~"/api/search|/api/onboarding", le="0.5"}[5m])) / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_route=~"/api/search|/api/onboarding"}[5m]))) / 0.05
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: latency burn 1h
+                  query: (1 - sum(rate(http_server_request_duration_seconds_bucket{service_name="companion-api", http_route=~"/api/search|/api/onboarding", le="0.5"}[1h])) / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_route=~"/api/search|/api/onboarding"}[1h]))) / 0.05
+    # ---------------------------------------------------------------- API
+    request_rate_by_route:
+      kind: Panel
+      spec:
+        display:
+          name: Request rate by route (req/s)
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: "{{http_request_method}} {{http_route}}"
+                  query: sum by (http_request_method, http_route) (rate(http_server_request_duration_seconds_count{service_name="companion-api"}[5m]))
+    p95_by_route:
+      kind: Panel
+      spec:
+        display:
+          name: p95 latency by route
+          description: Red line in the SLO is 0.5 s for /api/search and /api/onboarding.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+            yAxis:
+              format:
+                unit: seconds
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: "{{http_route}}"
+                  query: histogram_quantile(0.95, sum by (le, http_route) (rate(http_server_request_duration_seconds_bucket{service_name="companion-api"}[5m])))
+    error_ratio_5xx:
+      kind: Panel
+      spec:
+        display:
+          name: 5xx error ratio (all routes)
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            yAxis:
+              format:
+                unit: percent-decimal
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: 5xx ratio
+                  query: (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[5m])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[5m]))
+    error_rate_5xx_by_route:
+      kind: Panel
+      spec:
+        display:
+          name: 5xx responses by route and status (req/s)
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: "{{http_route}} {{http_response_status_code}}"
+                  query: sum by (http_route, http_response_status_code) (rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[5m]))
+    # ---------------------------------------------------------------- Search
+    search_p95_by_mode:
+      kind: Panel
+      spec:
+        display:
+          name: Search p95 latency by mode (API side, incl. Elasticsearch)
+          description: companion.search.duration by search.mode (keyword | hybrid).
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+            yAxis:
+              format:
+                unit: seconds
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: "{{search_mode}}"
+                  query: histogram_quantile(0.95, sum by (le, search_mode) (rate(companion_search_duration_seconds_bucket{service_name="companion-api"}[5m])))
+    search_rate_by_mode:
+      kind: Panel
+      spec:
+        display:
+          name: Searches per second by mode
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: "{{search_mode}}"
+                  query: sum by (search_mode) (rate(companion_search_duration_seconds_count{service_name="companion-api"}[5m]))
+    # ---------------------------------------------------------------- Access
+    access_scans_by_room:
+      kind: Panel
+      spec:
+        display:
+          name: Access scans per minute by room and decision
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: "{{room_id}} {{access_decision}}"
+                  query: sum by (room_id, access_decision) (rate(access_scans_total{service_name="companion-api"}[5m])) * 60
+    access_deny_ratio:
+      kind: Panel
+      spec:
+        display:
+          name: Deny ratio (1h)
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last-number
+            format:
+              unit: percent-decimal
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: (sum(rate(access_scans_total{service_name="companion-api", access_decision="deny"}[1h])) or vector(0)) / sum(rate(access_scans_total{service_name="companion-api"}[1h]))
+    # ---------------------------------------------------------------- Browser
+    page_load_p95:
+      kind: Panel
+      spec:
+        display:
+          name: Browser page load p95 (documentLoad span)
+          description: Dash0 span metric dash0.spans.duration for the web SDK's documentLoad span.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            yAxis:
+              format:
+                unit: seconds
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: page load p95
+                  query: histogram_quantile(0.95, sum(rate({otel_metric_name="dash0.spans.duration", service_name="companion-web", otel_span_name="documentLoad"}[5m])))
+    page_loads:
+      kind: Panel
+      spec:
+        display:
+          name: Browser page loads and errors per minute
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            legend:
+              position: bottom
+        queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: page loads
+                  query: sum(rate({otel_metric_name="dash0.spans", service_name="companion-web", otel_span_name="documentLoad"}[5m])) * 60
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  seriesNameFormat: browser errors
+                  query: sum(rate({otel_metric_name="dash0.spans", service_name="companion-web", otel_span_name="browser.error"}[5m])) * 60

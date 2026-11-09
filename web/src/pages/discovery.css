@@ -10,4 +10,5 @@
 .discovery pre { overflow: auto; background: #f1f5f9; padding: .75rem; max-height: 24rem; }
 .discovery summary { cursor: pointer; padding: .5rem 0; }
 .checkin-token { overflow-wrap: anywhere; }
+.discovery label:has(input[type=checkbox]) { display: flex; align-items: center; min-height: 44px; gap: .35rem; }
 @media (max-width: 600px) { .search-comparison { grid-template-columns: 1fr; } }
