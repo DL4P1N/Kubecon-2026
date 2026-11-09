@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import QRCode from "qrcode";
 import type { AccessTokenResponse, ScheduleResponse } from "@cc/shared";
 import { api, ApiError, getToken } from "../api.js";
+import { Alternatives } from "../components/Alternatives.js";
+import { talkHref } from "../talksApi.js";
 import { SkippedTalks } from "../components/SkippedTalks.js";
 import { recallSkipped, rememberSkipped } from "../skippedTalks.js";
 import "./discovery.css";
@@ -121,11 +123,12 @@ export function Schedule() {
       <li key={talk.id}>
         <p><time dateTime={talk.start}>{new Date(talk.start).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</time>
           {" – "}<time dateTime={talk.end}>{new Date(talk.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></p>
-        <h2>{talk.title}</h2><p>{talk.room} · {talk.speaker}</p>
+        <h2><Link to={talkHref(talk.id)}>{talk.title}</Link></h2><p>{talk.room} · {talk.speaker}</p>
         <p><RoomActivityBadge room={talk.room} activity={activity} /></p>
         {reason && <p><strong>Why recommended:</strong> {reason}</p>}
         <button type="button" disabled={calendarPending} aria-label={`Add ${talk.title} to calendar`}
           onClick={() => void exportCalendar(talk.id)}>Add this talk to calendar</button>
+        <Alternatives talk={talk} />
       </li>)}</ol>
     <section aria-labelledby="checkin-heading">
       <h2 id="checkin-heading">Room check-in</h2>

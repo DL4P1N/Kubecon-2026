@@ -63,7 +63,7 @@ describe("config", () => {
     expect(c.esUrl).toBe("https://es:9200");
     expect(c.port).toBe(8080);
     expect(c.otelExporterOtlpEndpoint).toBe("http://otel:4318");
-    expect(c.registerRateLimitPerMinute).toBe(60);
+    expect(c.registerRateLimitPerMinute).toBe(120);
   });
 
   it("refuses to start in production with a placeholder signing key", () => {

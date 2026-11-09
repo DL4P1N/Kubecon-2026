@@ -1,9 +1,9 @@
-import rateLimit from "@fastify/rate-limit";
 import type { FastifyPluginAsync } from "fastify";
 import { SUGGEST_PATH, type SuggestResponse } from "@cc/shared";
 import { EsError, isEsOverload, type EsClient } from "../es/client.js";
 import { MAX_SUGGEST_CHARS, MIN_SUGGEST_CHARS, suggest } from "../suggest/suggest.js";
 import { withSpan } from "../telemetry/span.js";
+import { applyRateLimit, sendIfRateLimited } from "../http/rateLimit.js";
 import { RETRY_AFTER_SECONDS } from "./search.js";
 
 export const SUGGEST_CACHE_MS = 30_000;
@@ -25,9 +25,10 @@ export interface SuggestRouteOptions {
 export const suggestRoutes: FastifyPluginAsync<SuggestRouteOptions> = async (app, opts) => {
   const now = opts.now ?? Date.now;
   const cache = new Map<string, { at: number; value: SuggestResponse }>();
-  await app.register(rateLimit, { global: false });
+  await applyRateLimit(app); // shared 429 shape and req.ip key (http/rateLimit.ts)
 
   app.setErrorHandler((err: Error, req, reply) => {
+    if (sendIfRateLimited(err, reply)) return reply;
     if (err instanceof EsError) {
       req.log.warn({ "error.type": err.errorType, "http.route": req.routeOptions?.url }, `elasticsearch request failed with status ${err.status}`);
       if (isEsOverload(err)) return reply.code(503).header("Retry-After", String(RETRY_AFTER_SECONDS)).send({ error: "search_overloaded" });

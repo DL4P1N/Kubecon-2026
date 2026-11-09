@@ -4,9 +4,12 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { MIN_CLUSTER_SIZE, routes, type InterestClusterNode, type InterestClustersResponse } from "@cc/shared";
 import type { EsClient } from "../es/client.js";
 import { RUN_ID_PREFIX, RUN_MARKER_ID } from "../clusters/job.js";
+import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor, type RouteLimit } from "../http/rateLimit.js";
 
 export const ORGANIZER_KEY_HEADER = "x-organizer-key";
 const MAX_CLUSTERS = 50;
+/** Clusters change only when the batch job runs; serve from memory for this long. */
+export const CLUSTERS_CACHE_MS = 15_000;
 
 export interface ClusterRouteDeps {
   es: EsClient;
@@ -17,6 +20,9 @@ export interface ClusterRouteDeps {
    */
   organizerKey?: string;
   nodeEnv?: string;
+  /** Per-IP limit; defaults to DEFAULT_RATE_LIMITS.interestsClusters. */
+  rateLimit?: RouteLimit;
+  now?: () => number;
 }
 
 interface Hit<T> {
@@ -84,6 +90,9 @@ export async function loadLatestClusters(es: EsClient): Promise<InterestClusters
 /** GET /api/interests/clusters, in its own plugin scope. */
 export function registerClusterRoutes(root: FastifyInstance, deps: ClusterRouteDeps): void {
   root.register(async (app) => {
+    await applyRateLimit(app);
+    const now = deps.now ?? Date.now;
+    let cached: { at: number; value: InterestClustersResponse } | undefined;
     const organizerKey = deps.organizerKey ?? (process.env.ORGANIZER_KEY || undefined);
     const nodeEnv = deps.nodeEnv ?? process.env.NODE_ENV;
 
@@ -102,7 +111,8 @@ export function registerClusterRoutes(root: FastifyInstance, deps: ClusterRouteD
       return true;
     }
 
-    app.get(routes.interestsClusters.path, async (req, reply) =>
+    const limit = limitFor(deps.rateLimit ?? DEFAULT_RATE_LIMITS.interestsClusters);
+    app.get(routes.interestsClusters.path, limit, async (req, reply) =>
       trace.getTracer("companion-api").startActiveSpan("interests.clusters", async (span) => {
         let status = 500;
         try {
@@ -110,9 +120,12 @@ export function registerClusterRoutes(root: FastifyInstance, deps: ClusterRouteD
             status = reply.statusCode;
             return reply;
           }
-          const body = await loadLatestClusters(deps.es);
+          // Checked after authorization, so the cache never serves an unauthorized caller.
+          if (!cached || now() - cached.at >= CLUSTERS_CACHE_MS) {
+            cached = { at: now(), value: await loadLatestClusters(deps.es) };
+          }
           status = 200;
-          return body;
+          return cached.value;
         } catch {
           // ES errors can contain query text; neither recorded nor echoed.
           status = 502;
