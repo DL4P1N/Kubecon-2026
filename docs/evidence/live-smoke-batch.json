@@ -1,0 +1,10 @@
+{
+  "status": "completed",
+  "release_sha": "b9f7ffe",
+  "image": "cc-api:b9f7ffe",
+  "fixtures": {"attendees_seeded": 12, "opted_in": 12, "vectors_written": true, "embedder": "es-inference", "dimensions": 384},
+  "jobs": {
+    "clusters": {"name": "smoke47-clusters-3d6b63", "status": "Complete", "log": "12 opted-in attendees, k=2, 2 clusters shown, 0 suppressed, 0 skipped (no usable vector)"},
+    "retention": {"name": "smoke47-retention-4be5c5", "status": "Complete", "log": {"deleted": 0}}
+  }
+}
