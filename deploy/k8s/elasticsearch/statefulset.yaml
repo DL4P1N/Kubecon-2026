@@ -32,6 +32,22 @@ spec:
           image: docker.elastic.co/elasticsearch/elasticsearch:8.19.6
           ports:
             - containerPort: 9200
+          startupProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - 'curl --silent --fail --cacert config/certs/tls.crt --user "elastic:$ELASTIC_PASSWORD" https://localhost:9200/ >/dev/null'
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - 'curl --silent --fail --cacert config/certs/tls.crt --user "elastic:$ELASTIC_PASSWORD" https://localhost:9200/ >/dev/null'
+            periodSeconds: 10
+            timeoutSeconds: 5
           resources:
             requests: {cpu: "500m", memory: 4Gi}
             limits: {cpu: "2", memory: 4Gi}
