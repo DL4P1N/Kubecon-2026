@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import QRCode from "qrcode";
 import type { AccessTokenResponse, ScheduleResponse } from "@cc/shared";
-import { api, getToken } from "../api.js";
+import { api, ApiError, getToken } from "../api.js";
 import { Alternatives } from "../components/Alternatives.js";
 import "./discovery.css";
 
@@ -15,6 +15,32 @@ export function Schedule() {
   const [pending, setPending] = useState(false);
   const [access, setAccess] = useState<(AccessTokenResponse & { image: string }) | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [calendarPending, setCalendarPending] = useState(false);
+  const [calendarError, setCalendarError] = useState("");
+  async function exportCalendar(talkId?: string) {
+    if (calendarPending) return;
+    setCalendarPending(true);
+    setCalendarError("");
+    try {
+      const blob = await api.calendar(talkId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = talkId ? "conference-talk.ics" : "conference-schedule.ics";
+      document.body.append(link);
+      try { link.click(); } finally {
+        link.remove();
+        // Let the browser start the download before releasing its object URL.
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setNeedsRegistration(true);
+        setSchedule(null);
+        setAccess(null);
+      } else setCalendarError("Your calendar could not be downloaded. Please try again.");
+    } finally { setCalendarPending(false); }
+  }
   useEffect(() => {
     if (needsRegistration) return;
     let active = true;
@@ -55,12 +81,18 @@ export function Schedule() {
     {error && <p role="alert">{error}</p>}
     {!schedule && !error && !needsRegistration && <p role="status">Loading your schedule…</p>}
     {schedule && schedule.items.length === 0 && <p>No talks scheduled yet. <Link to="/onboarding">Find your talks</Link>.</p>}
+    {schedule && schedule.items.length > 0 && <button type="button" disabled={calendarPending} onClick={() => void exportCalendar()}>
+      {calendarPending ? "Preparing calendar…" : "Add to calendar"}
+    </button>}
+    {calendarError && <p role="alert">{calendarError}</p>}
     <ol className="schedule-timeline">{[...(schedule?.items ?? [])].sort((a, b) => Date.parse(a.talk.start) - Date.parse(b.talk.start)).map(({ talk, reason }) =>
       <li key={talk.id}>
         <p><time dateTime={talk.start}>{new Date(talk.start).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</time>
           {" – "}<time dateTime={talk.end}>{new Date(talk.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></p>
         <h2>{talk.title}</h2><p>{talk.room} · {talk.speaker}</p>
         {reason && <p><strong>Why recommended:</strong> {reason}</p>}
+        <button type="button" disabled={calendarPending} aria-label={`Add ${talk.title} to calendar`}
+          onClick={() => void exportCalendar(talk.id)}>Add this talk to calendar</button>
         <Alternatives talk={talk} />
       </li>)}</ol>
     <section aria-labelledby="checkin-heading">

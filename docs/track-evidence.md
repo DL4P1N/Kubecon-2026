@@ -11,7 +11,7 @@ entry only after a real review finding is acted on.
 
 | Judge lane | Design Doc evidence required | Current evidence gap |
 | --- | --- | --- |
-| Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | Gitar review findings acted on, including verified PR #6 probe fix below. CI diagnosis and project-rule evaluation still need evidence. No Sonar tooling claim. |
+| Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | Rules 1/1 met, acted-on probe finding, and explicitly requested retrospective CI-log diagnosis verified below. Automatic CI triggering and auto-apply unverified. No Sonar tooling claim. |
 | Dash0: Stop Flying Blind | Browser → API → ES trace, search/embedding/access spans, p95 SLO, dashboard, scrubbing proof, real issue investigation | Collector-to-Dash0 export and synthetic attribute scrubbing verified live. Browser/API/ES trace, full privacy test, SLO and issue evidence remain pending. |
 | Radar: AI SRE | Ready Kubernetes workloads, UI and MCP used, real investigation with remediation | Live UI/MCP and an actual safeguarded Codex AI investigation captured below, with evidence, verified follow-up and linked fix. Human review of #30 pending. |
 | Elasticsearch: Find the Right Talk | Real catalog and ES inference per human decisions; BM25 vs hybrid results and query comparison | Live: 417 real talks indexed with ES E5, keyword and hybrid APIs return 200. All five planned comparisons measured; they do not establish a consistent relevance win. Results in `docs/demo/search-comparison-measured.json`; quality work is #36. |
@@ -63,18 +63,23 @@ The fix commit is the PR link until the merge hash is known.
   Change: web startup/liveness now probe local `/index.html`; proxied `/healthz` kept for readiness only (`deploy/k8s/app/deployments.yaml`, commit `87ebf1b`).
   Verified live (CONTROLLED API outage, ~40s): `/index.html` stayed 200, `/healthz` returned 504, web `Ready=False`, nginx restarts 0 to 0; API restored and `/healthz` back to 200.
 
-Still pending: CI-failure diagnosis and the review link for the demo.
+CI-log diagnosis is verified through an explicit retrospective request.
+Automatic CI-failure triggering and auto-apply remain unverified.
 
-Task #44 audited the two real failed Actions runs (PR14 Docker build and PR22
+Task #44 initially audited two real failed Actions runs (PR14 Docker build and PR22
 schedule browser tests). Their current Gitar dashboards contain Code Review,
 without retained CI-analysis output. PR14's missing-fixture finding predates
 the actual failure, so it proves useful review, not CI-log analysis. The fix
 and subsequent green run are linked in the [CI evidence audit](gitar-ci-diagnosis.md).
-A read-only retrospective diagnosis was requested; its bot reply gave no CI
-root cause or log analysis, so it is not diagnosis evidence. Admin settings
-confirmation is pending on board question #15. CI diagnosis and auto-apply
-remain unproven; no separate enable toggle or unavailable-plan explanation
-is invented.
+The first retrospective request on merged PR14 got a non-diagnostic reply.
+A subsequent explicit request on open PR39 succeeded:
+[Gitar read the real PR23 failure logs and diagnosed an async topic-load test
+race](https://github.com/DL4P1N/Kubecon-2026/pull/39#issuecomment-6749861362).
+The teammate-authored fix `d7282fbb` and its green CI run are linked in the audit.
+This proves requested log access/diagnosis; the fix predates the request and
+was not applied by Gitar. No permission changes or auto-apply were needed.
+The owner reports automatic reviews work and the documented toggle is not
+visible in their dashboard. Automatic failure-event diagnosis remains unverified.
 
 ### Repository-rule verification (task #34)
 
@@ -88,8 +93,9 @@ preserves all seven project requirements and explicitly limits the result
 to static review. This proves repository-rule execution on this PR, not
 runtime compliance or a separate Knowledge-library fact citation.
 The human confirmed a Pro trial. Functional validation remains "Not enabled"
-and requires Enterprise; CI-failure diagnosis still needs separate observed
-failure-analysis evidence. No claim is made that either was demonstrated.
+and requires Enterprise. CI-log diagnosis was subsequently verified through an
+explicit request (task #44 above); automatic CI-triggered analysis and
+auto-apply were not demonstrated.
 
 ## Elasticsearch real issues
 

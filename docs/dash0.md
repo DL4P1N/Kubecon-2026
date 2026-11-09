@@ -191,16 +191,9 @@ after `npm ci`). Check rules can be created by hand from the `expr` fields.
    (search histogram buckets). Older images still export the search metric,
    but its p95 panel will read ~4.75 s regardless of real latency.
 2. Apply (Option A).
-3. Generate traffic for ~10 minutes (port-forward the web service as in
-   `deploy/k8s/app/README.md`):
-   ```sh
-   for i in $(seq 1 200); do
-     curl -s -o /dev/null "http://localhost:8080/api/search?q=supply+chain+security&mode=hybrid"
-     curl -s -o /dev/null "http://localhost:8080/api/search?q=supply+chain+security&mode=keyword"
-   done
-   ```
-   plus one onboarding run, a few room scans (allow and deny) and a couple of
-   page loads in the browser.
+3. Generate traffic for ~10 minutes with `scripts/traffic.ts` (see
+   "Generating traffic for screenshots" below), plus a couple of page loads
+   in the browser.
 4. Screenshots into `docs/evidence/`:
    - `dash0-health-dashboard.png`: the whole dashboard (SLO row visible)
    - `dash0-search-p95-by-mode.png`: keyword vs hybrid panel
@@ -208,3 +201,40 @@ after `npm ci`). Check rules can be created by hand from the `expr` fields.
    - `dash0-slo.png`: one native SLO page (error budget + burn rate)
 5. Record in `docs/track-evidence.md` (Dash0 section): what was applied, which
    panels had data, and any query that had to change (update the YAML too).
+
+## Generating traffic for screenshots
+
+`scripts/traffic.ts` (#48) puts a gentle, realistic load on a running app so
+the dashboard panels and SLOs have data. From a checkout (after `npm ci`),
+with the app reachable locally (for example the kind cluster port-forward on
+`http://127.0.0.1:18085`):
+
+```sh
+# Preview the planned mix; no network calls
+npx tsx scripts/traffic.ts --url http://127.0.0.1:18085 --minutes 10 --dry-run
+
+# Run it (~2 req/s for 10 minutes, ~1200 requests); start ~10 minutes before the screenshots
+npx tsx scripts/traffic.ts --url http://127.0.0.1:18085 --minutes 10
+```
+
+- Rate: default `--rps 2`, hard cap 5 req/s, 3 concurrent workers sharing
+  one pacer. On 429/503 it backs off exponentially with jitter (honours
+  `Retry-After`, max 30 s). `--minutes` is capped at 60.
+- Mix (weights): keyword and hybrid searches 25 each (the 12 #36 eval
+  questions; one hybrid warm-up query first), `/api/status` 15, catalog
+  browse (broad keyword search, size 50) 10, `GET /api/schedule` 7,
+  onboarding 6, `POST /api/schedule` 5, QR access token + scan against a
+  real catalog room 4, registration 3.
+- Synthetic data: at most 5 registrations per run, named
+  `SYNTHETIC TRAFFIC <n>`, both consents true, no email or other real data.
+  Like every attendee they carry `expires_at` = registration + 24h and are
+  deleted by the retention job (`npm run retention`, CronJob
+  `deploy/k8s/app/retention-cronjob.yaml`); nothing else needs
+  cleaning up. They opt in to the cluster map, so a clusters run within 24h
+  will count them.
+- Output: only per-route request counts, status-code counts and client-side
+  p50/p95 at the end. Tokens, attendee IDs and query text are kept in memory
+  and never printed.
+- Tests: `api/test/traffic.test.ts` (mix weights, pacer/backoff, no
+  token-like output, dry run) and `api/test/traffic.e2e.test.ts` (the full mix
+  over HTTP against the real API with a faked Elasticsearch).
