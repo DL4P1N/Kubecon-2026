@@ -2,6 +2,7 @@ import { routes, type RouteDef } from "@cc/shared";
 import type {
   AccessTokenResponse,
   InterestAggregateResponse,
+  InterestClustersResponse,
   OnboardingRequest,
   OnboardingResponse,
   RegisterRequest,
@@ -34,9 +35,19 @@ export function setToken(token: string): void {
   }
 }
 
-async function call<T>(route: RouteDef, opts: { body?: unknown; query?: Record<string, string> } = {}): Promise<T> {
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+async function call<T>(
+  route: RouteDef,
+  opts: { body?: unknown; query?: Record<string, string>; headers?: Record<string, string> } = {},
+): Promise<T> {
   const qs = opts.query ? `?${new URLSearchParams(opts.query).toString()}` : "";
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...opts.headers };
   if (opts.body !== undefined) headers["content-type"] = "application/json";
   const token = getToken();
   if (token) headers.authorization = `Bearer ${token}`;
@@ -45,7 +56,7 @@ async function call<T>(route: RouteDef, opts: { body?: unknown; query?: Record<s
     headers,
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
   });
-  if (!res.ok) throw new Error(`${route.method} ${route.path} failed: ${res.status}`);
+  if (!res.ok) throw new ApiError(`${route.method} ${route.path} failed: ${res.status}`, res.status);
   return (await res.json()) as T;
 }
 
@@ -78,4 +89,7 @@ export const api = {
   accessToken: () => call<AccessTokenResponse>(routes.accessToken, { body: {} }),
   scan: scanRoom,
   aggregate: () => call<InterestAggregateResponse>(routes.interestsAggregate),
+  /** Latest k-means run for organizers; `organizerKey` is sent as x-organizer-key when set. */
+  clusters: (organizerKey = "") =>
+    call<InterestClustersResponse>(routes.interestsClusters, { headers: organizerKey ? { "x-organizer-key": organizerKey } : {} }),
 };

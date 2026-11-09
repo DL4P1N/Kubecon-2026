@@ -221,6 +221,31 @@ export interface InterestAggregateResponse {
   generatedAt: string; // ISO 8601
 }
 
+// ---------------------------------------------------------------- cluster map (Module 4)
+
+export interface InterestClusterNode {
+  /** Stable within one run only ("c1", "c2", ... or "other"). */
+  id: string;
+  label: string;
+  /** Always at least `minClusterSize`. */
+  size: number;
+  /** Interests held by at least `minClusterSize` members of this cluster. */
+  topInterests: string[];
+  /** True for the merged "other" bucket (small clusters pooled together). */
+  other: boolean;
+}
+
+/** Latest completed k-means batch run (`npm run clusters`). Aggregates only. */
+export interface InterestClustersResponse {
+  /** Null until the first run has completed. */
+  runId: string | null;
+  computedAt: string | null; // ISO 8601
+  clusters: InterestClusterNode[];
+  /** Opted-in attendees left out because their group was below the minimum. */
+  suppressed: number;
+  minClusterSize: number;
+}
+
 // ---------------------------------------------------------------- route table
 
 export const routes = {
@@ -234,6 +259,7 @@ export const routes = {
   accessToken: { method: "POST", path: "/api/access/token" },
   accessScan: { method: "POST", path: "/api/access/scan" },
   interestsAggregate: { method: "GET", path: "/api/interests/aggregate" },
+  interestsClusters: { method: "GET", path: "/api/interests/clusters" },
 } as const satisfies Record<string, RouteDef>;
 
 export type RouteName = keyof typeof routes;

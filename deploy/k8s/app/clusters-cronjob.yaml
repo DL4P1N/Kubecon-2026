@@ -1,0 +1,58 @@
+# Module 4 cluster map batch: k-means runs in this Node job (not in Elasticsearch),
+# reads opted-in attendees' interest vectors and writes aggregate clusters
+# (each at least 5 members) to the interest_clusters index. See docs/cluster-map.md.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: companion-clusters
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 900
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          containers:
+            - name: clusters
+              # Use the same release tag as the API Deployment.
+              image: ghcr.io/dl4p1n/kubecon-2026-api:main
+              command: ["node", "dist/clusters/job.js"]
+              envFrom:
+                - configMapRef:
+                    name: companion-app-config
+                - secretRef:
+                    name: companion-app-secrets
+              env:
+                - name: NODE_EXTRA_CA_CERTS
+                  value: /etc/elasticsearch/ca.crt
+              volumeMounts:
+                - name: es-ca
+                  mountPath: /etc/elasticsearch
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 384Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: es-ca
+              secret:
+                secretName: elasticsearch-ca

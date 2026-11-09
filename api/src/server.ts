@@ -11,6 +11,7 @@ import { loggerOptions } from "./telemetry/logger.js";
 import { accessRoutes } from "./routes/access.js";
 import { registerInterestRoutes } from "./routes/interests.js";
 import { registerRoutes } from "./routes/register.js";
+import { registerClusterRoutes } from "./routes/clusters.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
 
 const VERSION = "0.1.0";
@@ -57,6 +58,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   });
 
   registerSearchRoutes(app, { es, tokens, ...deps.search });
+  registerClusterRoutes(app, { es }); // Module 4: GET /api/interests/clusters
 
   // Module 3: POST /api/access/token + POST /api/access/scan (routes/access.ts).
   app.register(accessRoutes, { es, tokens });
