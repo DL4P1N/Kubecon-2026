@@ -142,6 +142,20 @@ explicitly, so it is the panel most likely to need a tweak live.
 Do not paste tokens on the board or commit them. A Dash0 auth token with
 "All permissions" is needed for SLOs (Organization Settings > Auth Tokens).
 
+The 6h availability slow-burn query has its own `companion-slo-slow` group at
+`interval: 5m`; the other five checks keep `1m`. This matches the interval the
+operator successfully applied after the API rejected the 6h query at `1m`.
+The query, thresholds and labels are unchanged. This source correction has
+been checked offline; it is not a claim of a new live apply.
+
+For an organization with the older checkpoint definitions, the CLI name
+changes from `companion-slo - Availability budget slow burn` to
+`companion-slo-slow - Availability budget slow burn`. Before applying, list
+the existing checks and plan replacement of that old rule; preserve its
+notification bindings. After migration, confirm exactly six project checks
+and one slow-burn check at five minutes, rather than keeping both names.
+The historical persistence record describes the prior apply, not this migration.
+
 ### Option A (recommended): Dash0 CLI, from a checkout of this branch
 
 ```sh
@@ -160,20 +174,6 @@ dash0 slos list           # expect companion-search-latency, companion-availabil
 ```
 
 ### Option B: Dash0 operator on the kind cluster (dashboard + check rules only)
-
-The 6h availability slow-burn query has its own `companion-slo-slow` group at
-`interval: 5m`; the other five checks keep `1m`. This matches the interval the
-operator successfully applied after the API rejected the 6h query at `1m`.
-The query, thresholds and labels are unchanged. This source correction has
-been checked offline; it is not a claim of a new live apply.
-
-For an organization with the older checkpoint definitions, the CLI name
-changes from `companion-slo - Availability budget slow burn` to
-`companion-slo-slow - Availability budget slow burn`. Before applying, list
-the existing checks and plan replacement of that old rule; preserve its
-notification bindings. After migration, confirm exactly six project checks
-and one slow-burn check at five minutes, rather than keeping both names.
-The historical persistence record describes the prior apply, not this migration.
 
 The operator syncs `PersesDashboard` and `PrometheusRule` resources, but only
 in namespaces that have a `Dash0Monitoring` resource, and it needs an operator
