@@ -10,7 +10,7 @@ interface Chip {
 /** Facet buckets plus any selected value the current results no longer contain (count 0). */
 function chipsFor(buckets: FacetBucket[] | undefined, selected: string[], label: (v: string) => string = (v) => v): Chip[] {
   const chips: Chip[] = (buckets ?? []).map((b) => ({ value: b.value, label: label(b.value), count: b.count }));
-  for (const v of selected) if (!chips.some((c) => c.value === v)) chips.push({ value: v, label: label(v), count: 0 });
+  for (const v of selected) if (!chips.some((c) => c.value === v)) chips.push({ value: v, label: label(v), count: buckets ? 0 : undefined });
   return chips;
 }
 
