@@ -304,6 +304,28 @@ payloads are cited instead.
 
 ## Dash0
 
+### Dash0 UI screenshots on deployed `9c047d7` (#73, 2026-11-09 23:40-23:41Z)
+
+Captured from a signed-in Dash0 browser session (time range "Last 30 minutes",
+which includes the #73 traffic-generator run). Only what is visible is claimed.
+
+- [Health dashboard, SLO row](demo/dash0-live-dashboard-slos.jpg): search p95 286 ms,
+  latency SLI 100%, availability 100%; burn-rate panel at 0 for 5m/1h windows.
+- [Health dashboard, API row](demo/dash0-live-dashboard-api.jpg): request rate and
+  p95 latency by route; 5xx ratio flat at 0, no 5xx responses in the range.
+- [Health dashboard, search + room access](demo/dash0-live-dashboard-search.jpg):
+  hybrid vs keyword p95 and searches/s by mode; access scans by room and decision;
+  deny ratio (1h) 4.66%.
+- [SLO list](demo/dash0-live-slo-list.jpg): both SLOs HEALTHY. Availability target 99%,
+  99.97% error budget left; search + onboarding latency target 95%, 100% budget left.
+- [Latency SLO detail](demo/dash0-live-slo-latency.jpg) and
+  [availability SLO detail](demo/dash0-live-slo-availability.jpg): 2h/24h/7d/28d SLIs.
+  Dash0 notes only about 3h41m of the 28-day window has been measured, so this
+  is not evidence of 28-day compliance.
+- [Trace view](demo/dash0-live-trace.jpg): trace `7e51d2bb...eebb1`, `GET /api/search`
+  200, 140 ms, 7 spans in one service (`handler` -> `search` -> `embed` -> `POST`).
+  The visible span attributes are HTTP/dash0 fields only; no attendee ID is shown.
+
 ### Live API measurements on deployed `9c047d7` (#73, 2026-11-09)
 
 - [Timestamped queries, native SLO values, traffic summary and redacted trace](evidence/dash0-live-73.json).
@@ -320,8 +342,7 @@ payloads are cited instead.
   `embed`, and a successful HTTP POST to Elasticsearch. Only selected
   non-sensitive fields are retained; this is not an exhaustive privacy audit.
 - **Boundary:** these are read-only API measurements, not Dash0 UI screenshots
-  or verification of panel rendering. The dashboard, latency-SLO,
-  availability-SLO and trace screenshots remain pending a signed-in browser.
+  or verification of panel rendering. The UI screenshots are in the section above.
   The owner-supplied API token permits queries but does not log into the UI.
   An earlier longer generator run was interrupted; 5-minute/1-hour queries
   include preceding activity and other clients. This short run does not prove
