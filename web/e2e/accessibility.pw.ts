@@ -55,12 +55,17 @@ test("keyboard-only registration follows labels and keeps optional consent off",
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("kubernetes", { exact: true })).toBeFocused();
   await page.keyboard.press("Space");
+  await expect(page.getByLabel("kubernetes", { exact: true })).toBeChecked();
   await page.keyboard.press("Tab");
   await expect(page.getByLabel(/Include my interests/)).not.toBeChecked();
   await page.keyboard.press("Tab");
   await expect(page.getByLabel(/Allow QR/)).not.toBeChecked();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("button", { name: "Register", exact: true })).toBeFocused();
+  const registerRequest = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/register");
   await page.keyboard.press("Enter");
+  expect((await registerRequest).postDataJSON()).toMatchObject({
+    interests: ["kubernetes"], consent: { clusterMap: false, qrCheckin: false },
+  });
   await expect(page.getByRole("heading", { name: "Onboarding", exact: true })).toBeVisible();
 });
