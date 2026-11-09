@@ -17,6 +17,7 @@ import { accessRoutes, scanBodySchema } from "../src/routes/access.js";
 import { registerRoutes } from "../src/routes/register.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
 import { RoomActivityCounter } from "../src/rooms/activity.js";
+import { loggerOptions } from "../src/telemetry/logger.js";
 
 const KEY = "test-signing-key-that-is-long-enough-0123456789";
 const ROOM = "Salt Palace | Level 1 | Hall DE";
@@ -82,7 +83,7 @@ describe("QR access", () => {
         cb();
       },
     });
-    const a = Fastify({ logger: { level: "trace", stream: logStream } });
+    const a = Fastify({ logger: { ...loggerOptions, level: "trace", stream: logStream } });
     await a.register(registerRoutes, { es: es.client, tokens: tokens(), embed: async () => [1], now });
     await a.register(accessRoutes, { es: es.client, tokens: tokens(), scanRateLimitPerMinute: opts.scanLimit, now, roomActivity });
     await a.ready();
@@ -287,7 +288,7 @@ describe("QR access", () => {
     expect((await scan("not-a-jwt")).statusCode).toBe(429);
   });
 
-  it("emits access.scan spans with only access.decision and room.id, and never logs or spans the attendee ID", async () => {
+  it("audits scan decisions with only validated rooms and never logs or spans identities, tokens or unvalidated rooms", async () => {
     const reg = await register();
     const qr = (await qrToken(reg)).json() as AccessTokenResponse;
     es.docs.set(`entitlements/${reg.attendeeId}`, {
@@ -299,8 +300,14 @@ describe("QR access", () => {
     });
     await scan(qr.token, OTHER_ROOM);
     await scan(qr.token, ROOM);
-    await scan("garbage");
-    await scan(qr.token, "Nowhere");
+    const privateRoom = "private-room-input";
+    await scan("garbage", privateRoom);
+    await scan(qr.token, privateRoom);
+    const malformedRoom = `${privateRoom}\u0001x`;
+    expect(scanBodySchema.safeParse({ token: qr.token, room: malformedRoom }).success).toBe(false);
+    await scan(qr.token, malformedRoom);
+    es.failEntitlements();
+    await scan(qr.token, ROOM);
 
     const scans = spans.filter((s) => s.name === "access.scan");
     expect(scans.map((s) => s.attrs)).toEqual([
@@ -308,12 +315,24 @@ describe("QR access", () => {
       { "access.decision": "deny", "room.id": ROOM },
       { "access.decision": "deny" },
       { "access.decision": "deny" },
+      { "access.decision": "deny" },
+      { "access.decision": "deny", "room.id": ROOM },
     ]);
     expect(spans.some((s) => s.name === "access.token")).toBe(true);
+    const audit = logs.map((line) => JSON.parse(line)).filter((record) => record["access.decision"]);
+    expect(audit.map((record) => ({ decision: record["access.decision"], room: record["room.id"] }))).toEqual([
+      { decision: "allow", room: OTHER_ROOM },
+      { decision: "deny", room: ROOM },
+      { decision: "deny", room: "unknown" },
+      { decision: "deny", room: "unknown" },
+      { decision: "deny", room: "unknown" },
+      { decision: "deny", room: ROOM },
+    ]);
     const everything = JSON.stringify(spans) + logs.join("");
     expect(everything).not.toContain(reg.attendeeId);
     expect(everything).not.toContain(qr.token);
     expect(everything).not.toContain(reg.token);
+    expect(everything).not.toContain(privateRoom);
   });
 
   it("counts scans by decision and room only, never by attendee ID, and not by unvalidated room input", async () => {

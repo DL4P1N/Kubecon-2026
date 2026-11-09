@@ -121,6 +121,7 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
           if (decision === "allow" && knownRoom) opts.roomActivity?.recordAllowed(knownRoom);
           span.setAttribute("access.decision", decision);
           recordAccessScan(decision, knownRoom ?? UNKNOWN_ROOM);
+          req.log.info({ "access.decision": decision, "room.id": knownRoom ?? UNKNOWN_ROOM }, "Room access decision");
         };
         const parsed = scanBodySchema.safeParse(req.body);
         if (!parsed.success) {
