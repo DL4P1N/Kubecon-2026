@@ -57,9 +57,12 @@ already work; missing Actions access is a hypothesis, not an observed fact.
 
 A [read-only retrospective request](https://github.com/DL4P1N/Kubecon-2026/pull/14#issuecomment-6749678468)
 asks Gitar to analyze the real PR14 failure and cite evidence, without changing
-code, pushing, retrying CI, or enabling auto-apply. No reply had arrived when
-this audit was written. Preserve any later response with its timestamp and
-label it retrospective; do not rewrite it as original CI diagnosis.
+code, pushing, retrying CI, or enabling auto-apply. Its
+[bot response](https://github.com/DL4P1N/Kubecon-2026/pull/14#issuecomment-6749702226)
+only says “No push was confirmed in this run” and suggests checking the branch;
+it provides no CI root cause or log analysis. This is not diagnosis evidence,
+and does not establish why historical analysis is absent. Preserve any later
+substantive response as retrospective, not original CI diagnosis.
 
 On the next natural failure at the current PR head, capture the actual Gitar
 CI-analysis section and run URL before pushing a fix. Do not manufacture a
