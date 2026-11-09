@@ -39,7 +39,9 @@ ES_USERNAME/ES_PASSWORD. The script grants monitor_inference and index
 management/read/write only for the five aliases and their versioned indices.
 Index management is needed for the merged application's mapping/alias setup;
 the role has no cluster-settings or user-management privileges. Trial-license
-status is returned by Elasticsearch; an already-used trial cannot be restarted.
+status is checked first: existing trial/Platinum/Enterprise licenses skip
+activation. If no inference license is active and the trial was already used,
+bootstrap reports that the license owner must activate an appropriate license.
 
 ## Kubernetes
 
