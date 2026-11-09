@@ -88,20 +88,6 @@ spec:
           labels:
             service: companion-api
             slo: companion-availability
-        - alert: Availability budget slow burn
-          expr: |
-            (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[6h])) or vector(0))
-              / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[6h])) / 0.01 > 6
-            and
-            (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[30m])) or vector(0))
-              / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[30m])) / 0.01 > 6
-          annotations:
-            summary: "Availability error budget burning {{ $value }}x too fast (6h and 30m windows)"
-            description: "5xx ratio above 6% in both the last 6 hours and the last 30 minutes."
-            dash0-enabled: "true"
-          labels:
-            service: companion-api
-            slo: companion-availability
         # ------------------------------------------- native Dash0 SLOs (28d)
         # Only fires once the OpenSLO documents in deploy/dash0/slos/ exist.
         # Pattern from https://www.dash0.com/docs/dash0/monitoring/alerting/alert-on-slos
@@ -120,3 +106,21 @@ spec:
             dash0-enabled: "true"
           labels:
             service: companion-api
+    # The live API rejected the 6h window at 1m; the accepted interval is 5m.
+    - name: companion-slo-slow
+      interval: 5m
+      rules:
+        - alert: Availability budget slow burn
+          expr: |
+            (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[6h])) or vector(0))
+              / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[6h])) / 0.01 > 6
+            and
+            (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[30m])) or vector(0))
+              / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[30m])) / 0.01 > 6
+          annotations:
+            summary: "Availability error budget burning {{ $value }}x too fast (6h and 30m windows)"
+            description: "5xx ratio above 6% in both the last 6 hours and the last 30 minutes."
+            dash0-enabled: "true"
+          labels:
+            service: companion-api
+            slo: companion-availability

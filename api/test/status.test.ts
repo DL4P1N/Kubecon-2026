@@ -89,7 +89,7 @@ describe("GET /api/status", () => {
     expect(body.search.hybrid.state).toBe("unknown");
     expect(body.search.keyword).toEqual({ samples: 0, p95Ms: null });
     expect(spans.find((s) => s.name === "status")?.set).toEqual({ "http.response.status_code": 200 });
-    expect(spans.find((s) => s.name === "status")?.attrs).toEqual({ "http.request.method": "GET", "url.path": "/api/status" });
+    expect(spans.find((s) => s.name === "status")?.attrs).toEqual({ "http.request.method": "GET", "http.route": "/api/status" });
   });
 
   it("shows live search latency and ready hybrid after real searches, with no query text in the body", async () => {
