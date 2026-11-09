@@ -10,3 +10,6 @@ main { max-width: 40rem; margin: 0 auto; padding: 1rem; }
 label { display: block; margin: 0.75rem 0 0.25rem; }
 input, select, button { font: inherit; padding: 0.4rem 0.6rem; }
 :focus-visible { outline: 3px solid #0b57d0; outline-offset: 2px; }
+header nav { flex-wrap: wrap; }
+.skip-link { position: absolute; left: 1rem; top: -5rem; padding: .75rem; color: #0b57d0; background: white; z-index: 10; }
+.skip-link:focus { top: .5rem; }

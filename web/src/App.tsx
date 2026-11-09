@@ -8,6 +8,7 @@ import { Search } from "./pages/Search.js";
 export function App() {
   return (
     <>
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <header>
         <nav aria-label="Main" style={{ display: "flex", gap: "1rem" }}>
           <Link to="/register">Register</Link>
@@ -17,7 +18,7 @@ export function App() {
           <Link to="/kiosk">Kiosk</Link>
         </nav>
       </header>
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <Routes>
           <Route path="/" element={<Navigate to="/register" replace />} />
           <Route path="/register" element={<Register />} />
