@@ -6,6 +6,7 @@ import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
 import { RETRY_AFTER_SECONDS, STUB_ATTENDEE_ID, defaultResolveAttendee, registerSearchRoutes } from "../src/routes/search.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
+import { loggerOptions } from "../src/telemetry/logger.js";
 import { esHit, fakeEs, talk, type FakeHandler } from "./helpers.js";
 
 const A = talk("a", 9, 10, { level: "beginner" });
@@ -138,24 +139,26 @@ const ES_400_PARSING = {
 };
 
 /**
- * Fastify app with a capturing logger. Only the diagnostic line is captured: Fastify's
- * default request serializer logs the raw URL, which the production logger options
- * (telemetry/logger.ts, task #12) strip separately.
+ * Fastify app using the production logger options (telemetry/logger.ts: redaction,
+ * query-string-free request serializer) with a capturing stream. `lines` holds only the
+ * diagnostic line; `all` holds every log line (request/response lines included).
  */
 function appWithLogs(es: ReturnType<typeof fakeEs>) {
   const lines: string[] = [];
+  const all: string[] = [];
   const keep = (l: string) => {
+    all.push(l);
     if (String(JSON.parse(l).msg).startsWith("elasticsearch request failed")) lines.push(l);
   };
-  const app = Fastify({ logger: { level: "info", stream: { write: keep } } });
+  const app = Fastify({ logger: { ...loggerOptions, level: "info", stream: { write: keep } } });
   registerSearchRoutes(app, { es });
-  return { app, lines };
+  return { app, lines, all };
 }
 
 describe("Elasticsearch failures are diagnosable", () => {
   it("maps a 429 inference capacity error to 503 + Retry-After, with error.type on spans and one log line", async () => {
     const es = fakeEs(() => ({ status: 429, body: ES_429_NO_ML_CAPACITY }));
-    const { app, lines } = appWithLogs(es);
+    const { app, lines, all } = appWithLogs(es);
     const res = await app.inject({ method: "GET", url: `/api/search?q=${SECRET}&mode=hybrid` });
 
     expect(res.statusCode).toBe(503);
@@ -176,7 +179,10 @@ describe("Elasticsearch failures are diagnosable", () => {
       level: 40,
     });
 
-    const everything = JSON.stringify({ spans, lines, body: res.body, headers: res.headers });
+    // Request/response lines went through the same redacting logger and carry no query string.
+    expect(all.length).toBeGreaterThan(lines.length);
+    expect(all.some((l) => JSON.parse(l).req?.path === "/api/search")).toBe(true);
+    const everything = JSON.stringify({ spans, all, body: res.body, headers: res.headers });
     expect(everything).not.toContain(SECRET);
     expect(everything).not.toContain("ML nodes");
     expect(everything).not.toContain("authorization");
@@ -184,7 +190,7 @@ describe("Elasticsearch failures are diagnosable", () => {
 
   it("keeps a 400 parsing error as 502 search_unavailable and records its type", async () => {
     const es = fakeEs(() => ({ status: 400, body: ES_400_PARSING }));
-    const { app, lines } = appWithLogs(es);
+    const { app, lines, all } = appWithLogs(es);
     const res = await app.inject({ method: "GET", url: `/api/search?q=${SECRET}` });
 
     expect(res.statusCode).toBe(502);
@@ -194,7 +200,7 @@ describe("Elasticsearch failures are diagnosable", () => {
     const diag = lines.map((l) => JSON.parse(l));
     expect(diag).toHaveLength(1);
     expect(diag[0]).toMatchObject({ "error.type": "parsing_exception", msg: "elasticsearch request failed with status 400" });
-    expect(JSON.stringify({ spans, lines, body: res.body })).not.toContain(SECRET);
+    expect(JSON.stringify({ spans, all, body: res.body })).not.toContain(SECRET);
   });
 
   it("falls back to http_<status> when the body has no error type", async () => {
