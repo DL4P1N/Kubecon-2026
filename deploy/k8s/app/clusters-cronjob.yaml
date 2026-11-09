@@ -27,7 +27,7 @@ spec:
             - name: clusters
               # Use the same release tag as the API Deployment.
               image: ghcr.io/dl4p1n/kubecon-2026-api:main
-              command: ["node", "dist/clusters/job.js"]
+              command: ["node", "dist/clusters/cli.js"]
               envFrom:
                 - configMapRef:
                     name: companion-app-config
