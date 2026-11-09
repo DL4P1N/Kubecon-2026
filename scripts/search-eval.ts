@@ -247,6 +247,27 @@ async function main(): Promise<void> {
   log("|---|---|---|---|---|---|");
   for (const s of summary) log(s);
   log();
+  // Diagnostic: the semantic leg on its own (same query the hybrid leg runs), to
+  // see whether fusion or the embedding itself limits hybrid.
+  log("## Diagnostic: semantic leg alone");
+  log();
+  log("| exclusion | semantic hit@3 | semantic MRR@10 | per-query RR |");
+  log("|---|---|---|---|");
+  for (const tuning of [BASELINE, EXCL]) {
+    let hit = 0, mrr = 0;
+    const rrs: string[] = [];
+    for (const j of EVAL_SET) {
+      const legs = (buildHybridBody(j.q, SIZE, {}, tuning) as { retriever: { rrf: { retrievers: { standard: { query: unknown } }[] } } })
+        .retriever.rrf.retrievers;
+      const ids = (await search(es, { size: SIZE, _source: ["id", "title", "track"], query: legs[1]!.standard.query })).map((h) => h.id);
+      const rr = reciprocalRank(ids, j.relevant);
+      mrr += rr;
+      rrs.push(fmt(rr));
+      if (hitAt(ids, j.relevant, 3)) hit++;
+    }
+    log(`| ${JSON.stringify(tuning.excludeTracks)} | ${hit}/${EVAL_SET.length} | ${fmt(mrr / EVAL_SET.length)} | ${rrs.join(" ")} |`);
+  }
+  log();
   log("## Per query");
   log();
   for (const d of details) log(d);

@@ -9,6 +9,15 @@ beforeEach(() => { vi.spyOn(api, "catalogTopics").mockResolvedValue({ topics: ["
 const talk = { id: "talk-1", title: "Secure Kubernetes", speaker: "Speaker", abstract: "", track: "Security",
   room: "A", start: "2026-11-09T10:00:00Z", end: "2026-11-09T11:00:00Z", tags: ["kubernetes"] };
 describe("attendee journey", () => {
+  it("explains the required topic selection before sending registration", async () => {
+    vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "keyword", tookMs: 1, hits: [{ talk, score: 1 }] });
+    const register = vi.spyOn(api, "register");
+    render(<MemoryRouter initialEntries={["/register"]}><App /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Demo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(register).not.toHaveBeenCalled();
+  });
   it.each([false, true])("sends consent only after explicit selection: %s", async (optIn) => {
     vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "keyword", tookMs: 1, hits: [{ talk, score: 1 }] });
     const register = vi.spyOn(api, "register").mockResolvedValue({ attendeeId: "fake", token: "signed", expiresAt: "" });

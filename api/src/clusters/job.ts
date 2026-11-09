@@ -1,7 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { fileURLToPath } from "node:url";
-import { loadConfig } from "../config.js";
-import { createEsClient, type EsClient } from "../es/client.js";
+import type { EsClient } from "../es/client.js";
 import { withSpan } from "../telemetry/span.js";
 import { buildClusters, finalize, type BuildOptions, type ClusterInput, type ClusterRun } from "./build.js";
 
@@ -184,21 +182,5 @@ export async function runClusterJob(es: EsClient, opts: ClusterJobOptions = {}):
     span.setAttribute("clusters.shown", result.shown);
     span.setAttribute("clusters.suppressed", result.suppressed);
     return result;
-  });
-}
-
-/** `npm run clusters` */
-async function main() {
-  const es = createEsClient(loadConfig());
-  const r = await runClusterJob(es, { dims: process.env.EMBEDDING_DIMS ? Number(process.env.EMBEDDING_DIMS) : undefined });
-  console.log(
-    `clusters.run ${r.runId}: ${r.attendees} opted-in attendees, k=${r.k}, ${r.shown} clusters shown, ${r.suppressed} suppressed, ${r.skipped} skipped (no usable vector)`,
-  );
-}
-
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  main().catch((err) => {
-    console.error(err instanceof Error ? err.message : "cluster job failed");
-    process.exit(1);
   });
 }

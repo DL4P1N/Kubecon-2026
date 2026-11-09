@@ -1,0 +1,122 @@
+# Dash0 check rules for the Conference Companion SLOs (PrometheusRule format).
+# Each `alert` becomes one Dash0 check rule named "<group> - <alert>".
+# `$__threshold` is replaced by the dash0-threshold-degraded / -critical
+# annotations (values must be YAML strings).
+# Format reference: https://www.dash0.com/docs/dash0/monitoring/alerting/manage-check-rules-as-code
+# and https://www.dash0.com/docs/dash0/monitoring/kubernetes/dash0-operator/managing-dash0-resources
+#
+# SLOs (see docs/dash0.md for the reasoning):
+#   latency:      p95 of /api/search + /api/onboarding < 500 ms over 1h
+#                 (SLI: >= 95% of those requests finish within 0.5 s, budget 5%)
+#   availability: >= 99% of companion-api responses are not 5xx (budget 1%)
+# Burn-rate rules use the multi-window pattern from the Google SRE workbook:
+#   fast burn: 1h and 5m burn rate both > 14.4
+#   slow burn: 6h and 30m burn rate both > 6
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: conference-companion-slo
+  namespace: conference-companion
+  labels:
+    app.kubernetes.io/part-of: conference-companion
+spec:
+  groups:
+    - name: companion-slo
+      interval: 1m
+      rules:
+        # ------------------------------------------------------------ latency
+        - alert: Search and onboarding p95 latency (1h)
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le) (rate(http_server_request_duration_seconds_bucket{service_name="companion-api", http_route=~"/api/search|/api/onboarding"}[1h]))
+            ) * 1000 > $__threshold
+          for: 5m
+          annotations:
+            summary: "Search/onboarding p95 latency is {{ $value }} ms over the last hour (SLO: < 500 ms)"
+            description: "p95 of http.server.request.duration for /api/search and /api/onboarding on companion-api, 1h window. Check the search p95-by-mode panel: hybrid search runs Elasticsearch E5 inference."
+            dash0-threshold-degraded: "400"
+            dash0-threshold-critical: "500"
+            dash0-enabled: "true"
+          labels:
+            service: companion-api
+            slo: companion-search-latency
+        - alert: Search and onboarding latency budget fast burn
+          expr: |
+            (
+              1 - sum(rate(http_server_request_duration_seconds_bucket{service_name="companion-api", http_route=~"/api/search|/api/onboarding", le="0.5"}[1h]))
+                / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_route=~"/api/search|/api/onboarding"}[1h]))
+            ) / 0.05 > 14.4
+            and
+            (
+              1 - sum(rate(http_server_request_duration_seconds_bucket{service_name="companion-api", http_route=~"/api/search|/api/onboarding", le="0.5"}[5m]))
+                / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_route=~"/api/search|/api/onboarding"}[5m]))
+            ) / 0.05 > 14.4
+          annotations:
+            summary: "Latency error budget burning {{ $value }}x faster than sustainable (1h and 5m windows)"
+            description: "More than 72% of /api/search + /api/onboarding requests took longer than 500 ms in both the last hour and the last 5 minutes."
+            dash0-enabled: "true"
+          labels:
+            service: companion-api
+            slo: companion-search-latency
+        # ------------------------------------------------------- availability
+        - alert: API 5xx ratio (1h)
+          expr: |
+            (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[1h])) or vector(0))
+              / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[1h]))
+              * 100 > $__threshold
+          for: 5m
+          annotations:
+            summary: "{{ $value }}% of companion-api responses were 5xx over the last hour (SLO: <= 1%)"
+            description: "Availability SLO is >= 99% non-5xx responses. Look at the 5xx-by-route panel, then the failing traces in Dash0."
+            dash0-threshold-degraded: "0.5"
+            dash0-threshold-critical: "1"
+            dash0-enabled: "true"
+          labels:
+            service: companion-api
+            slo: companion-availability
+        - alert: Availability budget fast burn
+          expr: |
+            (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[1h])) or vector(0))
+              / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[1h])) / 0.01 > 14.4
+            and
+            (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[5m])) or vector(0))
+              / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[5m])) / 0.01 > 14.4
+          annotations:
+            summary: "Availability error budget burning {{ $value }}x too fast (1h and 5m windows)"
+            description: "5xx ratio above 14.4% in both the last hour and the last 5 minutes."
+            dash0-enabled: "true"
+          labels:
+            service: companion-api
+            slo: companion-availability
+        - alert: Availability budget slow burn
+          expr: |
+            (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[6h])) or vector(0))
+              / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[6h])) / 0.01 > 6
+            and
+            (sum(rate(http_server_request_duration_seconds_count{service_name="companion-api", http_response_status_code=~"5.."}[30m])) or vector(0))
+              / sum(rate(http_server_request_duration_seconds_count{service_name="companion-api"}[30m])) / 0.01 > 6
+          annotations:
+            summary: "Availability error budget burning {{ $value }}x too fast (6h and 30m windows)"
+            description: "5xx ratio above 6% in both the last 6 hours and the last 30 minutes."
+            dash0-enabled: "true"
+          labels:
+            service: companion-api
+            slo: companion-availability
+        # ------------------------------------------- native Dash0 SLOs (28d)
+        # Only fires once the OpenSLO documents in deploy/dash0/slos/ exist.
+        # Pattern from https://www.dash0.com/docs/dash0/monitoring/alerting/alert-on-slos
+        # (SLO metrics carry the SLO's metadata.labels, here `slo`).
+        - alert: Dash0 SLO burn rate
+          expr: |
+            max by (dash0_slo_id, slo) (
+              {otel_metric_name="dash0.slo.burn_rate.fast", slo=~"companion-.*"}
+              or
+              {otel_metric_name="dash0.slo.burn_rate.slow", slo=~"companion-.*"}
+            ) > $__threshold
+          annotations:
+            summary: "Dash0 SLO {{ $labels.slo }} burn rate is {{ $value }} (1 = budget runs out within the window)"
+            dash0-threshold-degraded: "1"
+            dash0-threshold-critical: "2"
+            dash0-enabled: "true"
+          labels:
+            service: companion-api

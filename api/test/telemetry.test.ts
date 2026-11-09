@@ -93,6 +93,11 @@ describe("metrics", () => {
     expect(allowPoint.attributes).toEqual({ "access.decision": "allow", "room.id": "hall-a" });
     const search = all.find((m) => m.descriptor.name === "companion.search.duration")!;
     expect(search.dataPoints[0]?.attributes).toEqual({ "search.mode": "hybrid" });
+    // Sub-second buckets: the SDK default (0, 5, 10, ...) would put every
+    // search in one bucket and make the Dash0 p95 panel/SLO meaningless.
+    const hist = search.dataPoints[0]!.value as { buckets: { boundaries: number[] } };
+    expect(hist.buckets.boundaries).toContain(0.5);
+    expect(hist.buckets.boundaries).toContain(0.1);
 
     await provider.shutdown();
     metrics.disable();

@@ -14,6 +14,8 @@ import { registerInterestRoutes } from "./routes/interests.js";
 import { registerCatalogRoutes } from "./routes/catalog.js";
 import { registerRoutes } from "./routes/register.js";
 import { registerClusterRoutes } from "./routes/clusters.js";
+import { registerStatusRoutes } from "./routes/status.js";
+import { createStatusTracker, type StatusTracker } from "./status/tracker.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
 
 const VERSION = "0.1.0";
@@ -25,6 +27,8 @@ export interface ServerDeps {
   search?: Omit<SearchRouteDeps, "es">;
   /** Attendee token service; defaults to HS256 with TOKEN_SIGNING_KEY. */
   tokens?: TokenService;
+  /** In-process counters behind GET /api/status; tests inject one to control time. */
+  status?: StatusTracker;
 }
 
 /**
@@ -50,6 +54,14 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
       : false,
   });
 
+  // Rolling counters for GET /api/status: status codes only, never paths, bodies or ids.
+  const tracker = deps.status ?? createStatusTracker();
+  app.addHook("onResponse", async (req, reply) => {
+    const path = req.routeOptions?.url;
+    if (path === routes.health.path || path === routes.status.path) return;
+    tracker.recordRequest(reply.statusCode);
+  });
+
   app.get(routes.health.path, async (): Promise<HealthResponse> => ({
     status: "ok",
     version: VERSION,
@@ -64,7 +76,8 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
     rateLimitPerMinute: config.registerRateLimitPerMinute,
   });
 
-  registerSearchRoutes(app, { es, tokens, ...deps.search });
+  registerSearchRoutes(app, { es, tokens, tracker, ...deps.search });
+  registerStatusRoutes(app, { es, tracker, version: VERSION, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/status
   registerClusterRoutes(app, { es }); // Module 4: GET /api/interests/clusters
   registerCatalogRoutes(app, es);
 
