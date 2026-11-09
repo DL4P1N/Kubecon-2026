@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import type { SearchMode, SearchResponse } from "@cc/shared";
 import { ApiError, api } from "../api.js";
+import { SuggestInput } from "../components/SuggestInput.js";
 import "./discovery.css";
 
 type Result = SearchResponse & { debug?: unknown };
@@ -47,7 +48,7 @@ export function Search() {
     <p>Compare exact keyword matches with hybrid search, which also looks for related meaning.</p>
     <form onSubmit={onSubmit} role="search" aria-busy={pending}>
       <label htmlFor="q">Query</label>
-      <input id="q" value={q} maxLength={1000} onChange={(event) => setQ(event.target.value)} placeholder="Securing my Kubernetes supply chain" />
+      <SuggestInput id="q" value={q} onChange={setQ} maxLength={1000} placeholder="Securing my Kubernetes supply chain" />
       <label><input type="checkbox" checked={debug} onChange={(event) => setDebug(event.target.checked)} /> Include Elasticsearch query details</label>
       <button type="submit" disabled={pending}>{pending ? "Searching…" : "Search"}</button>
     </form>

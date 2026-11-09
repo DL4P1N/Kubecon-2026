@@ -32,6 +32,14 @@ export interface SearchTuning {
   semanticWeight: number;
   /** Hybrid keyword leg only: BM25 `minimum_should_match`, so stopword-only matches do not get fused ranks. */
   hybridKeywordMinimumShouldMatch?: string;
+  /**
+   * Typo tolerance on the BM25 leg (both modes): Elasticsearch `fuzziness`
+   * ("AUTO" = 1 edit for 3-5 letter terms, 2 for longer; 0-2 letter terms stay
+   * exact). Unset means exact matching only, as before task #55.
+   */
+  fuzziness?: string;
+  /** Leading characters that must match exactly before fuzziness applies (cheaper, fewer false hits). */
+  fuzzyPrefixLength?: number;
 }
 
 export const DEFAULT_TUNING: SearchTuning = {
@@ -40,6 +48,8 @@ export const DEFAULT_TUNING: SearchTuning = {
   rankConstant: RANK_CONSTANT,
   rankWindowSize: RANK_WINDOW_SIZE,
   semanticWeight: 1,
+  fuzziness: "AUTO",
+  fuzzyPrefixLength: 1,
 };
 
 export interface SearchFilters {
@@ -81,12 +91,13 @@ export function eligibilityClauses(f: SearchFilters = {}, tuning: SearchTuning =
   return clauses;
 }
 
-function keywordQuery(text: string, minimumShouldMatch?: string) {
+function keywordQuery(text: string, tuning: SearchTuning, minimumShouldMatch?: string) {
   return {
     multi_match: {
       query: text,
       fields: [...KEYWORD_FIELDS],
       type: "best_fields",
+      ...(tuning.fuzziness ? { fuzziness: tuning.fuzziness, prefix_length: tuning.fuzzyPrefixLength ?? 1 } : {}),
       ...(minimumShouldMatch ? { minimum_should_match: minimumShouldMatch } : {}),
       _name: LEG_KEYWORD,
     },
@@ -103,7 +114,7 @@ export function buildKeywordBody(
   return {
     size,
     _source: SOURCE_FIELDS,
-    query: { bool: { must: [keywordQuery(text)], filter: eligibilityClauses(filters, tuning) } },
+    query: { bool: { must: [keywordQuery(text, tuning)], filter: eligibilityClauses(filters, tuning) } },
   };
 }
 
@@ -125,7 +136,7 @@ export function buildHybridBody(
   const keywordLeg = {
     standard: {
       _name: LEG_KEYWORD,
-      query: { bool: { must: [keywordQuery(text, tuning.hybridKeywordMinimumShouldMatch)], filter } },
+      query: { bool: { must: [keywordQuery(text, tuning, tuning.hybridKeywordMinimumShouldMatch)], filter } },
     },
   };
   const semanticLeg = {

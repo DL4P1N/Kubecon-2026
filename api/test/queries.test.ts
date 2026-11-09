@@ -133,3 +133,20 @@ describe("filters and onboarding", () => {
     ).toEqual({ levels: ["beginner", "intermediate"], from: "a", to: "b" });
   });
 });
+
+describe("typo tolerance (#55)", () => {
+  it("adds fuzziness to the keyword leg in both modes, and only there", () => {
+    const kw = (buildKeywordBody("kuberentes", 5) as Obj).query.bool.must[0].multi_match;
+    expect(kw).toMatchObject({ fuzziness: "AUTO", prefix_length: 1, type: "best_fields" });
+    const hy = buildHybridBody("kuberentes", 5) as Obj;
+    const legs = hy.retriever.rrf.retrievers as Obj[];
+    expect(legs[0]!.standard.query.bool.must[0].multi_match).toMatchObject({ fuzziness: "AUTO", prefix_length: 1 });
+    expect(JSON.stringify(legs[1])).not.toContain("fuzziness"); // the semantic leg is untouched
+  });
+  it("is off when the tuning leaves fuzziness unset (pre-#55 behaviour, used by the eval baseline)", () => {
+    const t = { ...DEFAULT_TUNING, fuzziness: undefined, fuzzyPrefixLength: undefined };
+    const mm = (buildKeywordBody("x", 5, {}, t) as Obj).query.bool.must[0].multi_match;
+    expect(mm.fuzziness).toBeUndefined();
+    expect(mm.prefix_length).toBeUndefined();
+  });
+});
