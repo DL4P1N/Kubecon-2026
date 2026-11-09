@@ -1,15 +1,26 @@
+import { loadConfig } from "../config.js";
+import { createEsClient, type EsClient } from "./client.js";
+import { DEFAULT_INFERENCE_DIMS, resolveInferenceId } from "./inference.js";
+
 /**
- * Embedding helper. Search and seed both go through `embed()` so vectors are
- * always produced the same way.
+ * Embedding helper. Talk vectors are NOT produced here: the `talks` index has a
+ * `semantic_text` field (`content_semantic`) and Elasticsearch embeds title +
+ * abstract at index time, so seeding sends text only.
  *
- * Provider is picked with EMBEDDINGS_PROVIDER:
- *   - "local" (default): deterministic hashed bag-of-words, no network, no keys.
- *   - anything else: not implemented yet. Add a new `Embedder` below and
- *     register it in `createEmbedder`; the rest of the code does not change.
+ * `embed()` is for the vectors the client still needs (attendee interest
+ * vectors, cluster centroids) and is picked with EMBEDDINGS_PROVIDER:
+ *   - "es-inference" (default): asks Elasticsearch to embed the text through the
+ *     same dense inference endpoint (ES_INFERENCE_ID, default
+ *     `.multilingual-e5-small-elasticsearch`, 384 dims) via
+ *     `POST /_inference/text_embedding/<id>`. Needs a dense endpoint; a sparse
+ *     one such as ELSER works for `semantic_text` but not for `embed()`.
+ *   - "local": deterministic hashed bag-of-words, no network, no keys. Offline
+ *     fallback and what the unit tests use. Lexical quality only.
  *
- * EMBEDDING_DIMS sets the vector size for the local embedder (default 256).
- * The `dense_vector` mapping uses the same value, so changing it means bumping
- * the index schema version (see mappings.ts).
+ * EMBEDDING_DIMS sets the vector size (default 384 for es-inference, 256 for
+ * local). The `dense_vector` mappings on `attendees` and `interest_clusters`
+ * use the same value, so changing it means bumping the index schema version
+ * (see mappings.ts).
  */
 
 export interface Embedder {
@@ -18,6 +29,7 @@ export interface Embedder {
   embed(text: string): Promise<number[]>;
 }
 
+/** Default size of the local hashed embedder. */
 export const DEFAULT_EMBEDDING_DIMS = 256;
 
 const STOPWORDS = new Set([
@@ -79,17 +91,52 @@ export class LocalHashEmbedder implements Embedder {
   }
 }
 
-export function createEmbedder(env: NodeJS.ProcessEnv = process.env): Embedder {
-  const provider = (env.EMBEDDINGS_PROVIDER || "local").toLowerCase();
-  if (provider === "local") {
-    const dims = Number(env.EMBEDDING_DIMS ?? DEFAULT_EMBEDDING_DIMS);
-    if (!Number.isInteger(dims) || dims < 8 || dims > 4096) {
-      throw new Error(`Invalid EMBEDDING_DIMS: ${env.EMBEDDING_DIMS}`);
+/** Dense vectors from an Elasticsearch inference endpoint (text_embedding task). */
+export class EsInferenceEmbedder implements Embedder {
+  readonly provider = "es-inference";
+  constructor(
+    private readonly es: EsClient,
+    private readonly inferenceId: string,
+    readonly dims: number = DEFAULT_INFERENCE_DIMS,
+  ) {}
+  async embed(text: string): Promise<number[]> {
+    const res = await this.es.request<{ text_embedding?: { embedding: number[] }[] }>(
+      "POST",
+      `/_inference/text_embedding/${encodeURIComponent(this.inferenceId)}`,
+      { input: [text] },
+    );
+    const vec = res.body.text_embedding?.[0]?.embedding;
+    if (!vec) {
+      throw new Error(
+        `Inference endpoint "${this.inferenceId}" returned no dense embedding; embed() needs a text_embedding endpoint (ELSER is sparse).`,
+      );
     }
-    return new LocalHashEmbedder(dims);
+    if (vec.length !== this.dims) {
+      throw new Error(`Inference endpoint returned ${vec.length} dims but EMBEDDING_DIMS is ${this.dims}.`);
+    }
+    return vec;
+  }
+}
+
+function parseDims(env: NodeJS.ProcessEnv, dflt: number): number {
+  const dims = Number(env.EMBEDDING_DIMS ?? dflt);
+  if (!Number.isInteger(dims) || dims < 8 || dims > 4096) {
+    throw new Error(`Invalid EMBEDDING_DIMS: ${env.EMBEDDING_DIMS}`);
+  }
+  return dims;
+}
+
+export const DEFAULT_PROVIDER = "es-inference";
+
+/** `es` is only used by the es-inference provider; it defaults to a client built from the environment. */
+export function createEmbedder(env: NodeJS.ProcessEnv = process.env, es?: EsClient): Embedder {
+  const provider = (env.EMBEDDINGS_PROVIDER || DEFAULT_PROVIDER).toLowerCase();
+  if (provider === "local") return new LocalHashEmbedder(parseDims(env, DEFAULT_EMBEDDING_DIMS));
+  if (provider === "es-inference") {
+    return new EsInferenceEmbedder(es ?? createEsClient(loadConfig(env)), resolveInferenceId(env), parseDims(env, DEFAULT_INFERENCE_DIMS));
   }
   throw new Error(
-    `Unsupported EMBEDDINGS_PROVIDER "${provider}". Only "local" is implemented; add a provider in api/src/es/embeddings.ts.`,
+    `Unsupported EMBEDDINGS_PROVIDER "${provider}". Use "es-inference" (default) or "local"; add providers in api/src/es/embeddings.ts.`,
   );
 }
 
@@ -103,5 +150,5 @@ export function embed(text: string): Promise<number[]> {
 
 /** Vector size the configured provider produces (used for index mappings). */
 export function embeddingDims(env: NodeJS.ProcessEnv = process.env): number {
-  return createEmbedder(env).dims;
+  return createEmbedder(env).dims; // no network call: the embedder only talks to ES when embed() is used
 }
