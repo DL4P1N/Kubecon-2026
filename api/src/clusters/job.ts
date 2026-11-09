@@ -6,7 +6,7 @@ import { buildClusters, finalize, type BuildOptions, type ClusterInput, type Clu
 /**
  * Module 4 batch job (`npm run clusters`, run by the K8s CronJob).
  *
- * 1. Scroll through attendees with consent.cluster_map=true, an unexpired
+ * 1. Scroll through attendees with an unexpired
  *    record and an interest_vector.
  * 2. Run k-means IN NODE (this process), not in Elasticsearch.
  * 3. Pool clusters under 5 members into "other" (suppressed if still under 5).
@@ -22,7 +22,7 @@ export const RUN_MARKER_ID = "_run";
 export const RUN_ID_PREFIX = "run-";
 const SCROLL_KEEPALIVE = "1m";
 const PAGE_SIZE = 500;
-/** Cluster output is aggregate, but keep it no longer than attendee data (24h). */
+/** Superseded cluster runs are pruned after 24h (aggregate run history, not attendee data). */
 const RUN_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 export interface ClusterJobOptions extends BuildOptions {
@@ -75,7 +75,6 @@ export async function loadOptedInAttendees(
         query: {
           bool: {
             filter: [
-              { term: { "consent.cluster_map": true } },
               { range: { expires_at: { gt: now.toISOString() } } },
               { exists: { field: "interest_vector" } },
             ],

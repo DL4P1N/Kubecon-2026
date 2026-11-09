@@ -117,6 +117,18 @@
         <h2>Linked accounts</h2>
         <div data-pf-linked></div>
       </div>
+      <div class="panel">
+        <h2>Your data</h2>
+        <p class="pf-lead pf-lead--data">Kept: your name, role, interests, goal and format preferences, and which conferences you registered for. Why: so your next conference recommends talks from the first minute, and so organisers can see interest counts (never individuals; groups under 5 are folded into "other"). How long: until you delete it.</p>
+        <div class="pf-actions">
+          <button class="btn btn--secondary" type="button" data-pf-del-ask>Delete my data</button>
+          <span class="pf-actions" data-pf-del-sure hidden>
+            <button class="btn btn--primary" type="button" data-pf-del-yes>Yes, delete it</button>
+            <button class="btn btn--secondary" type="button" data-pf-del-keep>Keep it</button>
+          </span>
+        </div>
+        <p class="pf-status" role="status" aria-live="polite" data-pf-del-status></p>
+      </div>
     </div>
   </section>
 </main>

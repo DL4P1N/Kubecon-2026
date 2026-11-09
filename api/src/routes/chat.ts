@@ -14,7 +14,7 @@ import {
 } from "../chat/model.js";
 import type { ChatProfile } from "../chat/types.js";
 import { askFields, scriptedTurn, validateKnown } from "../chat/script.js";
-import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor, type RouteLimit } from "../http/rateLimit.js";
+import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor, rateLimitedBody, type RouteLimit } from "../http/rateLimit.js";
 import { withSpan } from "../telemetry/span.js";
 
 export interface ChatRouteOptions {
@@ -60,7 +60,7 @@ export const chatRoutes: FastifyPluginAsync<ChatRouteOptions> = async (app, opts
           const ip = req.ip;
           if ((activePerClient.get(ip) ?? 0) >= MAX_CONCURRENT_PER_CLIENT || activeTotal >= MAX_CONCURRENT_TOTAL) {
             span.setAttribute("http.response.status_code", 429);
-            return reply.code(429).header("retry-after", "2").send({ error: "busy", message: "a reply is already in progress" });
+            return reply.code(429).header("retry-after", "2").send(rateLimitedBody("a reply is already in progress, retry in 2 seconds"));
           }
           activePerClient.set(ip, (activePerClient.get(ip) ?? 0) + 1);
           activeTotal++;

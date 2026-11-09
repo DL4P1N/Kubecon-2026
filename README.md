@@ -11,11 +11,11 @@ and [demo evidence ledger](docs/track-evidence.md) for scope and observed result
 
 | Experience | Route | Implementation and evidence |
 | --- | --- | --- |
-| Register with separate optional consent choices, then get recommendations | `/register` → `/onboarding` | [Attendee flow](web/src/pages/Onboarding.tsx), [signed registration](api/src/routes/register.ts) |
+| Register (the page says what is kept and why), then get recommendations | `/register` → `/onboarding` | [Attendee flow](web/src/pages/Onboarding.tsx), [signed registration](api/src/routes/register.ts) |
 | Save a personal schedule and display a short-lived room QR | `/schedule` | [Schedule authentication](https://github.com/DL4P1N/Kubecon-2026/pull/22), [QR/entitlement checks](https://github.com/DL4P1N/Kubecon-2026/pull/21) |
 | Compare keyword and hybrid search, with Elasticsearch request bodies | `/search` | [Initial five-query results](docs/demo/search-comparison-measured.json), [measured 12-query report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162), [evaluation script](scripts/search-eval.ts); 5 wins, 7 ties, 0 losses, not a majority win |
 | Scan a room QR or use its text alternative; reread entitlements on each scan | `/kiosk` | [Access implementation and tests](https://github.com/DL4P1N/Kubecon-2026/pull/21); live camera/cluster acceptance must be checked separately |
-| Inspect opted-in topic counts and organizer-keyed clusters | `/map`, `/clusters` | [Aggregation](api/src/interests/aggregate.ts), [cluster design and limitations](docs/cluster-map.md); groups below five are suppressed, thresholds untested on real attendee data |
+| Inspect topic counts and organizer-keyed clusters | `/map`, `/clusters` | [Aggregation](api/src/interests/aggregate.ts), [cluster design and limitations](docs/cluster-map.md); groups below five are suppressed, thresholds untested on real attendee data |
 
 The screenshots below show the actual local Kubernetes environment, not an
 attendee UI mockup. The [offline UI recording and screenshots](docs/demo/recording.md)
@@ -107,7 +107,7 @@ Secrets, load local images, deploy dependencies/app, run the one-shot real-talk
 seed, and port-forward the web Service. A health check verifies its own hop;
 exercise the real registration/search/scan routes before presenting.
 
-The [24-hour retention runbook](docs/retention.md) and
+The [retention runbook](docs/retention.md) and
 [cluster runbook](docs/cluster-map.md) cover scheduled jobs. The demo script,
 synthetic seed, and recorded fallback are separate deliverables; check their
 merge and verification status in the [evidence ledger](docs/track-evidence.md).
@@ -117,10 +117,13 @@ merge and verification status in the [evidence ledger](docs/track-evidence.md).
 - Session tokens are signed; room QR tokens use a separate audience and about
   60-second expiry. Each scan checks the current entitlement and fails closed.
   [Token design](api/src/auth/token.ts), [scan checks](api/src/routes/access.ts).
-- Interest views require opt-in and suppress groups smaller than five. They
-  expose aggregates; clustering centroids remain server-side.
+- Interest views cover every registered attendee (not an opt-in) and suppress
+  groups smaller than five. They expose aggregates; clustering centroids remain server-side.
   [Aggregation](api/src/interests/aggregate.ts), [cluster boundaries](docs/cluster-map.md).
-- Attendee-level records expire after 24 hours; scheduled cleanup deletes them.
+- Attendee profiles are kept by default so the next conference can recommend
+  talks from the first minute; set `ATTENDEE_RETENTION_HOURS=24` to delete them
+  after that long instead. Door and session tokens stay short-lived. Attendees
+  can delete their own profile with `DELETE /api/me` (see the runbook).
   [Retention behavior and validation limits](docs/retention.md).
 - Telemetry uses explicit resource, trace, log, and metric allowlists, and
   scrubs URL query strings from log bodies. Attendee IDs, precise user

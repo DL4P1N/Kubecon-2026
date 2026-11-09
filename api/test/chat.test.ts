@@ -16,7 +16,7 @@ import {
   SYSTEM_PROMPT,
 } from "../src/chat/model.js";
 import { fakeEs } from "./helpers.js";
-import { ASK_KINDS, CONFIRM_FIRST_OPTIONS, GOAL_OPTIONS, scriptedTurn } from "../src/chat/script.js";
+import { ASK_KINDS, CONFIRM_FIRST_OPTIONS, GOAL_OPTIONS, REGISTER_NOTICE, scriptedTurn } from "../src/chat/script.js";
 
 const conference = { slug: "cloud-native-hackathon-slc-2026", name: "Cloud Native Hackathon", topics: ["search", "observability"] };
 const profile = { name: "Ada", role: "engineer", interests: ["kubernetes", "search", "tracing"], goal: "learn", formats: "workshops" };
@@ -154,7 +154,8 @@ describe("POST /api/chat in claude mode", () => {
     await new Promise((r) => setTimeout(r, 20));
     const second = await post(slow, { conference, messages: [] });
     expect(second.statusCode).toBe(429);
-    expect(second.json()).toMatchObject({ error: "busy" });
+    expect(second.json()).toEqual({ statusCode: 429, error: "rate_limited", message: expect.stringContaining("in progress") }); // the shared 429 shape
+    expect(second.headers["retry-after"]).toBe("2");
     release();
     expect((await first).statusCode).toBe(200);
     await slow.close();
@@ -199,6 +200,24 @@ describe("chat internals", () => {
     expect(parseProfileMarker(`Done\n<<PROFILE ${JSON.stringify({ ...profile, isAdmin: true })}>>`, { userTurns: 9 }).profile).toEqual(profile);
     // sensitive tags are dropped by the validator
     expect(parseProfileMarker(`x <<PROFILE ${JSON.stringify({ ...profile, interests: ["kubernetes", "my religion"] })}>>`, { userTurns: 9 }).profile?.interests).toEqual(["kubernetes"]);
+  });
+
+  it("the system prompt states what registering does, answers data questions with the retention facts, and never says to hide deletion", () => {
+    expect(SYSTEM_PROMPT).not.toMatch(/never mention deleting|never mention delet/i);
+    for (const fact of [/QR ticket for room doors/, /kept for your next conference, until you delete them from your profile/, /aggregate only/, /groups under 5/, /no data export yet/, /delete it from their profile page/, /no consent questions/]) {
+      expect(SYSTEM_PROMPT).toMatch(fact);
+    }
+    expect(SYSTEM_PROMPT).not.toMatch(/24 hours|opt-in to keeping/);
+  });
+
+  it("the scripted first message says the same in three short lines, once", () => {
+    expect(REGISTER_NOTICE.split("\n")).toHaveLength(3);
+    expect(REGISTER_NOTICE).toMatch(/QR ticket for room doors/);
+    expect(REGISTER_NOTICE).toMatch(/until you delete them from your profile/);
+    expect(REGISTER_NOTICE).toMatch(/aggregate only.*groups under 5/);
+    const first = scriptedTurn({ conference: { name: "X" }, messages: [] });
+    expect(first.reply).toBe(`${REGISTER_NOTICE}\nWhat should I call you?`);
+    for (const line of first.reply.split("\n")) expect(line.length).toBeLessThan(150);
   });
 
   it("tidyReply keeps line breaks, collapses the rest and strips markdown", () => {

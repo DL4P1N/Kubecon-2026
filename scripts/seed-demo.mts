@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url";
 import { createTokenService } from "../api/src/auth/token.js";
 import { createEsClient, type EsClient } from "../api/src/es/client.js";
 import { createEmbedder } from "../api/src/es/embeddings.js";
-import { ALL_ROOMS, ATTENDEE_RETENTION_MS, type AttendeeDoc, type EntitlementDoc } from "../api/src/routes/register.js";
+import { ALL_ROOMS, type AttendeeDoc, type EntitlementDoc } from "../api/src/routes/register.js";
+
+/** Synthetic demo records always expire after 24 hours, whatever ATTENDEE_RETENTION_HOURS says for real profiles. */
+const DEMO_TTL_MS = 24 * 60 * 60 * 1000;
 
 /** Fixed synthetic namespace: reruns cannot accumulate or touch real attendees. Never log IDs. */
 const demoId = (label: string) => createHash("sha256").update(`conference-companion:SYNTHETIC-DEMO:v1:${label}`).digest("hex");
@@ -13,7 +16,7 @@ export const ALLOWED_DEMO_ID = demoId("allowed");
 
 export function demoFixtures(now: Date) {
   const createdAt = now.toISOString();
-  const expiresAt = new Date(now.getTime() + ATTENDEE_RETENTION_MS).toISOString();
+  const expiresAt = new Date(now.getTime() + DEMO_TTL_MS).toISOString();
   return Array.from({ length: 12 }, (_, index) => {
     const label = index === 0 ? "allowed" : index === 1 ? "revoked" : `member-${index + 1}`;
     const id = demoId(label);

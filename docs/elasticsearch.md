@@ -54,7 +54,7 @@ v1 -> v2: `talks.embedding` (client-side `dense_vector`, local hashed embedder) 
 | Index | Fields |
 |---|---|
 | `talks` | id, title, abstract, speaker, track, level, room, start, end, tags, `all_text` (copy_to for BM25), `content_semantic` (`semantic_text`, inference endpoint `ES_INFERENCE_ID`) |
-| `attendees` | id, display_name, interests[], interest_vector, consent.{cluster_map,qr_checkin}, created_at, expires_at (24h retention) |
+| `attendees` | id, display_name, interests[], interest_vector, consent.{cluster_map,qr_checkin}, created_at, expires_at (far-future sentinel `9999-12-31T23:59:59.999Z` while profiles are kept; created + `ATTENDEE_RETENTION_HOURS` when set). `consent` is always stored true/true |
 | `schedules` | attendee_id, talk_ids[], updated_at, expires_at |
 | `entitlements` | attendee_id, pass_type, rooms[], updated_at, expires_at |
 | `interest_clusters` | cluster_id, run_id, label, size, top_interests[], centroid, computed_at |

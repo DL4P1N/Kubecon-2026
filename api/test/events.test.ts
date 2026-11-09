@@ -5,7 +5,7 @@ import type { FastifyInstance } from "fastify";
 import type { RegisteredEvent } from "@cc/shared";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
-import { EventHub, MAX_EVENT_LISTENERS, buildRegisteredEvent, sanitizeLabel } from "../src/chat/events.js";
+import { EventHub, MAX_EVENT_LISTENERS, MAX_EVENT_LISTENERS_PER_IP, buildRegisteredEvent, sanitizeLabel } from "../src/chat/events.js";
 import { fakeEs } from "./helpers.js";
 
 describe("sanitizeLabel / buildRegisteredEvent", () => {
@@ -18,8 +18,10 @@ describe("sanitizeLabel / buildRegisteredEvent", () => {
     expect(sanitizeLabel("x".repeat(500))).toBe("x".repeat(12));
   });
 
-  it("the event carries exactly label, conference, returning and an interest COUNT", () => {
-    const e = buildRegisteredEvent({ name: "Ada Lovelace", interests: ["a1", "b2", "c3"], token: "SECRET", email: "a@b.c" } as never, "my-conf", true);
+  it("the event carries exactly label, conference, returning and an interest COUNT; the label is Guest unless names are switched on", () => {
+    const p = { name: "Ada Lovelace", interests: ["a1", "b2", "c3"], token: "SECRET", email: "a@b.c" } as never;
+    expect(buildRegisteredEvent(p, "my-conf", true)).toEqual({ label: "Guest", conference: "my-conf", returning: true, interests: 3 });
+    const e = buildRegisteredEvent(p, "my-conf", true, true);
     expect(e).toEqual({ label: "Ada", conference: "my-conf", returning: true, interests: 3 });
     expect(Object.keys(e)).toEqual(["label", "conference", "returning", "interests"]);
     expect(buildRegisteredEvent({ name: "X" }, "c", "yes").returning).toBe(false);
@@ -31,14 +33,14 @@ const body = (extra: Record<string, unknown> = {}) => ({
   consent: { clusterMap: true, qrCheckin: true }, ...extra,
 });
 
-function setup(opts: { heartbeatMs?: number; failWrites?: boolean } = {}) {
+function setup(opts: { heartbeatMs?: number; failWrites?: boolean; showNames?: boolean; maxPerIp?: number } = {}) {
   const es = fakeEs((call) => {
     if (opts.failWrites && call.method === "PUT") return { status: 500, body: { error: "boom" } };
     if (call.method === "PUT") return { status: 201, body: { result: "created" } };
     return undefined;
   });
-  const hub = new EventHub(opts.heartbeatMs);
-  const app = buildServer(loadConfig({ NODE_ENV: "test" } as NodeJS.ProcessEnv), { es, events: hub, runClaude: null });
+  const hub = new EventHub(opts.heartbeatMs, MAX_EVENT_LISTENERS, opts.maxPerIp);
+  const app = buildServer(loadConfig({ NODE_ENV: "test", ...(opts.showNames ? { EVENTS_SHOW_NAMES: "on" } : {}) } as NodeJS.ProcessEnv), { es, events: hub, runClaude: null });
   return { app, hub };
 }
 
@@ -74,8 +76,20 @@ describe("GET /api/events", () => {
   let app: FastifyInstance | undefined;
   afterEach(async () => { await app?.close(); app = undefined; });
 
-  it("streams a registered event for each successful registration, with only the allowed keys", async () => {
+  it("by default the stream carries no name at all: the label is Guest", async () => {
     const s = setup();
+    app = s.app;
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const l = await listen(app);
+    await app.inject({ method: "POST", url: "/api/register", payload: body({ name: "Zaphod Beeblebrox" }) });
+    await l.waitFor(/event: registered/);
+    expect(l.text()).not.toMatch(/Zaphod|Beeblebrox/);
+    expect(frames(l.text())[0]!.data.label).toBe("Guest");
+    await l.close();
+  });
+
+  it("with EVENTS_SHOW_NAMES=on it streams a registered event per registration, first name only, with only the allowed keys", async () => {
+    const s = setup({ showNames: true });
     app = s.app;
     await app.listen({ port: 0, host: "127.0.0.1" });
     const l = await listen(app);
@@ -130,7 +144,7 @@ describe("GET /api/events", () => {
   });
 
   it(`allows at most ${MAX_EVENT_LISTENERS} listeners, and closing one frees a slot`, async () => {
-    const s = setup();
+    const s = setup({ maxPerIp: 100 });
     app = s.app;
     await app.listen({ port: 0, host: "127.0.0.1" });
     const open: Listener[] = [];
@@ -143,6 +157,24 @@ describe("GET /api/events", () => {
     await open[0]!.close();
     await new Promise((r) => setTimeout(r, 50));
     expect(s.hub.size).toBe(MAX_EVENT_LISTENERS - 1);
+    const again = await listen(app);
+    expect(again.status).toBe(200);
+    for (const l of [...open.slice(1), again]) await l.close();
+  });
+
+  it(`allows at most ${MAX_EVENT_LISTENERS_PER_IP} concurrent streams per IP, then answers the shared 429 shape`, async () => {
+    const s = setup();
+    app = s.app;
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const open: Listener[] = [];
+    for (let i = 0; i < MAX_EVENT_LISTENERS_PER_IP; i++) open.push(await listen(app));
+    expect(open.every((l) => l.status === 200)).toBe(true);
+    const extra = await listen(app);
+    expect(extra.status).toBe(429);
+    expect(JSON.parse(extra.text())).toMatchObject({ statusCode: 429, error: "rate_limited" });
+    await extra.close();
+    await open[0]!.close();
+    await new Promise((r) => setTimeout(r, 50));
     const again = await listen(app);
     expect(again.status).toBe(200);
     for (const l of [...open.slice(1), again]) await l.close();

@@ -7,6 +7,7 @@ import { requireAttendee, type TokenService } from "../auth/token.js";
 import type { EsClient } from "../es/client.js";
 import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor } from "../http/rateLimit.js";
 import { embed as defaultEmbed } from "../es/embeddings.js";
+import { expiresAtFor, retentionMsFromEnv } from "../retentionPolicy.js";
 
 /**
  * Module 1: registration and profile.
@@ -15,16 +16,16 @@ import { embed as defaultEmbed } from "../es/embeddings.js";
  *   GET  /api/me        (Bearer token)          -> profile
  *
  * Privacy rules (design doc sections 5 and 6):
- * - Only display name, interests and consent flags are stored. Email is
+ * - Only display name, interests and the (always true) consent flags are stored. Email is
  *   accepted for contract compatibility but never stored. Unknown fields are
  *   dropped, so no health, politics or identity data can reach ES.
- * - Attendee data expires 24h after registration (`expires_at`).
+ * - Profiles are kept by default (expires_at is the NO_EXPIRY sentinel); ATTENDEE_RETENTION_HOURS=24
+ *   restores timed deletion (retentionPolicy.ts, docs/retention.md).
  * - The attendee ID is never logged and never put on a span. ES error
  *   messages contain the doc path (and so the ID), so they are not recorded
  *   on spans or returned to clients either.
  */
 
-export const ATTENDEE_RETENTION_MS = 24 * 60 * 60 * 1000;
 /** Default entitlement: a general pass to every room. "*" means all rooms. */
 export const DEFAULT_PASS_TYPE = "general";
 export const ALL_ROOMS = "*";
@@ -48,10 +49,14 @@ export const registerBodySchema = z.object({
     .min(1, "at least one interest is required")
     .max(MAX_INTERESTS)
     .transform((xs) => [...new Set(xs.map((x) => x.toLowerCase()))]),
-  consent: z.object({
-    clusterMap: z.boolean(),
-    qrCheckin: z.boolean(),
-  }),
+  // No longer a gate: the interest map and QR check-in apply to every attendee. Still accepted (and
+  // validated when present) so existing clients keep working; the stored value is always true/true.
+  consent: z
+    .object({
+      clusterMap: z.boolean(),
+      qrCheckin: z.boolean(),
+    })
+    .optional(),
   // Optional and never stored: only feed the live demo stream (GET /api/events).
   conference: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/).optional(),
   returning: z.boolean().optional(),
@@ -87,6 +92,8 @@ export interface RegisterRoutesOptions {
   /** Per client IP per minute. Default 120 (REGISTER_RATE_LIMIT_PER_MINUTE); attendees can share a venue NAT IP. */
   rateLimitPerMinute?: number;
   now?: () => number;
+  /** Attendee retention in ms; null keeps profiles. Default: ATTENDEE_RETENTION_HOURS (retentionPolicy.ts). */
+  retentionMs?: number | null;
   /**
    * Called once after a successful registration (for the live demo stream). Receives only the display
    * name, the interests and the optional demo fields; never the attendee ID or token. Must not throw.
@@ -163,7 +170,7 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
         const id = randomUUID();
         const t = now();
         const createdAt = new Date(t).toISOString();
-        const expiresAt = new Date(t + ATTENDEE_RETENTION_MS).toISOString();
+        const expiresAt = expiresAtFor(t, opts.retentionMs === undefined ? retentionMsFromEnv() : opts.retentionMs);
 
         // Sign first: if signing fails nothing has been written yet (traced() turns it into a 500).
         const signed = await tokens.sign(id);
@@ -176,7 +183,7 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
           display_name: body.name,
           interests: body.interests,
           ...(interestVector ? { interest_vector: interestVector } : {}),
-          consent: { cluster_map: body.consent.clusterMap, qr_checkin: body.consent.qrCheckin },
+          consent: { cluster_map: true, qr_checkin: true },
           created_at: createdAt,
           expires_at: expiresAt,
         };
@@ -211,6 +218,33 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
       }),
   );
 
+  /**
+   * Self-service erasure. Deletes every per-attendee document (all keyed by the attendee ID):
+   * `entitlements`, `schedules`, and last the `attendees` profile. The profile goes last so a
+   * partial failure (503) can simply be retried with the same token. Missing entitlement or
+   * schedule docs are fine. If the profile was already gone the token no longer grants anything:
+   * 401 (stray schedule/entitlement docs are still cleaned). Aggregates and clusters are not
+   * touched here; they drop the attendee on the next job run. Nothing here logs or returns the ID.
+   */
+  app.delete(routes.deleteMe.path, limitFor(DEFAULT_RATE_LIMITS.me), async (req, reply) =>
+    traced("me.delete", "DELETE", routes.deleteMe.path, reply, async () => {
+      const id = await requireAttendee(tokens, req, reply);
+      if (id === null) return reply;
+      const enc = encodeURIComponent(id);
+      let profileExisted = false;
+      try {
+        await es.request("DELETE", `/entitlements/_doc/${enc}?refresh=wait_for`, undefined, [404]);
+        await es.request("DELETE", `/schedules/_doc/${enc}?refresh=wait_for`, undefined, [404]);
+        const r = await es.request("DELETE", `/attendees/_doc/${enc}?refresh=wait_for`, undefined, [404]);
+        profileExisted = r.status !== 404;
+      } catch {
+        return reply.code(503).send({ error: "storage_unavailable", message: "could not delete profile" });
+      }
+      if (!profileExisted) return reply.code(401).send({ error: "unauthorized", message: "attendee not found" });
+      return reply.code(204).send();
+    }),
+  );
+
   app.get(routes.me.path, limitFor(DEFAULT_RATE_LIMITS.me), async (req, reply) =>
     traced("me", "GET", routes.me.path, reply, async () => {
       const id = await requireAttendee(tokens, req, reply);
@@ -230,7 +264,7 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
       }
 
       const src = doc?.found ? doc._source : undefined;
-      // Unknown or expired (24h retention) attendee: the token no longer grants anything.
+      // Unknown or expired (only when ATTENDEE_RETENTION_HOURS is set) attendee: the token no longer grants anything.
       if (!src || Date.parse(src.expires_at) <= now()) {
         return reply.code(401).send({ error: "unauthorized", message: "attendee not found" });
       }

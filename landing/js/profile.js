@@ -144,6 +144,24 @@ export function appTicketUrl({ slug, name, role, interests, avatar } = {}) {
   return `confcompanion://ticket${parts.length ? `?${parts.join("&")}` : ""}`;
 }
 
+// ---- "Delete my data"
+/** localStorage keys this site writes about a visitor. */
+export const LOCAL_DATA_KEYS = [KEPT_PROFILE_KEY, REGISTRATIONS_KEY, "cc.linked.v1", "cc.avatar.v1", SHARES_KEY];
+/** sessionStorage: the attendee token, the offline-schedule session, and chat transcripts (prefix). */
+export const SESSION_DATA_KEYS = ["cc.token", "cc.offline-session"];
+export const SESSION_DATA_PREFIXES = ["cc.chat.v1."];
+
+/**
+ * What to say and whether to drop the token, from the DELETE /api/me result.
+ * `status` is the HTTP status, or null when there was no token or the request failed. Only 204 claims server deletion.
+ * 401 and 404 mean nothing is stored for this session. Any other status leaves the token so the visitor can try again.
+ */
+export function deletionPlan(status) {
+  if (status === 204) return { message: "Deleted from this browser. Deleted from the server.", clearToken: true, serverDeleted: true };
+  if (status === null || status === 401 || status === 404) return { message: "Deleted from this browser. No server record was found for this session.", clearToken: true, serverDeleted: false };
+  return { message: "Deleted from this browser. The server did not confirm a deletion, so try again later.", clearToken: false, serverDeleted: false };
+}
+
 export const shareLabel = (n) => (n === 1 ? "Shared 1 time" : `Shared ${n} times`);
 
 // ------------------------------------------------------------------ the page
@@ -409,6 +427,36 @@ async function start() {
       list.append(li);
     }
     box.replaceChildren(list, el("p", "pf-note", "Unlink only forgets the link in this browser. It does not sign you out of the provider."));
+  }
+
+  // ---- delete my data (inline confirm, no dialog)
+  const delAsk = $("[data-pf-del-ask]"), delSure = $("[data-pf-del-sure]"), delStatus = $("[data-pf-del-status]");
+  if (delAsk && delSure && delStatus) {
+    const confirmBtn = $("[data-pf-del-yes]"), keepBtn = $("[data-pf-del-keep]");
+    const showAsk = (ask) => { delAsk.hidden = !ask; delSure.hidden = ask; };
+    delAsk.addEventListener("click", () => { delStatus.textContent = ""; showAsk(false); keepBtn.focus(); });
+    keepBtn.addEventListener("click", () => { showAsk(true); delAsk.focus(); });
+    confirmBtn.addEventListener("click", async () => {
+      confirmBtn.disabled = true;
+      let status = null;
+      let token = null;
+      try { token = sessionStorage.getItem("cc.token"); } catch { /* storage unavailable */ }
+      if (token) {
+        try { const r = await fetch("/api/me", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }); status = r.status; } catch { status = null; }
+      }
+      const plan = deletionPlan(status);
+      for (const k of LOCAL_DATA_KEYS) { try { localStorage.removeItem(k); } catch { /* ignore */ } }
+      try {
+        for (const k of SESSION_DATA_KEYS) if (k !== "cc.token" || plan.clearToken) sessionStorage.removeItem(k);
+        for (const k of Object.keys(sessionStorage)) if (SESSION_DATA_PREFIXES.some((pre) => k.startsWith(pre))) sessionStorage.removeItem(k);
+      } catch { /* ignore */ }
+      confirmBtn.disabled = false;
+      showAsk(true);
+      delStatus.textContent = "";
+      setTimeout(() => { delStatus.textContent = plan.message; }, 30);
+      renderProfile(); renderLists(); renderCharacter(); renderLinked();
+      delAsk.focus();
+    });
   }
 
   $("[data-pf-sample]").addEventListener("click", () => {

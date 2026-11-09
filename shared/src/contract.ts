@@ -12,7 +12,7 @@ import type { SearchFacets, SearchFilterParams } from "./facets.js";
 
 // ---------------------------------------------------------------- common
 
-export type HttpMethod = "GET" | "POST";
+export type HttpMethod = "GET" | "POST" | "DELETE";
 
 export interface RouteDef {
   readonly method: HttpMethod;
@@ -444,6 +444,8 @@ export const routes = {
   status: { method: "GET", path: "/api/status" },
   register: { method: "POST", path: "/api/register" },
   me: { method: "GET", path: "/api/me" },
+  /** Bearer session token. Deletes the caller's profile, saved schedule and entitlement; 204 with no body, 401 if already gone. */
+  deleteMe: { method: "DELETE", path: "/api/me" },
   onboarding: { method: "POST", path: "/api/onboarding" },
   search: { method: "GET", path: "/api/search" },
   saveSchedule: { method: "POST", path: "/api/schedule" },

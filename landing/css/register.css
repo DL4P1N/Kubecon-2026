@@ -205,6 +205,9 @@ html:has(.reg) footer.reg-foot { height: var(--foot); background: var(--bg); bor
 .reg-foot__legal { font-size: var(--t-small); color: var(--ink); }
 .reg-foot .scene-ctl { position: static; transform: none; left: auto; bottom: auto; }
 
+/* the one short link to what is kept and how to delete it */
+.reg .reg__privacy a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+
 /* short laptop screens (1512x688): the ticket, its Wi-Fi and app links must fit without scrolling */
 @media (min-width: 760px) and (max-height: 760px) {
   .reg [data-chat-ticket]:not([hidden]) { row-gap: var(--s-3); padding-top: var(--s-2); }

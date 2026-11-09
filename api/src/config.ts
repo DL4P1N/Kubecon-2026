@@ -3,6 +3,8 @@
  * Secrets (ES_PASSWORD, TOKEN_SIGNING_KEY) come from a Kubernetes Secret in
  * deployment and must never be committed.
  */
+import { parseRetentionHours } from "./retentionPolicy.js";
+
 export type OAuthProviderId = "github" | "google" | "linkedin";
 
 /** One provider's OAuth app settings; present only when id, secret and redirect URI are all set. */
@@ -32,10 +34,14 @@ export interface Config {
   chatMode: "auto" | "scripted";
   /** Path to the Claude Code CLI (CLAUDE_BIN); unset means look for `claude` on PATH. */
   claudeBin: string | undefined;
+  /** EVENTS_SHOW_NAMES=on: GET /api/events carries the sanitised first name instead of "Guest". Demo-only. */
+  eventsShowNames: boolean;
   /** ROOM_CAPACITIES: JSON map of room name to seats. Rooms not listed have unknown capacity (never guessed). */
   roomCapacities: Record<string, number>;
   /** {GITHUB,GOOGLE,LINKEDIN}_CLIENT_ID / _CLIENT_SECRET / _OAUTH_REDIRECT_URI; a provider missing any of the three is disabled. Secrets never leave the server. */
   oauth: Partial<Record<OAuthProviderId, OAuthProviderConfig>>;
+  /** ATTENDEE_RETENTION_HOURS: 0 or unset keeps attendee profiles indefinitely; a positive value restores timed deletion. */
+  attendeeRetentionHours: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -75,8 +81,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     apiTlsKeyFile: env.API_TLS_KEY_FILE || undefined,
     chatMode,
     claudeBin: env.CLAUDE_BIN || undefined,
+    eventsShowNames: env.EVENTS_SHOW_NAMES === "on",
     roomCapacities,
     oauth: loadOAuth(env),
+    attendeeRetentionHours: parseRetentionHours(env.ATTENDEE_RETENTION_HOURS),
   };
 }
 

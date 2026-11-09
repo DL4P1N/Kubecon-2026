@@ -109,7 +109,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
     tokens,
     embed: (text) => embedder.embed(text),
     rateLimitPerMinute: config.registerRateLimitPerMinute,
-    onRegistered: (info) => hub.broadcast("registered", buildRegisteredEvent(info, info.conference ?? "unknown", info.returning)),
+    onRegistered: (info) => hub.broadcast("registered", buildRegisteredEvent(info, info.conference ?? "unknown", info.returning, config.eventsShowNames)),
   });
 
   // Registration chat (POST /api/chat) and the live demo stream (GET /api/events).

@@ -115,7 +115,7 @@ describe("QR access", () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/register",
-      payload: { name: "Ada", interests: ["kubernetes"], consent: { clusterMap: false, qrCheckin } },
+      payload: { name: "Ada", interests: ["kubernetes"], consent: { clusterMap: false, qrCheckin } }, // legacy field, ignored
     });
     return res.json() as RegisterResponse;
   }
@@ -153,9 +153,9 @@ describe("QR access", () => {
     expect(roomActivity.snapshot([ROOM]).rooms[0]).toEqual({ room: ROOM, level: "quiet" });
   });
 
-  it("returns 403 on token for an attendee without QR consent, and 401 without or with a bad session", async () => {
+  it("issues a QR token to every registered attendee (consent is not a gate), and 401 without or with a bad session", async () => {
     const reg = await register(false);
-    expect((await qrToken(reg)).statusCode).toBe(403);
+    expect((await qrToken(reg)).statusCode).toBe(200);
     expect((await app.inject({ method: "POST", url: "/api/access/token", payload: {} })).statusCode).toBe(401);
     const bad = await app.inject({ method: "POST", url: "/api/access/token", headers: { authorization: "Bearer a.b.c" }, payload: {} });
     expect(bad.statusCode).toBe(401);

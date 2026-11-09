@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseProfileMarker } from "../server.mjs";
-import { validateProfile, normaliseTags, scriptedTurn, isSensitive, parseYesNo, cleanText } from "../js/chat-script.js";
+import { validateProfile, normaliseTags, scriptedTurn, isSensitive, parseYesNo, cleanText, REGISTER_NOTICE } from "../js/chat-script.js";
 import { validProfile } from "./helpers.mjs";
 
 const marker = (o) => `Done!\n<<PROFILE ${typeof o === "string" ? o : JSON.stringify(o)}>>`;
@@ -130,13 +130,18 @@ test("scripted flow: happy path produces a valid, validator-approved profile wit
   });
   assert.equal(validateProfile(t.profile).ok, true);
   const bots = messages.filter((m) => m.role === "assistant").map((m) => m.content);
-  // the registering sentence is said once, in the opening message, before the first question
-  assert.match(bots[0], /^Registering keeps your answers for this and future conferences, gives you a QR ticket for room doors, and counts your interests anonymously in the organisers' interest map\. What should I call you\?$/);
-  assert.equal(bots.filter((m) => /Registering keeps/.test(m)).length, 1);
+  // what registering does is said once, in three short lines in the opening message, before the first question
+  assert.equal(bots[0], `${REGISTER_NOTICE}
+What should I call you?`);
+  assert.equal(REGISTER_NOTICE.split("\n").length, 3);
+  assert.match(REGISTER_NOTICE, /QR ticket for room doors/);
+  assert.match(REGISTER_NOTICE, /until you delete them from your profile/);
+  assert.match(REGISTER_NOTICE, /aggregate only.*groups under 5/);
+  assert.equal(bots.filter((m) => /Registering gives/.test(m)).length, 1);
   // no consent questions and no deletion statements anywhere
-  for (const m of bots) {
+  for (const [i, m] of bots.entries()) {
     assert.ok(!/24 hours|deleted|consent|may I include|Yes or no|would you like to use QR/i.test(m), m);
-    assert.ok(m.split(/[.?!]\s/).length <= 3 || /Here is what I have/.test(m), m);
+    assert.ok(i === 0 || m.split(/[.?!]\s/).length <= 3 || /Here is what I have/.test(m), m);
   }
 });
 

@@ -91,8 +91,8 @@ describe("GET /api/interests/aggregate", () => {
     expect(body.suppressedBelow).toBe(5);
 
     const search = es.calls[0]!;
-    expect(JSON.stringify(search.body)).toContain('"consent.cluster_map":true');
-    // Attendees past their 24h retention are treated as deleted in both queries.
+    expect(JSON.stringify(search.body)).not.toContain("consent");
+    // Attendees past an expiry (only set when ATTENDEE_RETENTION_HOURS is configured) are treated as deleted in both queries.
     const notExpired = { range: { expires_at: { gt: "2026-11-09T12:00:00.000Z" } } };
     expect((search.body as { query: { bool: { filter: unknown[] } } }).query.bool.filter).toContainEqual(notExpired);
     expect((es.calls[1]!.body as { query: { bool: { filter: unknown[] } } }).query.bool.filter).toContainEqual(notExpired);

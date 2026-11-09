@@ -3,14 +3,19 @@ import type { ServerResponse } from "node:http";
 /**
  * Live demo stream (GET /api/events): one `registered` event per successful registration.
  *
- * The only attendee-derived data that ever goes on the stream is a first name (letters and digits,
- * at most 12 characters), the conference slug, a flag and a count of interests. Never the full name,
- * role, tags, attendee ID or token.
+ * The stream is unauthenticated, so by default it carries NO name: the label is "Guest". Only when the API is
+ * started with EVENTS_SHOW_NAMES=on (a demo-only switch) is the sanitised first name sent (letters and digits,
+ * at most 12 characters). Besides the label: the conference slug, a flag and a count of interests. Never the
+ * full name, role, tags, attendee ID or token.
  */
 
 export const MAX_EVENT_LISTENERS = 20;
 export const HEARTBEAT_MS = 20_000;
 export const MAX_LABEL_LENGTH = 12;
+/** Concurrent streams per client IP, inside the global cap. */
+export const MAX_EVENT_LISTENERS_PER_IP = 3;
+/** The label every registrant gets unless the API runs with EVENTS_SHOW_NAMES=on. */
+export const DEFAULT_LABEL = "Guest";
 
 export interface RegisteredEvent {
   label: string;
@@ -29,9 +34,10 @@ export function buildRegisteredEvent(
   profile: { name?: unknown; interests?: unknown } | null | undefined,
   conference: string,
   returning: unknown,
+  showNames = false,
 ): RegisteredEvent {
   return {
-    label: sanitizeLabel(profile?.name),
+    label: showNames ? sanitizeLabel(profile?.name) : DEFAULT_LABEL,
     conference,
     returning: returning === true,
     interests: Array.isArray(profile?.interests) ? profile.interests.length : 0,
@@ -40,8 +46,12 @@ export function buildRegisteredEvent(
 
 /** The set of connected listeners. Holds no attendee data. */
 export class EventHub {
-  private clients = new Set<{ res: ServerResponse; timer: NodeJS.Timeout }>();
-  constructor(private readonly heartbeatMs: number = HEARTBEAT_MS, private readonly max: number = MAX_EVENT_LISTENERS) {}
+  private clients = new Set<{ res: ServerResponse; timer: NodeJS.Timeout; ip: string }>();
+  constructor(
+    private readonly heartbeatMs: number = HEARTBEAT_MS,
+    private readonly max: number = MAX_EVENT_LISTENERS,
+    private readonly maxPerIp: number = MAX_EVENT_LISTENERS_PER_IP,
+  ) {}
 
   get size(): number {
     return this.clients.size;
@@ -51,10 +61,17 @@ export class EventHub {
     return this.clients.size >= this.max;
   }
 
+  /** Whether `ip` already has its share of streams open. */
+  ipFull(ip: string): boolean {
+    let n = 0;
+    for (const c of this.clients) if (c.ip === ip) n++;
+    return n >= this.maxPerIp;
+  }
+
   /** Starts streaming to `res` (already hijacked from Fastify). Returns a function that removes the listener. */
-  add(res: ServerResponse): () => void {
+  add(res: ServerResponse, ip = "unknown"): () => void {
     res.write("retry: 5000\n: connected\n\n");
-    const client = { res, timer: undefined as unknown as NodeJS.Timeout };
+    const client = { res, ip, timer: undefined as unknown as NodeJS.Timeout };
     const remove = () => {
       clearInterval(client.timer);
       this.clients.delete(client);

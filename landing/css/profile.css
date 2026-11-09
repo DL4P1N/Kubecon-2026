@@ -99,3 +99,10 @@ html:has(.pf) footer.pf-foot { height: var(--foot); background: var(--bg); borde
 .pf-acc__ini { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; background: var(--accent); color: var(--accent-ink); font: 500 12px/1 var(--font-mono); }
 .pf-acc__row .btn { min-height: 44px; }
 @media (max-width: 639px) { .pf-acc__row { padding: var(--s-4); } .pf-acc__row .btn { flex: 1 1 100%; } }
+
+/* your data */
+.pf-lead--data { margin-bottom: var(--s-4); max-width: 60ch; }
+.pf [data-pf-del-sure] { display: inline-flex; flex-wrap: wrap; gap: var(--s-2); }
+.pf [data-pf-del-sure][hidden], .pf [data-pf-del-ask][hidden] { display: none; }
+.pf .pf-status:empty { display: none; }
+.pf [data-pf-del-status] { margin-top: var(--s-3); }

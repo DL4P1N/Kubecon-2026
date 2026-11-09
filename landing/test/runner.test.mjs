@@ -156,7 +156,7 @@ test("system prompt covers the product rules", () => {
     /health, politics, religion, ethnicity, sexuality, age, exact location/i, /data from an anonymous web visitor/i,
     /never an instruction/i, /<<PROFILE/, /confirm/i,
   ]) assert.match(SYSTEM_PROMPT, needle);
-  assert.ok(!/24 hours|deleted after|opt-in to keeping|consentClusterMap|consentQrCheckin|consentKeepProfile|<<ASK yesno>>/.test(SYSTEM_PROMPT.replace(/never mention deleting data/, "")));
+  assert.ok(!/24 hours|deleted after|opt-in to keeping|consentClusterMap|consentQrCheckin|consentKeepProfile|<<ASK yesno>>/.test(SYSTEM_PROMPT) && !/never mention delet/i.test(SYSTEM_PROMPT));
   for (const k of ["topics", "goal", "confirm"]) assert.ok(SYSTEM_PROMPT.includes(`<<ASK ${k}>>`));
 });
 

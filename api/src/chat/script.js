@@ -290,9 +290,11 @@ function parseFormats(text) {
 
 const FIRST_TIME_STEPS = ["name", "role", "interests", "goal", "formats", "confirm"];
 
-/** The one sentence the host says up front: what registering does. */
+/** What the host says up front, in three short lines: what registering does (QR ticket, kept profile until deleted, aggregate-only map). */
 export const REGISTER_NOTICE =
-  "Registering keeps your answers for this and future conferences, gives you a QR ticket for room doors, and counts your interests anonymously in the organisers' interest map.";
+  "Registering gives you a QR ticket for room doors.\n" +
+  "Your name, role, interests, goal and format preferences are kept for your next conference, until you delete them from your profile.\n" +
+  "Your interests are counted in the organisers' interest map in aggregate only, and groups under 5 are folded into \"other\".";
 
 function summary(d) {
   return (
@@ -437,7 +439,7 @@ export function scriptedTurn(ctx = {}) {
     return { reply: `${lead}Which topics do you want at ${confName}? Pick some below or type them.`, done: false, ...ask("topics", { selected: known.interests }) };
   }
   if (step === "name") {
-    const text = first ? `${ack}${REGISTER_NOTICE} What should I call you?` : `${lead}What should I call you?`;
+    const text = first ? `${ack}${REGISTER_NOTICE}\nWhat should I call you?` : `${lead}What should I call you?`;
     return { reply: text, done: false, ask: null };
   }
   if (step) {

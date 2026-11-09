@@ -35,9 +35,8 @@ export function buildTopicCounts(kept: InterestTopicCount[], otherCount: number,
   return topics.sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
 }
 
-/** Opted in to the cluster map and still inside the 24h retention window (expired docs count as deleted). */
+/** Every registered attendee that is not past an expiry (expired docs count as deleted). Consent is not a gate. */
 const optedIn = (now: Date) => [
-  { term: { "consent.cluster_map": true } },
   { range: { expires_at: { gt: now.toISOString() } } },
 ];
 

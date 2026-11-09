@@ -181,3 +181,28 @@ test("authBase validation: http(s) only, bare origin", () => {
   assert.equal(normalizeAuthBase("http://127.0.0.1:4000/api/x?y=1#z"), "http://127.0.0.1:4000");
   for (const bad of ["javascript:alert(1)", "ftp://x.org", "//x.org", "auth.example.org", "", null, undefined, "data:text/html,x"]) assert.equal(normalizeAuthBase(bad), "", String(bad));
 });
+
+import { deletionPlan, LOCAL_DATA_KEYS, SESSION_DATA_KEYS, SESSION_DATA_PREFIXES } from "../js/profile.js";
+
+test("delete my data: which keys are cleared", () => {
+  assert.deepEqual([...LOCAL_DATA_KEYS].sort(), ["cc.avatar.v1", "cc.invite-shares.v1", "cc.kept-profile.v1", "cc.linked.v1", "cc.registrations.v1"]);
+  assert.ok(SESSION_DATA_KEYS.includes("cc.token"));
+  assert.deepEqual(SESSION_DATA_PREFIXES, ["cc.chat.v1."]);
+});
+
+test("delete my data: the message follows the response, and only 204 claims server deletion", () => {
+  assert.equal(deletionPlan(204).message, "Deleted from this browser. Deleted from the server.");
+  assert.equal(deletionPlan(204).serverDeleted, true);
+  for (const status of [401, 404, null]) {
+    const p = deletionPlan(status);
+    assert.equal(p.message, "Deleted from this browser. No server record was found for this session.");
+    assert.equal(p.serverDeleted, false);
+    assert.equal(p.clearToken, true);
+  }
+  for (const status of [500, 503, 200, 403]) {
+    const p = deletionPlan(status);
+    assert.equal(p.serverDeleted, false);
+    assert.equal(p.clearToken, false);
+    assert.ok(!/Deleted from the server/.test(p.message));
+  }
+});

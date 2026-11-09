@@ -63,6 +63,11 @@ export interface RateLimitedBody {
   message: string;
 }
 
+/** The shared 429 body, for limits enforced outside @fastify/rate-limit (concurrency caps). */
+export function rateLimitedBody(message: string): RateLimitedBody {
+  return { statusCode: 429, error: "rate_limited", message };
+}
+
 /**
  * Registers @fastify/rate-limit in the caller's plugin scope with `global: false`,
  * so only routes there that set `config.rateLimit` are limited. Register it once
