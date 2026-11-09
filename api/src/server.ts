@@ -14,6 +14,7 @@ import { registerInterestRoutes } from "./routes/interests.js";
 import { registerCatalogRoutes } from "./routes/catalog.js";
 import { registerRoutes } from "./routes/register.js";
 import { registerClusterRoutes } from "./routes/clusters.js";
+import { alternativesRoutes } from "./routes/alternatives.js";
 import { suggestRoutes } from "./routes/suggest.js";
 import { registerStatusRoutes } from "./routes/status.js";
 import { createStatusTracker, type StatusTracker } from "./status/tracker.js";
@@ -90,6 +91,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   });
 
   registerSearchRoutes(app, { es, tokens, tracker, rateLimits: limits, ...deps.search });
+  app.register(alternativesRoutes, { es, tracker, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/talks/:id/alternatives
   registerStatusRoutes(app, { es, tracker, version: VERSION, rateLimit: limits.status, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/status
   registerClusterRoutes(app, { es, rateLimit: limits.interestsClusters }); // Module 4: GET /api/interests/clusters
   app.register(suggestRoutes, { es, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/suggest

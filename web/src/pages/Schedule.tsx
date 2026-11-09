@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import QRCode from "qrcode";
 import type { AccessTokenResponse, ScheduleResponse } from "@cc/shared";
 import { api, ApiError, getToken } from "../api.js";
+import { Alternatives } from "../components/Alternatives.js";
 import { SkippedTalks } from "../components/SkippedTalks.js";
 import { recallSkipped, rememberSkipped } from "../skippedTalks.js";
 import "./discovery.css";
@@ -126,6 +127,7 @@ export function Schedule() {
         {reason && <p><strong>Why recommended:</strong> {reason}</p>}
         <button type="button" disabled={calendarPending} aria-label={`Add ${talk.title} to calendar`}
           onClick={() => void exportCalendar(talk.id)}>Add this talk to calendar</button>
+        <Alternatives talk={talk} />
       </li>)}</ol>
     <section aria-labelledby="checkin-heading">
       <h2 id="checkin-heading">Room check-in</h2>
