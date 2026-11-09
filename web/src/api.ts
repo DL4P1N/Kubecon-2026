@@ -1,6 +1,7 @@
 import { routes, type RouteDef } from "@cc/shared";
 import type {
   AccessTokenResponse,
+  CatalogTopicsResponse,
   InterestAggregateResponse,
   OnboardingRequest,
   OnboardingResponse,
@@ -50,6 +51,7 @@ async function call<T>(route: RouteDef, opts: { body?: unknown; query?: Record<s
 }
 
 export const api = {
+  catalogTopics: () => call<CatalogTopicsResponse>(routes.catalogTopics),
   register: (body: RegisterRequest) => call<RegisterResponse>(routes.register, { body }),
   onboarding: (body: OnboardingRequest) => call<OnboardingResponse>(routes.onboarding, { body }),
   search: (q: string, mode: SearchMode, debug = false) => call<SearchResponse & { debug?: unknown }>(routes.search, {

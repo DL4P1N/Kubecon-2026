@@ -7,17 +7,19 @@ export function TopicChoices({ selected, onChange }: {
 }) {
   const [tags, setTags] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
-    api.search("", "keyword").then((result) => {
-      if (active) setTags([...new Set(result.hits.flatMap(({ talk }) => talk.tags))].sort());
-    }, () => { if (active) setError("Topics could not be loaded. You can continue and describe your interests in onboarding."); });
+    setError("");
+    api.catalogTopics().then((result) => {
+      if (active) setTags(result.topics);
+    }, () => { if (active) setError("Topics could not be loaded. Please retry before registering."); });
     return () => { active = false; };
-  }, []);
+  }, [attempt]);
   return <fieldset>
     <legend>Topics that interest you</legend>
     <p>Select any that apply. These topics come from the talk catalog.</p>
-    {error && <p role="status">{error}</p>}
+    {error && <><p role="status">{error}</p><button type="button" onClick={() => setAttempt(attempt + 1)}>Retry topics</button></>}
     <div className="topic-choices">{tags.map((tag) => <label key={tag}>
       <input type="checkbox" checked={selected.includes(tag)} onChange={(event) =>
         onChange(event.target.checked ? [...selected, tag] : selected.filter((value) => value !== tag))} /> {tag}

@@ -13,6 +13,7 @@ import { createEmbedder } from "./es/embeddings.js";
 import { MOCK_TALKS } from "./mock-data.js";
 import { loggerOptions } from "./telemetry/logger.js";
 import { registerInterestRoutes } from "./routes/interests.js";
+import { registerCatalogRoutes } from "./routes/catalog.js";
 import { registerRoutes } from "./routes/register.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
 
@@ -63,6 +64,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   });
 
   registerSearchRoutes(app, { es, ...deps.search });
+  registerCatalogRoutes(app, es);
 
   app.post(routes.accessToken.path, async (): Promise<AccessTokenResponse> => ({
     token: `stub.${STUB_ATTENDEE_ID}`,
