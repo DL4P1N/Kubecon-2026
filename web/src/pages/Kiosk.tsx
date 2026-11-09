@@ -38,6 +38,7 @@ export function Kiosk() {
   const [cameraOn, setCameraOn] = useState(false);
   const scanner = useRef<CameraScanner | null>(null);
   const generation = useRef(0);
+  const tokenInput = useRef<HTMLInputElement>(null);
   const roomRef = useRef(room);
   roomRef.current = room;
 
@@ -114,7 +115,9 @@ export function Kiosk() {
       if (cancelled()) return;
       scanner.current = null;
       setCameraOn(false);
-      setError("The camera is not available. Paste the token instead.");
+      setError("The camera is not available or permission was denied. Type or paste the token below instead.");
+      // Move straight to the text fallback so the kiosk operator can keep going.
+      tokenInput.current?.focus();
     }
   }
 
@@ -142,7 +145,7 @@ export function Kiosk() {
           </button>
         )}
         <label htmlFor="token">Token (if the camera is not used)</label>
-        <input id="token" value={token} onChange={(e) => setToken(e.target.value)} maxLength={1024} autoComplete="off" />
+        <input id="token" ref={tokenInput} value={token} onChange={(e) => setToken(e.target.value)} maxLength={1024} autoComplete="off" />
         <button type="submit" disabled={busy}>
           {busy ? "Checking…" : "Check access"}
         </button>

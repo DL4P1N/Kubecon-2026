@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { SearchFacets, SearchMode, SearchResponse } from "@cc/shared";
 import { ApiError, api } from "../api.js";
+import { EmptyState, ErrorState } from "../components/PageState.js";
 import { SearchFilters } from "../components/SearchFilters.js";
 import { readSearchState, toFilterParams, writeSearchState, type SearchPageState } from "../searchFilters.js";
 import "./discovery.css";
@@ -89,11 +90,14 @@ export function Search() {
     <p role="status">{pending ? "Searching both methods…" : Object.keys(results).length > 0 ? "Comparison ready." : "Enter a query to compare results."}</p>
     <div className="search-comparison">{modes.map((mode) => <section key={mode} aria-labelledby={`heading-${mode}`}>
       <h2 id={`heading-${mode}`}>{mode === "keyword" ? "Keyword" : "Hybrid"}</h2>
-      {errors[mode] && <p role="alert">{errors[mode]}</p>}
+      {errors[mode] && <ErrorState onRetry={() => void run(searchedQ ?? q.trim(), filters)} retryLabel={`Retry ${mode} search`}>{errors[mode]}</ErrorState>}
       {mode === "hybrid" && hybridFellBack && <p role="status">Hybrid search is warming up, so keyword results are shown here instead. Try again in a few seconds.</p>}
       {results[mode] && <>
         <p>{results[mode]!.hits.length} results · {results[mode]!.tookMs} ms</p>
-        {results[mode]!.hits.length === 0 && <p>No matching talks. Try a broader query.</p>}
+        {results[mode]!.hits.length === 0 && <EmptyState>
+          <p>No matching talks.</p>
+          <p>Try broader or fewer words, for example “security” instead of a full sentence, check the spelling, or clear some filters.</p>
+        </EmptyState>}
         <ol className="talk-results">{results[mode]!.hits.map(({ talk, score }) => <li key={talk.id}>
           <h3>{talk.title}</h3><p>{talk.speaker} · {talk.room}</p><p>{talk.abstract}</p>
           <p>Score: {score.toFixed(2)}</p>
