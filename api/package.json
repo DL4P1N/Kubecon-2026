@@ -11,7 +11,8 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "es:init": "tsx src/es/init.ts",
-    "seed": "tsx src/es/seed.ts"
+    "seed": "tsx src/es/seed.ts",
+    "retention": "node dist/retention-cli.js"
   },
   "dependencies": {
     "@cc/shared": "*",
