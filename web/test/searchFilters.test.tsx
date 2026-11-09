@@ -78,6 +78,11 @@ describe("search filter state", () => {
     expect(state).toEqual({ q: "x", day: "2026-11-10", slot: "evening", level: ["advanced"], track: ["A"] });
     expect(readSearchState(`?${writeSearchState(state)}`)).toEqual(state);
     expect(readSearchState("?day=soon&slot=morning")).toEqual({ q: "", level: [], track: [] });
+    expect(readSearchState("?day=2026-13-40&slot=morning")).toEqual({ q: "", level: [], track: [] });
+    expect(readSearchState("?day=2026-02-30")).toEqual({ q: "", level: [], track: [] });
+    for (const slot of ["toString", "constructor", "hasOwnProperty"]) {
+      expect(readSearchState(`?day=2026-11-10&slot=${slot}`)).toEqual({ q: "", day: "2026-11-10", level: [], track: [] });
+    }
   });
 
   it("sends repeated params for multi-value filters", () => {

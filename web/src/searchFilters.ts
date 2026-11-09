@@ -11,6 +11,16 @@ export type TimeSlot = keyof typeof TIME_SLOTS;
 const LEVELS: readonly ExperienceLevel[] = ["beginner", "intermediate", "advanced"];
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** A real calendar day in `YYYY-MM-DD` form (same rule as the API's `day` check). */
+export function isCalendarDay(d: string): boolean {
+  if (!DAY_RE.test(d)) return false;
+  const t = Date.parse(`${d}T00:00:00Z`);
+  return Number.isFinite(t) && new Date(t).toISOString().startsWith(d);
+}
+
+/** Only slot names TIME_SLOTS defines itself, not inherited keys such as `toString`. */
+export const isTimeSlot = (s: string): s is TimeSlot => Object.prototype.hasOwnProperty.call(TIME_SLOTS, s);
+
 /** What the /search page keeps in its URL: the query plus the selected chips. */
 export interface SearchPageState {
   q: string;
@@ -20,18 +30,16 @@ export interface SearchPageState {
   track: string[];
 }
 
-export const emptyState = (q = ""): SearchPageState => ({ q, level: [], track: [] });
-
 /** Reads page state from a query string, dropping anything malformed. */
 export function readSearchState(search: string): SearchPageState {
   const p = new URLSearchParams(search);
   const day = p.get("day") ?? undefined;
   const slot = p.get("slot") ?? undefined;
-  const validDay = day && DAY_RE.test(day) ? day : undefined;
+  const validDay = day && isCalendarDay(day) ? day : undefined;
   return {
     q: (p.get("q") ?? "").slice(0, 1000),
     ...(validDay ? { day: validDay } : {}),
-    ...(validDay && slot && slot in TIME_SLOTS ? { slot: slot as TimeSlot } : {}),
+    ...(validDay && slot && isTimeSlot(slot) ? { slot } : {}),
     level: [...new Set(p.getAll("level"))].filter((l): l is ExperienceLevel => LEVELS.includes(l as ExperienceLevel)),
     track: [...new Set(p.getAll("track"))]
       .map((t) => t.trim())
