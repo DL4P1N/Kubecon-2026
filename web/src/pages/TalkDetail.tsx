@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { RelatedTalksResponse, Talk } from "@cc/shared";
+import { AddToSchedule } from "../components/AddToSchedule.js";
 import { fetchRelated, fetchTalk, talkHref, TalksError } from "../talksApi.js";
 import "./discovery.css";
 
@@ -56,6 +57,7 @@ export function TalkDetail({ load = DEFAULT_LOADER }: { load?: Loader }) {
       {talk.level && <><dt>Level</dt><dd>{talk.level}</dd></>}
     </dl>
     {talk.tags.length > 0 && <ul className="talk-tags" aria-label="Tags">{talk.tags.map((tag) => <li key={tag}>{tag}</li>)}</ul>}
+    <AddToSchedule talkId={talk.id} />
     <h2>Abstract</h2>
     <p className="talk-abstract">{talk.abstract}</p>
     <section aria-labelledby="related-heading">

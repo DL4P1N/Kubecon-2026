@@ -22,6 +22,6 @@
 - Unknown talk → "Talk not found" with a link to Search.
 - Search uses a plain `<a>`; Schedule uses the router `Link`.
 
-## Not done here
+## Add to my schedule
 
-An "Add to schedule" button on this page. Saving needs a session token (`POST` schedule), so it is left for a follow-up rather than mixing authenticated state into this public page.
+Uses the existing authenticated schedule API: `GET /api/schedule`, then `POST /api/schedule` with the current talk ids plus this one (existing talks first, so they keep priority). If the server drops the new talk because it overlaps a scheduled one (`droppedTalkIds`), the page says so instead of reporting success. Without a session token the button is replaced by a link to Register; a 401 does the same.

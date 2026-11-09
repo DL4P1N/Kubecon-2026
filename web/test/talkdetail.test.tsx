@@ -94,3 +94,49 @@ it("client builds encoded URLs and maps failures to TalksError", async () => {
   expect(f.mock.calls.map((c) => c[0])).toEqual(["/api/talks/a%2Fb", "/api/talks/a%2Fb/related?size=3"]);
   expect(talkHref("a b")).toBe("/talks/a%20b");
 });
+
+// ---- Add to my schedule
+import { AddToSchedule } from "../src/components/AddToSchedule.js";
+import { setToken } from "../src/api.js";
+
+const sched = (...ids: string[]) => ({ items: ids.map((id) => ({ talk: mk(id) })), updatedAt: "2026-11-09T00:00:00Z" });
+const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
+
+it("add to schedule: appends after existing talks and confirms", async () => {
+  setToken("t");
+  const api = { getSchedule: vi.fn().mockResolvedValue(sched("a")), saveSchedule: vi.fn().mockResolvedValue(sched("a", "src")) };
+  wrap(<AddToSchedule talkId="src" schedule={api} />);
+  screen.getByRole("button", { name: "Add to my schedule" }).click();
+  expect(await screen.findByText(/Added to your schedule/)).toBeTruthy();
+  expect(api.saveSchedule).toHaveBeenCalledWith({ talkIds: ["a", "src"], maxTalks: 12 });
+  expect((screen.getByRole("button") as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("add to schedule: already scheduled does not save; overlap and errors are reported", async () => {
+  setToken("t");
+  const dup = { getSchedule: vi.fn().mockResolvedValue(sched("src")), saveSchedule: vi.fn() };
+  wrap(<AddToSchedule talkId="src" schedule={dup} />);
+  screen.getByRole("button").click();
+  expect(await screen.findByText(/already in your schedule/)).toBeTruthy();
+  expect(dup.saveSchedule).not.toHaveBeenCalled();
+  cleanup();
+  const clash = { getSchedule: vi.fn().mockResolvedValue(sched("a")), saveSchedule: vi.fn().mockResolvedValue({ ...sched("a"), droppedTalkIds: ["src"] }) };
+  wrap(<AddToSchedule talkId="src" schedule={clash} />);
+  screen.getByRole("button").click();
+  expect((await screen.findByRole("alert")).textContent).toMatch(/overlaps/);
+  cleanup();
+  const boom = { getSchedule: vi.fn().mockRejectedValue(new Error("GET /api/schedule failed: 500")), saveSchedule: vi.fn() };
+  wrap(<AddToSchedule talkId="src" schedule={boom} />);
+  screen.getByRole("button").click();
+  expect((await screen.findByRole("alert")).textContent).toMatch(/could not be updated/);
+});
+
+it("add to schedule: asks to register without a session or on 401", async () => {
+  wrap(<AddToSchedule talkId="src" hasSession={() => false} schedule={{ getSchedule: vi.fn(), saveSchedule: vi.fn() }} />);
+  expect(screen.getByRole("link", { name: "Register" }).getAttribute("href")).toBe("/register");
+  cleanup();
+  setToken("t");
+  wrap(<AddToSchedule talkId="src" schedule={{ getSchedule: vi.fn().mockRejectedValue(new Error("failed 401")), saveSchedule: vi.fn() }} />);
+  screen.getByRole("button").click();
+  expect(await screen.findByRole("link", { name: "Register" })).toBeTruthy();
+});
