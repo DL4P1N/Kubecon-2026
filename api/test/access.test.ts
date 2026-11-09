@@ -303,7 +303,9 @@ describe("QR access", () => {
     const privateRoom = "private-room-input";
     await scan("garbage", privateRoom);
     await scan(qr.token, privateRoom);
-    await scan(qr.token, `${privateRoom}\n`);
+    const malformedRoom = `${privateRoom}\u0001x`;
+    expect(scanBodySchema.safeParse({ token: qr.token, room: malformedRoom }).success).toBe(false);
+    await scan(qr.token, malformedRoom);
     es.failEntitlements();
     await scan(qr.token, ROOM);
 
