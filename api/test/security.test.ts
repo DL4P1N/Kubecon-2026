@@ -109,11 +109,37 @@ describe("input validation", () => {
       expect(long.json()).toMatchObject({ error: "invalid_request" });
       expect(long.body).not.toContain("CANARY");
 
-      const many = await post(app, { topics: Array.from({ length: MAX_ANSWER_ITEMS + 1 }, (_, i) => `t${i}`) });
-      expect(many.statusCode).toBe(400);
       expect((await post(app, { topics: ["y".repeat(101)] })).statusCode).toBe(400);
       expect((await post(app, { topics: [], goals: ["z".repeat(101)] })).statusCode).toBe(400);
       expect(es.calls).toHaveLength(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("names the field when a topic or goal entry is not a string", async () => {
+    const { app } = setup();
+    try {
+      const topics = await post(app, { topics: [1] });
+      expect(topics.statusCode).toBe(400);
+      expect(topics.json()).toEqual({ error: "invalid_request", message: "answers.topics must be an array of strings" });
+      const goals = await post(app, { topics: [], goals: [true] });
+      expect(goals.json()).toEqual({ error: "invalid_request", message: "answers.goals must be an array of strings" });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("keeps the first 20 topics instead of rejecting a longer selection", async () => {
+    const { app, es } = setup();
+    try {
+      const topics = Array.from({ length: MAX_ANSWER_ITEMS + 5 }, (_, i) => `topic${i}`);
+      const res = await post(app, { topics });
+      expect(res.statusCode).toBe(200);
+      const sent = JSON.stringify(es.calls[0]!.body);
+      expect(sent).toContain(`topic${MAX_ANSWER_ITEMS - 1}`);
+      expect(sent).not.toContain(`topic${MAX_ANSWER_ITEMS}"`);
+      expect(sent).not.toContain(`topic${MAX_ANSWER_ITEMS + 4}`);
     } finally {
       await app.close();
     }

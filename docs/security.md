@@ -19,7 +19,7 @@ get the most headroom.
 | `GET /healthz` | none | **none** (kubelet probes) | none | none | `status`, `version`, `time` |
 | `GET /api/status` | none | 600 | 10 s in memory, single-flight, `Cache-Control: public, max-age=10` | none (no input) | Counts, latencies and states only. No paths, queries or IDs |
 | `GET /api/search` | none | 240 | none (per-query) | `q` one string, 1 to 500 chars; `mode` enum; `size` int 1 to 50 | Public talk catalog hits |
-| `POST /api/onboarding` | none | 60 | none | zod: `topics`/`goals` ≤ 20 entries × ≤ 100 chars, `experience` enum, `freeText` ≤ 1000 chars (first 500 searched), ISO dates; body ≤ 16 KiB (413) | Public talk catalog hits. Answers are not stored |
+| `POST /api/onboarding` | none | 60 | none | zod: `topics`/`goals` arrays of strings ≤ 100 chars (first 20 entries used), `experience` enum, `freeText` ≤ 1000 chars (first 500 searched), ISO dates; body ≤ 16 KiB (413) | Public talk catalog hits. Answers are not stored |
 | `POST /api/schedule` | Bearer session token (HS256) | 120 | none | `maxTalks` 1 to 50, `talkIds` ≤ 100 strings or onboarding answers as above; body ≤ 16 KiB | The caller's own schedule |
 | `GET /api/schedule` | Bearer session token | 120 | none | none | The caller's own schedule |
 | `POST /api/register` | none | 60 (`REGISTER_RATE_LIMIT_PER_MINUTE`) | none | zod: name ≤ 80, email ≤ 254 (never stored), 1 to 20 interests × ≤ 64, consent booleans; unknown fields dropped | The new attendee ID and token, to that caller only |
@@ -82,7 +82,9 @@ status are logged.
 - Per-IP buckets.
 - `/healthz` is never limited.
 - An aggregate cache hit makes no second ES call.
-- Oversized onboarding answers get 400 without echoing input.
+- Oversized onboarding answers get 400 without echoing input. Non-string
+  entries get a 400 that names the field. A selection of more than 20 topics
+  is cut to the first 20 instead of being rejected.
 - An oversized body gets 413.
 - An oversized `q` gets 400.
 - A 404 does not echo the path or query.

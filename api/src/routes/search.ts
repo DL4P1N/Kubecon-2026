@@ -79,10 +79,15 @@ const iso = (field: string) =>
   z.string({ error: `${field} must be ISO 8601` }).refine((v) => Number.isFinite(Date.parse(v)), `${field} must be ISO 8601`);
 const answerList = (field: string) =>
   z
-    .array(z.string().max(MAX_ANSWER_ITEM_LENGTH, `${field} entries must be at most ${MAX_ANSWER_ITEM_LENGTH} characters`), {
-      error: `${field} must be an array of strings`,
-    })
-    .max(MAX_ANSWER_ITEMS, `${field} must have at most ${MAX_ANSWER_ITEMS} entries`);
+    .array(
+      z
+        .string({ error: `${field} must be an array of strings` })
+        .max(MAX_ANSWER_ITEM_LENGTH, `${field} entries must be at most ${MAX_ANSWER_ITEM_LENGTH} characters`),
+      { error: `${field} must be an array of strings` },
+    )
+    // The web UI lets attendees tick any number of tags: keep the first 20 rather than
+    // failing the request. The 16 KiB body limit bounds the raw list size.
+    .transform((list) => list.slice(0, MAX_ANSWER_ITEMS));
 
 export const answersSchema = z.object(
   {
