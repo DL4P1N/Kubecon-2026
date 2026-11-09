@@ -1,0 +1,41 @@
+# Native Dash0 SLO (OpenSLO v1, Dash0 subset). Apply: dash0 apply -f deploy/dash0/slos/
+# Rolling 28d window is the only one Dash0 supports; the 1h view is the
+# 5xx-ratio check rule in deploy/dash0/check-rules.yaml.
+# Reference: https://www.dash0.com/docs/dash0/monitoring/alerting/create-slos
+apiVersion: openslo.com/v1
+kind: SLO
+metadata:
+  name: companion-availability
+  labels:
+    dash0.com/origin: conference-companion-availability
+    slo: companion-availability
+    team: conference-companion
+  annotations:
+    dash0.com/display-name: API availability (non-5xx >= 99%)
+    dash0.com/enabled: "true"
+spec:
+  description: 99 percent of companion-api responses are not 5xx.
+  service: companion-api
+  budgetingMethod: Occurrences
+  timeWindow:
+    - duration: 28d
+      isRolling: true
+  indicator:
+    metadata:
+      name: companion-availability-ratio
+    spec:
+      ratioMetric:
+        counter: true
+        good:
+          metricSource:
+            type: Prometheus
+            spec:
+              query: 'http_server_request_duration_seconds_count{service_name="companion-api",http_response_status_code!~"5.."}'
+        total:
+          metricSource:
+            type: Prometheus
+            spec:
+              query: 'http_server_request_duration_seconds_count{service_name="companion-api"}'
+  objectives:
+    - displayName: 99% non-5xx
+      target: 0.99
