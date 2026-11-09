@@ -14,6 +14,7 @@ import { createTokenService, type TokenService } from "./auth/token.js";
 import { createEmbedder } from "./es/embeddings.js";
 import { MOCK_TALKS } from "./mock-data.js";
 import { registerRoutes } from "./routes/register.js";
+import { registerClusterRoutes } from "./routes/clusters.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
 
 const VERSION = "0.1.0";
@@ -63,6 +64,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   });
 
   registerSearchRoutes(app, { es, ...deps.search });
+  registerClusterRoutes(app, { es }); // Module 4: GET /api/interests/clusters
 
   app.post(routes.accessToken.path, async (): Promise<AccessTokenResponse> => ({
     token: `stub.${STUB_ATTENDEE_ID}`,
