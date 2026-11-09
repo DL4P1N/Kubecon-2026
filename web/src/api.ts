@@ -1,4 +1,5 @@
 import { routes, type RouteDef } from "@cc/shared";
+import { offlineExpiry, offlineSession, resetOfflineSession } from "./offline.js";
 import type {
   AccessTokenResponse,
   CatalogTopicsResponse,
@@ -29,6 +30,7 @@ export function getToken(): string | null {
 }
 
 export function setToken(token: string): void {
+  if (token !== getToken()) resetOfflineSession();
   memoryToken = token;
   try {
     sessionStorage.setItem(TOKEN_KEY, token);
@@ -88,7 +90,19 @@ export const api = {
   search: (q: string, mode: SearchMode, debug = false) => call<SearchResponse & { debug?: unknown }>(routes.search, {
     query: { q, mode, ...(debug ? { debug: "1" } : {}) },
   }),
-  getSchedule: () => call<ScheduleResponse>(routes.getSchedule),
+  getSchedule: async (): Promise<ScheduleResponse & { offlineSavedAt?: string }> => {
+    const token = getToken();
+    const session = token ? offlineSession() : null;
+    const res = await fetch(routes.getSchedule.path, {
+      headers: { ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(session ? { "x-cc-offline-session": session, "x-cc-offline-until": String(offlineExpiry(token!)) } : {}) },
+      cache: "no-store",
+    });
+    if (!res.ok) throw new ApiError(`GET ${routes.getSchedule.path} failed: ${res.status}`, res.status);
+    const data = await res.json() as ScheduleResponse;
+    const saved = res.headers.get("x-cc-offline-saved-at");
+    return saved ? { ...data, offlineSavedAt: saved } : data;
+  },
   calendar: async (talkId?: string): Promise<Blob> => {
     const token = getToken();
     const query = talkId === undefined ? "" : `?${new URLSearchParams({ talkId })}`;

@@ -6,7 +6,15 @@ import { api, ApiError, getToken } from "../api.js";
 import "./discovery.css";
 
 export function Schedule() {
-  const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
+  const [schedule, setSchedule] = useState<(ScheduleResponse & { offlineSavedAt?: string }) | null>(null);
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const connected = () => setOnline(true);
+    const disconnected = () => { setOnline(false); setAccess(null); };
+    window.addEventListener("online", connected);
+    window.addEventListener("offline", disconnected);
+    return () => { window.removeEventListener("online", connected); window.removeEventListener("offline", disconnected); };
+  }, []);
   const [error, setError] = useState("");
   // Schedules are personal: without a session token from /register there is nothing to load.
   const [needsRegistration, setNeedsRegistration] = useState(() => !getToken());
@@ -43,20 +51,21 @@ export function Schedule() {
   useEffect(() => {
     if (needsRegistration) return;
     let active = true;
-    api.getSchedule().then((result) => { if (active) setSchedule(result); }, (err: unknown) => {
+    api.getSchedule().then((result) => { if (active) { setSchedule(result); setError(""); } }, (err: unknown) => {
       if (!active) return;
       // api.ts reports the HTTP status at the end of the message; 401 means a missing or expired session.
       if (err instanceof Error && / 401$/.test(err.message)) setNeedsRegistration(true);
       else setError("Your schedule could not be loaded. Please reload or register again if your session expired.");
     });
     return () => { active = false; };
-  }, [needsRegistration]);
+  }, [needsRegistration, online]);
   useEffect(() => {
     if (!access) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [access]);
   async function showQr() {
+    if (!navigator.onLine) { setQrError("QR needs a connection."); return; }
     if (pending) return;
     setPending(true);
     setQrError("");
@@ -67,14 +76,16 @@ export function Schedule() {
       const svg = await QRCode.toString(token.token, { type: "svg", width: 256, margin: 4 });
       const image = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
       setNow(Date.now());
-      setAccess({ ...token, image });
+      if (navigator.onLine) setAccess({ ...token, image });
     } catch {
       setQrError("Room check-in is unavailable. Make sure you opted in to QR check-in and your registration has not expired.");
     } finally { setPending(false); }
   }
-  const validQr = access && now < Date.parse(access.expiresAt);
+  const validQr = online && access && now < Date.parse(access.expiresAt);
   return <section className="discovery">
     <h1>My schedule</h1>
+    {schedule?.offlineSavedAt && <p role="status">Offline: showing schedule saved at {new Date(schedule.offlineSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.</p>}
+    {!online && <p role="status">QR needs a connection. Reconnect to create a fresh check-in code.</p>}
     <p>All session times use your device’s local time zone.</p>
     {needsRegistration && <p role="status">Register to build your personal schedule. <Link to="/register">Register now</Link>.</p>}
     {error && <p role="alert">{error}</p>}
@@ -96,7 +107,7 @@ export function Schedule() {
     <section aria-labelledby="checkin-heading">
       <h2 id="checkin-heading">Room check-in</h2>
       <p>For attendees who opted in. Each scan checks your room access; the code expires shortly after it is issued.</p>
-      <button type="button" disabled={pending} onClick={showQr}>{pending ? "Creating code…" : "Show room QR"}</button>
+      <button type="button" disabled={pending || !online} onClick={showQr}>{pending ? "Creating code…" : "Show room QR"}</button>
       {qrError && <p role="alert">{qrError}</p>}
       {validQr && <div>
         <img src={access.image} width={256} height={256} alt="Short-lived room check-in QR code" />
