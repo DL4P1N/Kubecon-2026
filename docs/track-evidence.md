@@ -11,8 +11,8 @@ entry only after a real review finding is acted on.
 
 | Judge lane | Design Doc evidence required | Current evidence gap |
 | --- | --- | --- |
-| Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | Rules committed; acted-on finding/review link not yet captured. No Sonar tooling claim. |
-| Dash0: Stop Flying Blind | Browser → API → ES trace, search/embedding/access spans, p95 SLO, dashboard, scrubbing proof, real issue investigation | Collector config committed; live exported signals, privacy test and issue evidence not captured. |
+| Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | Gitar review findings acted on, including verified PR #6 probe fix below. CI diagnosis and project-rule evaluation still need evidence. No Sonar tooling claim. |
+| Dash0: Stop Flying Blind | Browser → API → ES trace, search/embedding/access spans, p95 SLO, dashboard, scrubbing proof, real issue investigation | Collector-to-Dash0 export and synthetic attribute scrubbing verified live. Browser/API/ES trace, full privacy test, SLO and issue evidence remain pending. |
 | Radar: AI SRE | Ready Kubernetes workloads, UI and MCP used, real investigation with remediation | Live: kind cluster, Radar UI + read-only MCP (28 tools) connected, api/web/ES Ready. Real-investigation story still to be captured (see Radar section). |
 | Elasticsearch: Find the Right Talk | Real catalog and ES inference per human decisions; BM25 vs hybrid results and query comparison | Live: TLS+auth ES, least privilege proven, E5 endpoint visible. Real-catalog seed + hybrid-vs-keyword comparison pending seed result. |
 
@@ -77,8 +77,9 @@ Still pending: CI-failure diagnosis and the review link for the demo.
 - Deployed and verified: api + web Deployments Ready, proxied `/healthz` returns
   `{"status":"ok"}` HTTP 200, on `node:22-alpine` images (the Node 20 `EBADENGINE` warning for
   `cookie@2.0.2` is gone).
-- Offline validation: yamllint passed; kubeconform strict reported 6 valid, 0 invalid.
-  Server-side `apply --dry-run=server` also passed on the new cluster.
+- Final offline validation: yamllint passed; strict kubeconform reported **9 valid,
+  0 invalid, 0 errors, 0 skipped** across app/seed and ES resources.
+  Server-side `apply --dry-run=server` passed on the new cluster.
 
 ### Real incident: Elasticsearch ML capacity (natural, not injected)
 
@@ -97,9 +98,15 @@ Still pending: CI-failure diagnosis and the review link for the demo.
 - API scaled to 0 for ~40s to verify the Gitar probe fix above. Radar MCP `diagnose`
   reported `workload_degraded` / `0/1 available`. This is a controlled test, not a natural incident.
 
-### Still not proven
+### Evidence boundaries
 
-- No Radar screenshot saved to the repo yet, and no Radar AI investigation run.
-- Browser to API to ES trace and Dash0 export: blocked on the `dash0-credentials` Secret
-  (the collector is deployed and waiting for it).
+- Screenshots: [Radar overview](demo/radar-overview.png) and
+  [actual topology](demo/radar-topology.png) show the live namespace.
+  Radar AI investigation is tracked separately in #30.
+- Dash0 credentials provisioned privately in `dash0-credentials`; collector rollout succeeded.
+  An actual OTLP probe returned HTTP 200. Collector metrics showed
+  `otlphttp/dash0` sent spans = 1, failed spans = 0, queue = 0.
+  Its debug exporter retained `search.mode=hybrid` and removed the synthetic private
+  `attendee.id` / `geo.location` values. This proves collector-to-Dash0 export and the
+  basic scrub, not the browser-to-API-to-ES trace or complete privacy-flow test.
 - TLS is end-to-end only for ES; web to api and api to collector are plaintext HTTP (board #24).

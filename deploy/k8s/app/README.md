@@ -129,3 +129,24 @@ Follow [the Radar runbook](../../../docs/radar.md). Capture Running **and Ready*
 pods, `/healthz`, Radar workload topology and a real investigation. If a fault
 is deliberately injected, label it controlled. No live deployment or Radar
 connection is implied by successful YAML/schema validation.
+
+## Seed the real catalog
+
+The API runtime image includes `data/talks.json`. After the ES administrator
+bootstraps `companion_svc` and activates the inference-capable license, run:
+
+```sh
+kubectl --context "$CONTEXT" -n "$NAMESPACE" apply -f deploy/k8s/app/seed-job.yaml
+kubectl --context "$CONTEXT" -n "$NAMESPACE" wait --for=condition=complete job/seed-talks --timeout=900s
+kubectl --context "$CONTEXT" -n "$NAMESPACE" logs job/seed-talks
+```
+
+The Job is intentionally outside the base Kustomization: seeding is a deliberate
+one-shot operation, not part of every app apply. It uses the app Secret and
+public CA only, not ES admin credentials. To rerun a completed/failed Job,
+delete only `job/seed-talks`, then apply the Job manifest again.
+
+For this 4Gi ES node, set `xpack.ml.max_machine_memory_percent=50` as in the ES
+manifest. The default 30% prevented the E5 model from allocating in the live run.
+Model load and first indexing can take minutes; inspect the Job logs rather than
+claiming successful inference from `/healthz`.
