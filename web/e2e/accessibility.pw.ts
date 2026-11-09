@@ -23,6 +23,8 @@ for (const width of [375, 1280]) {
   for (const path of ["register", "onboarding", "schedule", "search", "kiosk", "clusters"]) {
     test(`${path} at ${width}px has no serious or critical accessibility violations`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
+      // The schedule is personal: give the page a (synthetic) registered session, as /register would.
+      if (path === "schedule") await page.addInitScript(() => sessionStorage.setItem("cc.token", "synthetic-token"));
       await page.goto(`/${path}`);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       if (path === "register" || path === "onboarding") await expect(page.getByLabel("kubernetes", { exact: true })).toBeVisible();
@@ -42,6 +44,19 @@ for (const width of [375, 1280]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     });
   }
+}
+
+for (const width of [375, 1280]) {
+  test(`schedule without a session at ${width}px prompts to register and is accessible`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/schedule");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Register now" })).toBeVisible();
+    await expect(page.getByText(talk.title)).toHaveCount(0);
+    const report = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+    expect(report.violations.filter((v) => v.impact === "serious" || v.impact === "critical")).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
 }
 
 test("keyboard-only registration follows labels and keeps optional consent off", async ({ page }) => {

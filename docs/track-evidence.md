@@ -3,6 +3,29 @@
 Capture links, screenshots, and observations here as the demo environment is
 validated.
 
+## Judge swimlanes and claim gates
+
+Lane names are presentation labels, not proof of integration. Follow the Design
+Doc: Elasticsearch, Radar and Dash0 are depth tracks; Sonar/Gitar is a light
+entry only after a real review finding is acted on.
+
+| Judge lane | Design Doc evidence required | Current evidence gap |
+| --- | --- | --- |
+| Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | Gitar review findings acted on, including verified PR #6 probe fix below. CI diagnosis and project-rule evaluation still need evidence. No Sonar tooling claim. |
+| Dash0: Stop Flying Blind | Browser → API → ES trace, search/embedding/access spans, p95 SLO, dashboard, scrubbing proof, real issue investigation | Collector-to-Dash0 export and synthetic attribute scrubbing verified live. Browser/API/ES trace, full privacy test, SLO and issue evidence remain pending. |
+| Radar: AI SRE | Ready Kubernetes workloads, UI and MCP used, real investigation with remediation | Live: kind cluster, Radar UI + read-only MCP (28 tools) connected, api/web/ES Ready. Real-investigation story still to be captured (see Radar section). |
+| Elasticsearch: Find the Right Talk | Real catalog and ES inference per human decisions; BM25 vs hybrid results and query comparison | Live: 417 real talks indexed with ES E5, keyword and hybrid APIs return 200. All five planned comparisons measured; they do not establish a consistent relevance win. Results in `docs/demo/search-comparison-measured.json`; quality work is #36. |
+
+Do not substitute scaffold/mock routes for end-to-end acceptance. A `/healthz`
+response alone does not verify Elasticsearch inference or token entitlements.
+Controlled faults must be explicitly labelled as controlled.
+
+Operational priorities: the cluster exists (see Radar section), so next are the real-catalog
+seed with ES inference, the registration → schedule → QR flow, live Dash0 export (needs the
+`dash0-credentials` Secret) and a recorded fallback. TLS gaps are tracked in #24.
+Conditional map/navigation work must preserve the consent, k≥5 and simulated-replay
+boundaries in the Design Doc.
+
 ## Gitar findings acted on
 
 Gitar requested changes on PR #1 and PR #3; both were merged before the findings
@@ -36,12 +59,104 @@ The fix commit is the PR link until the merge hash is known.
   PR: [#1](https://github.com/DL4P1N/Kubecon-2026/pull/1).
   Change: not fixed here. It belongs to task #11 (real token validation), noted there.
 
+- Finding (PR [#6](https://github.com/DL4P1N/Kubecon-2026/pull/6), Gitar "Changes requested"): web startup/liveness probes proxied to API `/healthz`, so an API outage would restart healthy nginx.
+  Change: web startup/liveness now probe local `/index.html`; proxied `/healthz` kept for readiness only (`deploy/k8s/app/deployments.yaml`, commit `87ebf1b`).
+  Verified live (CONTROLLED API outage, ~40s): `/index.html` stayed 200, `/healthz` returned 504, web `Ready=False`, nginx restarts 0 to 0; API restored and `/healthz` back to 200.
+
 Still pending: CI-failure diagnosis and the review link for the demo.
+
+### Repository-rule verification (task #34)
+
+The existing `.gitar/review/` files are review guidance. Prior PR dashboards
+reported Rules as "No rules evaluated"; those reviews do not prove execution
+of a repository rule. `.gitar/rules/conference-companion-check.md` adds an
+explicit project check with documented frontmatter. Verified on
+[PR #25's Gitar dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/25#issuecomment-6749180455):
+"Rules 1/1 met", "1 passed". The check states that this docs/config-only PR
+preserves all seven project requirements and explicitly limits the result
+to static review. This proves repository-rule execution on this PR, not
+runtime compliance or a separate Knowledge-library fact citation.
+The human confirmed a Pro trial. Functional validation remains "Not enabled"
+and requires Enterprise; CI-failure diagnosis still needs separate observed
+failure-analysis evidence. No claim is made that either was demonstrated.
+
+## Elasticsearch real issues
+
+### Search 502 during E5 warm-up (natural incident)
+
+- What happened: during the E5 inference seed on the kind cluster, the first deployed
+  `GET /api/search?mode=hybrid` returned 502 `search_unavailable` while keyword search and
+  a direct `companion_svc` RRF query returned 200. The API mapped every Elasticsearch
+  failure to a generic 502, so the original ES error body was not preserved and the cause
+  of that one request is unconfirmed. The related seed failure (429 `inference_exception`,
+  "no ML nodes with sufficient capacity") and its fix (`xpack.ml.max_machine_memory_percent`
+  30% to 50%, by ecan0-omp) are under Radar, "Real incident: Elasticsearch ML capacity".
+- What changed (task #35): `EsError` keeps the ES `error.type` and HTTP status; the span
+  gets the allowlisted `error.type` attribute; the search error handler writes one log line
+  with the type and status only (no query text, ids, credentials or ES body). ES overload
+  (429, `inference_exception`, `circuit_breaking_exception`,
+  `es_rejected_execution_exception`) now returns 503 `search_overloaded` with
+  `Retry-After`; other ES failures stay 502. Hybrid does not fall back to keyword on
+  overload, so an incident stays visible. Tests: `Elasticsearch failures are diagnosable`
+  in `api/test/search.routes.test.ts` and `EsError classification` in `api/test/es.test.ts`
+  (realistic 429 and 400 ES bodies, production logger options).
+- Not captured: a Dash0 trace or log of this request, or a Radar investigation of it. None
+  is claimed.
 
 ## Radar
 
-- Workload evidence: pending.
-- Notes: pending.
+- Cluster: new local kind cluster `conference-companion` (Kubernetes v1.37.0, arm64),
+  kubeconfig `~/.kube/conference-companion`, namespace `conference-companion`.
+  The human chose a new cluster over `toghouse`, which was never modified.
+- Radar OSS 1.20.2 runs locally against that kubeconfig (`--namespace-scope --mcp-read-only
+  --disable-exec --disable-local-terminal`), UI on `127.0.0.1:9280`. The MCP endpoint
+  `/mcp-readonly` initialised and listed 28 read-only tools. Radar's dashboard showed
+  api/web/elasticsearch pods and services in the namespace.
+- Deployed and verified: api + web Deployments Ready, proxied `/healthz` returns
+  `{"status":"ok"}` HTTP 200, on `node:22-alpine` images (the Node 20 `EBADENGINE` warning for
+  `cookie@2.0.2` is gone).
+- Final offline validation: yamllint passed; strict kubeconform reported **9 valid,
+  0 invalid, 0 errors, 0 skipped** across app/seed and ES resources.
+  Server-side `apply --dry-run=server` passed on the new cluster.
+
+### Real incident: Elasticsearch ML capacity (natural, not injected)
+
+- Symptom: the catalog seed Job failed with HTTP 429 `inference_exception`,
+  "no ML nodes with sufficient capacity".
+- Diagnosis (Elasticsearch API, not Radar): ML memory was the default 30% of the 4Gi limit,
+  1228mb total / 1188mb effective. The built-in `.multilingual-e5-small` needs
+  `per_deployment_memory_bytes` 470MB + `per_allocation_memory_bytes` 558MB plus native
+  overhead, about 1.27GB, so it could never allocate.
+- Fix: `xpack.ml.max_machine_memory_percent=50` (2048mb), set live and persisted as an env
+  var in `deploy/k8s/elasticsearch/statefulset.yaml`.
+- Recovery: the seed Job completed 1/1 in 7m57s; index count **417**. E5 reported
+  `started` / `fully_allocated`. ES cgroup memory was 2,675,273,728 bytes under its
+  4Gi limit. Direct RRF and deployed keyword/hybrid search returned HTTP 200.
+- The first deployed hybrid request returned 502 during indexing; it succeeded
+  after seed completion. Its original backend error was not retained, so the
+  cause of that transient request is unconfirmed (diagnostics work tracked in #35).
+- Honesty note: Radar surfaced the failed Job/pod state, but the root cause came from ES.
+
+### Controlled fault (labelled controlled)
+
+- API scaled to 0 for ~40s to verify the Gitar probe fix above. Radar MCP `diagnose`
+  reported `workload_degraded` / `0/1 available`. This is a controlled test, not a natural incident.
+
+### Evidence boundaries
+
+- Screenshots: [Radar overview](demo/radar-overview.png) and
+  [actual topology](demo/radar-topology.png) show the live namespace.
+  Radar AI investigation is tracked separately in #30.
+- Dash0 credentials provisioned privately in `dash0-credentials`; collector rollout succeeded.
+  An actual OTLP probe returned HTTP 200. Collector metrics showed
+  `otlphttp/dash0` sent spans = 1, failed spans = 0, queue = 0.
+  Its debug exporter retained `search.mode=hybrid` and removed the synthetic private
+  `attendee.id` / `geo.location` values. This proves collector-to-Dash0 export and the
+  basic scrub, not the browser-to-API-to-ES trace or complete privacy-flow test.
+- TLS is end-to-end only for ES; web to api and api to collector are plaintext HTTP (board #24).
+- `TRUST_PROXY=1` is consumed by the upstream #27 implementation; verified inside
+  the actual API pod (`trustProxyHops: 1`, Node v22.23.4). Configuration/proxy tests:
+  10 passed after installing current upstream dependencies.
 
 ## Dash0
 

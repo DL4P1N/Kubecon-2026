@@ -24,6 +24,12 @@ export type SpanRunner = <T>(name: string, attrs: SpanAttributes, fn: (span: Act
 
 export const TRACER_NAME = "companion-api";
 
+/** Safe `errorType` carried by EsError (Elasticsearch error.type or http_<status>), if any. */
+const errorTypeOf = (err: unknown): string | undefined => {
+  const t = (err as { errorType?: unknown } | null)?.errorType;
+  return typeof t === "string" ? t : undefined;
+};
+
 const isAllowed = (key: string) => (SPAN_ATTRIBUTE_ALLOWLIST as readonly string[]).includes(key);
 
 export const otelRunner: SpanRunner = (name, attrs, fn) =>
@@ -39,7 +45,8 @@ export const otelRunner: SpanRunner = (name, attrs, fn) =>
         return await fn(active);
       } catch (err) {
         span.setStatus({ code: SpanStatusCode.ERROR });
-        span.setAttribute("error.type", err instanceof Error ? err.name : "unknown");
+        // Prefer the Elasticsearch error type (e.g. inference_exception) over the class name "EsError".
+        span.setAttribute("error.type", errorTypeOf(err) ?? (err instanceof Error ? err.name : "unknown"));
         throw err;
       } finally {
         span.end();
@@ -53,6 +60,20 @@ export function setSpanRunner(next?: SpanRunner): void {
   runner = next ?? otelRunner;
 }
 
+/**
+ * Runs `fn` in a span. When it throws an error carrying a string `errorType`
+ * (Elasticsearch failures, see `EsError`), that type is recorded as the
+ * allowlisted `error.type` attribute before the error propagates. Only the type
+ * is recorded: never the message, which can contain query text.
+ */
 export function withSpan<T>(name: string, attrs: SpanAttributes, fn: (span: ActiveSpan) => T | Promise<T>): Promise<T> {
-  return runner(name, attrs, async (span) => fn(span));
+  return runner(name, attrs, async (span) => {
+    try {
+      return await fn(span);
+    } catch (err) {
+      const type = errorTypeOf(err);
+      if (type !== undefined) span.setAttribute("error.type", type);
+      throw err;
+    }
+  });
 }
