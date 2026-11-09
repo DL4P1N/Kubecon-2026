@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import QRCode from "qrcode";
 import type { AccessTokenResponse, ScheduleResponse } from "@cc/shared";
 import { api, getToken } from "../api.js";
+import { Alternatives } from "../components/Alternatives.js";
 import "./discovery.css";
 
 export function Schedule() {
@@ -60,6 +61,7 @@ export function Schedule() {
           {" – "}<time dateTime={talk.end}>{new Date(talk.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></p>
         <h2>{talk.title}</h2><p>{talk.room} · {talk.speaker}</p>
         {reason && <p><strong>Why recommended:</strong> {reason}</p>}
+        <Alternatives talk={talk} />
       </li>)}</ol>
     <section aria-labelledby="checkin-heading">
       <h2 id="checkin-heading">Room check-in</h2>
