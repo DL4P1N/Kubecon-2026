@@ -1,4 +1,5 @@
 import { Route, Routes, useLocation } from "react-router-dom";
+import { AuthCallback } from "./pages/AuthCallback.js";
 import { ClusterMap } from "./pages/ClusterMap.js";
 import { InterestMap } from "./pages/InterestMap.js";
 import { Kiosk } from "./pages/Kiosk.js";
@@ -44,6 +45,7 @@ export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { n
         <Routes>
           <Route path="/" element={<GoToSite to="/site/" />} />
           <Route path="/register" element={<GoToSite to="/site/register.html" keepQuery />} />
+          <Route path="/auth/:provider/callback" element={<AuthCallback />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/search" element={<Search />} />

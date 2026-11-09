@@ -30,6 +30,7 @@ export interface RateLimitPolicy {
   catalogTopics: RouteLimit;
   chat: RouteLimit;
   events: RouteLimit;
+  auth: RouteLimit;
 }
 
 export const DEFAULT_RATE_LIMITS: RateLimitPolicy = {
@@ -45,6 +46,8 @@ export const DEFAULT_RATE_LIMITS: RateLimitPolicy = {
   // Each chat turn may spawn the Claude CLI (which spends usage), so the guard is tighter than for reads.
   chat: { max: 30 },
   events: { max: 30 },
+  // Each callback makes two outbound calls to a provider; sign-in is a once-in-a-while action.
+  auth: { max: 30 },
 };
 
 export const RATE_LIMIT_WINDOW = "1 minute";

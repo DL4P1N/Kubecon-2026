@@ -407,6 +407,33 @@ export interface RegisteredEvent {
   interests: number;
 }
 
+// ---------------------------------------------------------------- sign in with GitHub / Google / LinkedIn
+
+export type AuthProviderId = "github" | "google" | "linkedin";
+
+/** GET /api/auth/providers: which sign-in buttons can work (client id, secret and redirect URI all configured). */
+export interface AuthProvidersResponse {
+  providers: { id: AuthProviderId; enabled: boolean }[];
+}
+
+/** POST /api/auth/:provider/callback (no auth). `code` and `state` are the provider's redirect query parameters. */
+export interface AuthCallbackRequest {
+  code: string;
+  state: string;
+}
+
+/** The linked account as the provider reported it. No tokens: the server keeps nothing. */
+export interface AuthCallbackResponse {
+  provider: AuthProviderId;
+  displayName: string;
+  handle?: string;
+  avatarUrl?: string;
+  /** Same-origin relative path the visitor started from (validated when the flow began). */
+  return: string;
+  /** True when the flow began in the native app (`app=1`). */
+  app: boolean;
+}
+
 // ---------------------------------------------------------------- route table
 
 export const routes = {
@@ -428,6 +455,10 @@ export const routes = {
   interestsClusters: { method: "GET", path: "/api/interests/clusters" },
   chat: { method: "POST", path: "/api/chat" },
   events: { method: "GET", path: "/api/events" },
+  authProviders: { method: "GET", path: "/api/auth/providers" },
+  /** 302 to the provider. Query: `return` (relative path), `app=1`. */
+  authStart: { method: "GET", path: "/api/auth/:provider/start" },
+  authCallback: { method: "POST", path: "/api/auth/:provider/callback" },
 } as const satisfies Record<string, RouteDef>;
 
 export type RouteName = keyof typeof routes;

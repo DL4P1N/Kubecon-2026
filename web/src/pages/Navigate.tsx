@@ -1,9 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { FLOOR, clampToFloor, roomAt, route } from "../navigation/floor.js";
+import { loadAvatar, spriteRects, SPRITE_H, SPRITE_W, type Avatar } from "../navigation/avatar.js";
+import { createCrowd, type Person } from "../navigation/crowd.js";
+import { FLOOR, clampToFloor, resolveRoom, roomAt, route } from "../navigation/floor.js";
 import { simulatedWalk, type ReceiverReading } from "../navigation/positionSource.js";
 import { smoothPosition, trilaterate, type Position } from "../navigation/trilaterate.js";
 import "./navigate.css";
+
+const CROWD_SIZE = 16;
+
+/** A pixel person as crisp SVG rectangles; (x, y) is where they stand, cell is the size of one pixel in metres. */
+function PixelPerson({ avatar, x, y, cell, className }: { avatar: Avatar; x: number; y: number; cell: number; className: string }) {
+  const rects = useMemo(() => spriteRects(avatar), [avatar]);
+  return (
+    <g className={className} style={{ transform: `translate(${x - (SPRITE_W * cell) / 2}px, ${y - (SPRITE_H - 2) * cell}px)` }} shapeRendering="crispEdges">
+      {rects.map((r, i) => <rect key={i} x={r.x * cell} y={r.y * cell} width={r.w * cell} height={cell} fill={r.fill} />)}
+    </g>
+  );
+}
 
 const TICK_MS = 800;
 const dbm = (value: number) => `${String(value).replace("-", "−")} dBm`;
@@ -12,8 +26,10 @@ const dbm = (value: number) => `${String(value).replace("-", "−")} dBm`;
  *  Everything stays in this component: no network calls, no telemetry attributes, nothing about position is stored or sent. */
 export function Navigate() {
   const [params, setParams] = useSearchParams();
-  const requested = params.get("to");
-  const dest = FLOOR.rooms.some((r) => r.id === requested) ? requested! : "main-stage";
+  const dest = resolveRoom(params.get("to")) ?? "main-stage";
+  const me = useMemo(() => loadAvatar(), []);
+  const crowd = useRef(createCrowd({ count: CROWD_SIZE }));
+  const [others, setOthers] = useState<Person[]>(() => crowd.current.people());
 
   const source = useRef(simulatedWalk());
   const smoothed = useRef<Position | null>(null);
@@ -25,6 +41,8 @@ export function Navigate() {
 
   const tick = useCallback(() => {
     const next = source.current.next();
+    crowd.current.step();
+    setOthers(crowd.current.people());
     setReadings(next);
     const raw = trilaterate(next.flatMap((r) => {
       const rx = FLOOR.receivers.find((a) => a.id === r.receiverId);
@@ -38,14 +56,14 @@ export function Navigate() {
     if (source.current.done) { setRunning(false); setFinished(true); }
   }, []);
 
-  useEffect(() => { source.current.reset(); smoothed.current = null; tick(); }, [tick]);
+  useEffect(() => { source.current.reset(); crowd.current.reset(); smoothed.current = null; tick(); }, [tick]);
   useEffect(() => {
     if (!running) return;
     const timer = window.setInterval(tick, TICK_MS);
     return () => window.clearInterval(timer);
   }, [running, tick]);
 
-  const reset = () => { setRunning(false); setFinished(false); source.current.reset(); smoothed.current = null; tick(); };
+  const reset = () => { setRunning(false); setFinished(false); source.current.reset(); crowd.current.reset(); smoothed.current = null; tick(); };
 
   const here = fix ? roomAt(fix.x, fix.y) : null;
   const target = FLOOR.rooms.find((r) => r.id === dest)!;
@@ -83,6 +101,7 @@ export function Navigate() {
                   <text x={r.x0 + 0.6} y={r.y0 + 1.7}>{r.short}</text>
                 </g>
               ))}
+              {others.map((p) => <PixelPerson key={p.id} avatar={p.avatar} x={p.x} y={p.y} cell={0.12} className="nav-person nav-other" />)}
               {path && path.points.length > 1 && !arrived && (
                 <polyline className="nav-route" points={path.points.map((p) => `${p.x},${p.y}`).join(" ")} />
               )}
@@ -95,16 +114,17 @@ export function Navigate() {
               {fix && (
                 <g className="nav-dot" style={{ transform: `translate(${fix.x}px, ${fix.y}px)` }}>
                   <circle className="nav-ring" r={Math.max(0.6, fix.accuracyMeters)} />
-                  <circle className="nav-me" r="0.55" />
                 </g>
               )}
+              {fix && <PixelPerson avatar={me} x={fix.x} y={fix.y} cell={0.17} className="nav-person nav-me" />}
             </g>
           </svg>
           <figcaption className="nav-legend">
-            <span><i className="key key-me" /> Estimated position</span>
+            <span><i className="key key-me" /> You (estimated)</span>
             <span><i className="key key-rx" /> Bluetooth receiver</span>
             <span><i className="key key-route" /> Route</span>
           </figcaption>
+          <p className="nav-meta nav-crowd">{others.length} other attendees shown (simulated)</p>
         </figure>
 
         <div className="nav-side">

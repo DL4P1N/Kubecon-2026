@@ -3,6 +3,15 @@
  * Secrets (ES_PASSWORD, TOKEN_SIGNING_KEY) come from a Kubernetes Secret in
  * deployment and must never be committed.
  */
+export type OAuthProviderId = "github" | "google" | "linkedin";
+
+/** One provider's OAuth app settings; present only when id, secret and redirect URI are all set. */
+export interface OAuthProviderConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+}
+
 export interface Config {
   port: number;
   host: string;
@@ -25,6 +34,8 @@ export interface Config {
   claudeBin: string | undefined;
   /** ROOM_CAPACITIES: JSON map of room name to seats. Rooms not listed have unknown capacity (never guessed). */
   roomCapacities: Record<string, number>;
+  /** {GITHUB,GOOGLE,LINKEDIN}_CLIENT_ID / _CLIENT_SECRET / _OAUTH_REDIRECT_URI; a provider missing any of the three is disabled. Secrets never leave the server. */
+  oauth: Partial<Record<OAuthProviderId, OAuthProviderConfig>>;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -65,6 +76,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     chatMode,
     claudeBin: env.CLAUDE_BIN || undefined,
     roomCapacities,
+    oauth: loadOAuth(env),
   };
 }
 
@@ -95,4 +107,16 @@ function positiveInt(raw: string | undefined, fallback: number, name: string): n
   const n = Number(raw);
   if (!Number.isInteger(n) || n < 1) throw new Error(`Invalid ${name}: ${raw}`);
   return n;
+}
+
+function loadOAuth(env: NodeJS.ProcessEnv): Partial<Record<OAuthProviderId, OAuthProviderConfig>> {
+  const out: Partial<Record<OAuthProviderId, OAuthProviderConfig>> = {};
+  for (const id of ["github", "google", "linkedin"] as const) {
+    const prefix = id.toUpperCase();
+    const clientId = env[`${prefix}_CLIENT_ID`]?.trim();
+    const clientSecret = env[`${prefix}_CLIENT_SECRET`]?.trim();
+    const redirectUri = env[`${prefix}_OAUTH_REDIRECT_URI`]?.trim();
+    if (clientId && clientSecret && redirectUri) out[id] = { clientId, clientSecret, redirectUri };
+  }
+  return out;
 }

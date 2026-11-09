@@ -132,3 +132,52 @@ test("appTicketUrl encodes every value, caps name/role at 80 and interests at 12
   assert.equal(q.get("interests").split(",").length, 12);
   assert.equal(q.get("interests").split(",")[11], "t11");
 });
+
+import { defaultAvatar, sanitizeAvatar, avatarParam, parseAvatarParam, avatarLook, PALETTE } from "../js/avatar.js";
+import { parseProviders, startUrl, registerReturnPath, parseLinked, unlinkProvider, initials } from "../js/accounts.js";
+import { normalizeAuthBase } from "../js/auth.js";
+
+test("avatar: default, sanitize (palette values only, per part), param round trip", () => {
+  const d = defaultAvatar();
+  assert.match(avatarParam(d), /^[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{6}-[0-9a-f]{6}-h0$/);
+  assert.equal(PALETTE.skin.length, 5); assert.equal(PALETTE.hair.length, 6); assert.equal(PALETTE.shirt.length, 8); assert.equal(PALETTE.pants.length, 4);
+  assert.ok(PALETTE.shirt.some((p) => p.hex === "c6f19d"));
+  assert.deepEqual(sanitizeAvatar(null), d);
+  assert.deepEqual(sanitizeAvatar("x"), d);
+  const s = sanitizeAvatar({ skin: "#C68642", hair: "ff00ff", shirt: "3b82c4", pants: 5, hat: "yes" });
+  assert.equal(s.skin, "c68642"); assert.equal(s.hair, d.hair); assert.equal(s.shirt, "3b82c4"); assert.equal(s.pants, d.pants); assert.equal(s.hat, false);
+  const a = { skin: "5c3a21", hair: "d9b45a", shirt: "e8833a", pants: "4a6a4a", hat: true };
+  assert.equal(avatarParam(a), "5c3a21-d9b45a-e8833a-4a6a4a-h1");
+  assert.deepEqual(parseAvatarParam(avatarParam(a)), a);
+  for (const bad of ["", "a-b", "5c3a21-d9b45a-e8833a-4a6a4a-h2", "zzzzzz-d9b45a-e8833a-4a6a4a-h1x", null]) assert.deepEqual(parseAvatarParam(bad), d);
+  assert.equal(avatarLook(a).shirt, "#e8833a"); assert.equal(avatarLook(a).hat, true);
+});
+
+test("appTicketUrl adds &avatar=<param> last when given", () => {
+  const a = { skin: "5c3a21", hair: "d9b45a", shirt: "e8833a", pants: "4a6a4a", hat: true };
+  assert.equal(appTicketUrl({ slug: "x", name: "Mia", avatar: a }), "confcompanion://ticket?c=x&name=Mia&avatar=5c3a21-d9b45a-e8833a-4a6a4a-h1");
+});
+
+test("auth: providers, start and return URLs", () => {
+  assert.deepEqual(parseProviders({ providers: [{ id: "github", enabled: true }, { id: "google", enabled: false }, { id: "evil", enabled: true }, null] }), { github: true, google: false });
+  assert.deepEqual(parseProviders(null), {});
+  assert.equal(startUrl("github", "/site/profile.html"), "/api/auth/github/start?return=%2Fsite%2Fprofile.html");
+  assert.equal(startUrl("github", "/site/profile.html", "https://auth.example.org"), "https://auth.example.org/api/auth/github/start?return=%2Fsite%2Fprofile.html");
+  assert.equal(registerReturnPath("a b", "google"), "/site/register.html?c=a%20b&via=google");
+});
+
+test("linked accounts: only known providers with a name; unlink; initials", () => {
+  const l = parseLinked(JSON.stringify({ github: { displayName: " Mia Okafor ", handle: "mia", avatarUrl: "https://x/y.png", linkedAt: "t" }, google: { displayName: "" }, other: { displayName: "x" } }));
+  assert.deepEqual(Object.keys(l), ["github"]);
+  assert.equal(l.github.displayName, "Mia Okafor");
+  assert.ok(!("avatarUrl" in l.github));
+  assert.deepEqual(unlinkProvider(l, "github"), {});
+  assert.deepEqual(parseLinked("nope"), {});
+  assert.equal(initials("Mia Okafor"), "MO"); assert.equal(initials("mia"), "M"); assert.equal(initials(""), "?");
+});
+
+test("authBase validation: http(s) only, bare origin", () => {
+  assert.equal(normalizeAuthBase("https://auth.example.org/"), "https://auth.example.org");
+  assert.equal(normalizeAuthBase("http://127.0.0.1:4000/api/x?y=1#z"), "http://127.0.0.1:4000");
+  for (const bad of ["javascript:alert(1)", "ftp://x.org", "//x.org", "auth.example.org", "", null, undefined, "data:text/html,x"]) assert.equal(normalizeAuthBase(bad), "", String(bad));
+});

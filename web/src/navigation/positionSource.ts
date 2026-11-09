@@ -1,5 +1,6 @@
 import { DEFAULT_MODEL, distanceToRssi, type PathLossModel } from "./trilaterate.js";
 import { FLOOR, type Floor } from "./floor.js";
+import { mulberry32 } from "./prng.js";
 
 /** One signal reading: which receiver and how strong (dBm). */
 export interface ReceiverReading { receiverId: string; rssi: number }
@@ -38,18 +39,6 @@ export interface WalkOptions {
 
 const SENSITIVITY_DBM = -95;
 const DEFAULT_PATH = ["lobby", "lobby-door", "h6", "h8", "h17", "h20", "lounge-door", "lounge"];
-
-/** Small deterministic PRNG so the walk is repeatable. */
-function mulberry32(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /** A made-up attendee walking a fixed path, with noisy Bluetooth signal strengths computed from the log-distance model. */
 export function simulatedWalk(options: WalkOptions = {}): SimulatedWalk {

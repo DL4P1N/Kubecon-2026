@@ -25,6 +25,7 @@ import { RoomActivityCounter } from "./rooms/activity.js";
 import { registerRoomRoutes } from "./routes/rooms.js";
 import { chatRoutes } from "./routes/chat.js";
 import { eventsRoutes } from "./routes/events.js";
+import { authRoutes } from "./routes/auth.js";
 import { EventHub, buildRegisteredEvent } from "./chat/events.js";
 import { createClaudeRunner, findOnPath, isExecutableFile, type ClaudeRunner } from "./chat/model.js";
 
@@ -46,6 +47,8 @@ export interface ServerDeps {
   runClaude?: ClaudeRunner | null;
   /** Live demo stream hub (GET /api/events); tests inject one with a short heartbeat. */
   events?: EventHub;
+  /** Sign-in with GitHub/Google/LinkedIn (routes/auth.ts); tests inject `fetch` and a clock so nothing touches the network. */
+  auth?: { fetch?: typeof fetch; now?: () => number };
 }
 
 /** The Claude CLI runner for this process, or null (scripted chat) when CHAT_MODE=scripted or the binary is not found. */
@@ -112,6 +115,8 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   // Registration chat (POST /api/chat) and the live demo stream (GET /api/events).
   app.register(chatRoutes, { runClaude: deps.runClaude === undefined ? resolveChatRunner(config) : deps.runClaude, rateLimit: limits.chat });
   app.register(eventsRoutes, { hub, rateLimit: limits.events });
+  // Sign in with GitHub / Google / LinkedIn to link an account to the browser's profile (docs/sign-in.md). Stores nothing.
+  app.register(authRoutes, { oauth: config.oauth, rateLimit: limits.auth, ...deps.auth });
 
   registerSearchRoutes(app, { es, tokens, tracker, rateLimits: limits, ...deps.search });
   app.register(talkRoutes, { es, tracker, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/talks/:id, /related, /alternatives

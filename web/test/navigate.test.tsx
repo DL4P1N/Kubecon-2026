@@ -29,6 +29,28 @@ it("preselects the destination from ?to= and falls back for an unknown id", () =
   expect((screen.getByLabelText("Where to?") as HTMLSelectElement).value).toBe("main-stage");
 });
 
+it("accepts the site's destination aliases in ?to=", () => {
+  renderAt("/navigate?to=scan");
+  expect((screen.getByLabelText("Where to?") as HTMLSelectElement).value).toBe("room-b");
+  cleanup();
+  renderAt("/navigate?to=keynote");
+  expect((screen.getByLabelText("Where to?") as HTMLSelectElement).value).toBe("main-stage");
+});
+
+it("draws you and the simulated attendees as decorative pixel people, with a text line", () => {
+  const saved = JSON.stringify({ skin: "d9a066", hair: "2b1b12", shirt: "ff7a59", pants: "24324a", hat: true });
+  vi.stubGlobal("localStorage", { getItem: (key: string) => (key === "cc.avatar.v1" ? saved : null) });
+  renderAt("/navigate");
+  expect(screen.getByText("16 other attendees shown (simulated)")).toBeTruthy();
+  const svg = screen.getByRole("img", { name: /Floor plan/ });
+  expect(svg.querySelectorAll(".nav-other").length).toBe(16);
+  expect(svg.querySelectorAll(".nav-me").length).toBe(1);
+  expect(svg.querySelector(".nav-me")!.getAttribute("shape-rendering")).toBe("crispEdges");
+  expect(svg.querySelector(".nav-me rect")!.getAttribute("fill")).toBe("#ff7a59"); // the cap, in the shirt colour
+  expect(svg.querySelector("g[aria-hidden='true']")).toBeTruthy();
+  vi.unstubAllGlobals();
+});
+
 it("walks on Start, announces room changes and arrival, and resets", () => {
   const fetchSpy = vi.fn();
   vi.stubGlobal("fetch", fetchSpy);

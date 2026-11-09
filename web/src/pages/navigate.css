@@ -12,8 +12,10 @@
 .nav-rx rect { fill: var(--chart-1); }
 .nav-rx text { fill: var(--chart-1); font: 500 0.95px var(--font-mono); }
 .nav-ring { fill: var(--accent); fill-opacity: 0.16; stroke: var(--accent); stroke-width: 0.1; stroke-dasharray: 0.4 0.3; }
-.nav-me { fill: var(--accent); stroke: var(--bg); stroke-width: 0.2; }
-@media (prefers-reduced-motion: no-preference) { .nav-dot { transition: transform 700ms linear; } }
+.nav-other { opacity: 0.8; }
+.nav-crowd { margin: var(--s-2) 0 0; }
+/* eased only when motion is welcome; with reduced motion the dot and the people step from place to place */
+@media (prefers-reduced-motion: no-preference) { .nav-dot, .nav-person { transition: transform 700ms linear; } }
 
 .nav-legend { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin-top: var(--s-3); color: var(--muted); font-size: var(--t-small); }
 .nav-legend .key { display: inline-block; width: 12px; height: 12px; margin-right: var(--s-2); vertical-align: -1px; }

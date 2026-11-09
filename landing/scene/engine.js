@@ -218,7 +218,7 @@ export function createEngine({ host, canvas, gl, count = 80, seed = SEED, data =
         clusters: (c) => c.t - c.modeT > 18 && (c.t - c.modeT) % 12 > 7.4,
       };
       warm(40, preds[name] || preds.overview);
-      if (guideArgs) crowd.guide(guideArgs[0], guideArgs[1], true); // a composed still keeps the guide (placed, full route)
+      if (guideArgs) crowd.guide(guideArgs[0], guideArgs[1], true, guideArgs[2]); // a composed still keeps the guide (placed, full route)
     },
     render() {
       if (!frame) return 0;
@@ -241,10 +241,10 @@ export function createEngine({ host, canvas, gl, count = 80, seed = SEED, data =
     },
     setActive(n) { crowd.setActive(n); },
     // guided navigation; returns false for an unknown room. The "navigate" shot frames entrance and destination.
-    guide(to, label, instant) {
-      const a = crowd.guide(to, label, instant);
+    guide(to, label, instant, look) {
+      const a = crowd.guide(to, label, instant, look);
       if (!a) return false;
-      guideArgs = [to, label];
+      guideArgs = [to, label, look];
       const xs = a.route.map((p) => p.x), zs = a.route.map((p) => p.z);
       setNavigateBox([Math.min(...xs) - 2.5, Math.min(...zs) - 2.5, Math.max(...xs) + 2.5, Math.max(...zs) + 2.5]);
       return true;
@@ -252,8 +252,8 @@ export function createEngine({ host, canvas, gl, count = 80, seed = SEED, data =
     clearGuide() { crowd.clearGuide(); guideArgs = null; },
     guideStatus() { const a = crowd.guideAgent; return a ? { arrived: a.arrived } : null; },
     // a live arrival; with reduced motion the crowd jumps ahead until the newcomer has a badge (no walking shown)
-    spawn(label, instant) {
-      const a = crowd.spawn(label);
+    spawn(label, instant, look) {
+      const a = crowd.spawn(label, look);
       if (instant) warm(30, () => a.badge && crowd.bubbles.some((b) => b.a === a));
       return true;
     },

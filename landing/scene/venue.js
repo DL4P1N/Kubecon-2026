@@ -8,6 +8,22 @@ const GUIDE = { keynote: 'keynote', stage: 'keynote', 'room-a': 'room-a', 'room-
 const STILLS = { overview: 'still-overview.png', arrive: 'still-arrive.png', host: 'still-host.png', clusters: 'still-clusters.png' };
 const SIDES = ['left', 'right', 'center', 'top'];
 const STORE = 'venue-motion-v1';
+const AVATAR = 'cc.avatar.v1';
+// a visitor's character: { skin, hair, shirt, pants } as #rrggbb (storage: rrggbb), hat boolean; anything else is ignored
+function parseLook(o, bareHex) {
+  if (!o || typeof o !== 'object') return null;
+  const re = bareHex ? /^[0-9a-fA-F]{6}$/ : /^#[0-9a-fA-F]{6}$/;
+  const out = {};
+  for (const k of ['skin', 'hair', 'shirt', 'pants']) {
+    const v = o[k];
+    if (typeof v === 'string' && re.test(v)) { const n = parseInt(v.replace('#', ''), 16); out[k] = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; }
+  }
+  if (typeof o.hat === 'boolean') out.hat = o.hat;
+  return Object.keys(out).length ? out : null;
+}
+function storedLook() {
+  try { return parseLook(JSON.parse(localStorage.getItem(AVATAR) || 'null'), true); } catch (e) { return null; }
+}
 const NARROW = 760;
 const STEP = 1 / 30;
 const TIERS = [{ count: 80, fps: 60 }, { count: 50, fps: 30 }, { count: 30, fps: 20 }];
@@ -177,7 +193,7 @@ class Controller {
       if (data && isFinite(+data.attendeeCount) && !this.opts.count) count = Math.min(count, Math.max(60, Math.min(100, Math.round(+data.attendeeCount))));
       this.engine = mod.createEngine({ host: this.el, canvas, gl, count, seed: this.opts.seed, data });
       if (this.guideInfo) this.startGuide();
-      if (this.pending) { const p = this.pending; this.pending = null; p.forEach((l) => this.spawn({ label: l })); }
+      if (this.pending) { const p = this.pending; this.pending = null; p.forEach((x) => this.engine.spawn(x.label, this.reduced, x.look)); }
       this.STEP = mod.STEP || STEP;
       this.needSize = true;
       this.needMeasure = true;
@@ -200,7 +216,8 @@ class Controller {
     if (!GUIDE[to] || this.destroyed || this.failed) return false;
     const label = String((o && o.label) || '').replace(/[^A-Za-z0-9 ]/g, '').replace(/\s+/g, ' ').trim().slice(0, 12) || 'You';
     this.clearGuide(true);
-    this.guideInfo = { to, label, room: GUIDE[to], arrived: false, started: false };
+    const look = o && o.look !== undefined ? parseLook(o.look, false) : storedLook();
+    this.guideInfo = { to, label, look, room: GUIDE[to], arrived: false, started: false };
     try { document.dispatchEvent(new CustomEvent('venue:guide', { detail: { to, label } })); } catch (e) { /* ignore */ }
     if (state.static) { this.guideShow = true; this.sync(); }
     if (this.engine) this.startGuide();
@@ -211,7 +228,7 @@ class Controller {
     if (!g || g.started || !this.engine) return;
     g.started = true;
     // reduced motion, static view or paused motion: draw the whole route and place the person at the destination
-    this.engine.guide(g.room, g.label, this.reduced || state.static || state.paused);
+    this.engine.guide(g.room, g.label, this.reduced || state.static || state.paused, g.look);
     this.goTo('navigate');
     this.dirty = true;
     this.kick();
@@ -256,8 +273,9 @@ class Controller {
   spawn(o) {
     const label = String((o && o.label) || '').replace(/[^A-Za-z0-9 ]/g, '').replace(/\s+/g, ' ').trim().slice(0, 12);
     if (this.destroyed || this.failed) return false;
-    if (!this.engine) { (this.pending = this.pending || []).push(label); return true; }
-    this.engine.spawn(label, this.reduced);
+    const look = o ? parseLook(o.look, false) : null;
+    if (!this.engine) { (this.pending = this.pending || []).push({ label, look }); return true; }
+    this.engine.spawn(label, this.reduced, look);
     this.dirty = true;
     this.kick();
     return true;

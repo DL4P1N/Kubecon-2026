@@ -57,12 +57,14 @@ export class People {
       if (cut && (a.x < cut[0] || a.x > cut[2] || a.z < cut[1] || a.z > cut[3])) continue;
       if (this.n + PARTS_PER > this.max * PARTS_PER) break;
       const L = a.look;
-      const skin = T.skins[L.skin];
+      let skin = T.skins[L.skin];
       let hair = T.hairs[L.hair];
       let shirt, pants, shoe = T.shoes[L.shoes];
       if (a.kind === 'host' || a.kind === 'barista') { shirt = T.staffShirt; pants = T.pants[0]; }
       else shirt = T.shirts[L.shirt] || T.shirts[0];
       pants = pants || T.pants[L.pants];
+      const C = a.custom;
+      if (C) { if (C.skin) skin = C.skin; if (C.hair) hair = C.hair; if (C.shirt) shirt = C.shirt; if (C.pants) pants = C.pants; }
       if (a.tint >= 0) {
         const h = a.tint === OTHER ? T.grey : a.tint > OTHER ? T.fold[(a.tint - OTHER - 1) % T.fold.length] : T.cluster[a.tint];
         shirt = h; pants = this._shade(h, 0.62); shoe = this._shade(h, 0.85); hair = this._shade(h, 0.8);
@@ -119,7 +121,12 @@ export class People {
       } else for (const side of [-1, 1]) this._part(px, py, pz, cy, sy, 0, hY, 0, 0, side * 0.1, 0.01, 0.215, 0.08, 0.1, 0.03, this.eye);
       // hair
       const st = a.kind === 'guest' || a.kind === 'host' ? L.style : (a.kind === 'speaker' ? 0 : 2);
-      if (st !== 2) {
+      if (C && C.hat) { // cap: crown in the shirt colour, darker brim forward
+        const capC = this._shade(shirt, 0.85);
+        this._part(px, py, pz, cy, sy, 0, hY, 0, 0, 0, 0.25, -0.01, 0.5, 0.16, 0.5, capC);
+        this._part(px, py, pz, cy, sy, 0, hY, 0, 0, 0, 0.19, 0.3, 0.44, 0.05, 0.22, this._shade(shirt, 0.6));
+        this._part(px, py, pz, cy, sy, 0, hY, 0, 0, 0, 0.02, -0.2, 0.48, 0.3, 0.12, hair);
+      } else if (st !== 2) {
         this._part(px, py, pz, cy, sy, 0, hY, 0, 0, 0, 0.23, -0.01, 0.48, 0.12, 0.48, hair); // top
         this._part(px, py, pz, cy, sy, 0, hY, 0, 0, 0, st === 1 ? -0.1 : 0.05, -0.2, 0.48, st === 1 ? 0.6 : 0.32, 0.12, hair); // back
         if (st === 4 || st === 1) this._part(px, py, pz, cy, sy, 0, hY, 0, 0, 0.07, 0.15, 0.2, 0.36, 0.08, 0.1, hair); // fringe

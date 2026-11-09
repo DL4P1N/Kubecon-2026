@@ -57,6 +57,20 @@ export const FLOOR: Floor = {
   entrances: { "main-stage": "stage", "room-a": "a", "room-b": "b", hallway: "h17", lobby: "lobby", lounge: "lounge" },
 };
 
+/** Destination ids the site's pixel venue uses, mapped to this plan's six areas. The plan has no Room C or Room D:
+ *  Room C maps to the neighbouring Breakout room B, Room D (the south-east workshop) to the Lounge. */
+export const ROOM_ALIASES: Record<string, string> = {
+  stage: "main-stage", keynote: "main-stage", scan: "room-b", "room-c": "room-b", "room-d": "lounge",
+};
+
+/** A room id or a site alias to a room on this plan; null when it is neither. */
+export function resolveRoom(id: string | null | undefined, floor: Floor = FLOOR): string | null {
+  if (!id) return null;
+  const key = id.trim().toLowerCase();
+  const canonical = Object.prototype.hasOwnProperty.call(ROOM_ALIASES, key) ? ROOM_ALIASES[key]! : key;
+  return floor.rooms.some((r) => r.id === canonical) ? canonical : null;
+}
+
 export function roomAt(x: number, y: number, floor: Floor = FLOOR): Room | null {
   return floor.rooms.find((r) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1)
     ?? floor.rooms.find((r) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) ?? null; // points on the outer edge

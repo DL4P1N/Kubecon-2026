@@ -2,6 +2,7 @@ import { routes, type RouteDef } from "@cc/shared";
 import { offlineExpiry, offlineSession, resetOfflineSession } from "./offline.js";
 import type {
   AccessTokenResponse,
+  AuthCallbackResponse,
   RoomOccupancyResponse,
   RoomPlacementResponse,
   CatalogTopicsResponse,
@@ -88,7 +89,20 @@ async function scanRoom(body: ScanRequest): Promise<ScanResponse> {
   throw new Error(`${routes.accessScan.method} ${routes.accessScan.path} failed: ${res.status}`);
 }
 
+/** Finishes a sign-in: the provider's code and our one-time state in, the linked profile out. No session token is sent. */
+async function authCallback(provider: string, body: { code: string; state: string }): Promise<AuthCallbackResponse> {
+  const path = routes.authCallback.path.replace(":provider", encodeURIComponent(provider));
+  const res = await fetch(path, {
+    method: routes.authCallback.method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError(`${routes.authCallback.method} ${routes.authCallback.path} failed: ${res.status}`, res.status);
+  return (await res.json()) as AuthCallbackResponse;
+}
+
 export const api = {
+  authCallback,
   roomOccupancy: () => call<RoomOccupancyResponse>(routes.roomOccupancy),
   catalogTopics: () => call<CatalogTopicsResponse>(routes.catalogTopics),
   status: () => call<StatusResponse>(routes.status),

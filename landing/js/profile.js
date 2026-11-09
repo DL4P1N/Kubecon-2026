@@ -2,6 +2,9 @@
 // Nothing here is server history: the API keeps one event and deletes attendee records after 24 hours.
 // The first half of the file is pure (tested in test/profile-page.test.mjs); the DOM part runs only in a page.
 
+import { avatarParam, avatarLook, drawAvatar, readAvatar, writeAvatar, PALETTE } from "./avatar.js";
+import { PROVIDERS, providerName, startUrl, fetchProviders, readLinked, writeLinked, unlinkProvider, initials } from "./accounts.js";
+
 export const KEPT_PROFILE_KEY = "cc.kept-profile.v1";
 export const REGISTRATIONS_KEY = "cc.registrations.v1";
 export const SHARES_KEY = "cc.invite-shares.v1";
@@ -125,10 +128,10 @@ export function bumpShare(counts, slug) {
 
 /**
  * Deep link into the native iPhone app: confcompanion://ticket?c=<slug>&name=..&role=..&interests=a,b
- * Every value is percent-encoded; name and role are capped at 80 characters, interests at 12; empty values are left out.
+ * Optional `avatar` adds &avatar=skin-hair-shirt-pants-h0|h1. Every value is percent-encoded; name and role are capped at 80 characters, interests at 12; empty values are left out.
  * The comma between interests is the one literal comma, each interest is encoded on its own.
  */
-export function appTicketUrl({ slug, name, role, interests } = {}) {
+export function appTicketUrl({ slug, name, role, interests, avatar } = {}) {
   const cap = (v) => String(v ?? "").trim().slice(0, 80);
   const parts = [];
   const add = (k, v) => { if (v) parts.push(`${k}=${v}`); };
@@ -137,6 +140,7 @@ export function appTicketUrl({ slug, name, role, interests } = {}) {
   add("role", encodeURIComponent(cap(role)));
   const list = (Array.isArray(interests) ? interests : []).map((t) => String(t ?? "").trim()).filter(Boolean).slice(0, 12);
   add("interests", list.map(encodeURIComponent).join(","));
+  if (avatar) add("avatar", encodeURIComponent(avatarParam(avatar)));
   return `confcompanion://ticket${parts.length ? `?${parts.join("&")}` : ""}`;
 }
 
@@ -170,7 +174,10 @@ async function start() {
     const box = $("[data-pf-profile]");
     const p = store.get(KEPT_PROFILE_KEY, null);
     if (!p || typeof p !== "object" || typeof p.name !== "string" || !p.name.trim()) {
-      const msg = el("p", "pf-lead", "No profile yet. Register for a conference and answer a few questions; your profile is kept in this browser for the next one.");
+      const linked = Object.entries(readLinked())[0];
+      const msg = el("p", "pf-lead", linked
+        ? `No profile yet. You linked ${providerName(linked[0])} as ${linked[1].displayName}: register for a conference and use that name to start your profile.`
+        : "No profile yet. Register for a conference and answer a few questions; your profile is kept in this browser for the next one.");
       const row = el("div", "btn-row");
       const a = el("a", "btn btn--primary", "Register for a conference");
       a.href = "index.html#conferences";
@@ -291,7 +298,8 @@ async function start() {
       actions.append(toggle("Invite", buildInvite));
       const app = el("a", "btn btn--secondary", "Open in the app");
       const kept = store.get(KEPT_PROFILE_KEY, null) || {};
-      app.href = appTicketUrl({ slug: c.slug, name: kept.name, role: kept.role, interests: kept.interests });
+      app.setAttribute("data-app-open", c.slug);
+      app.href = appTicketUrl({ slug: c.slug, name: kept.name, role: kept.role, interests: kept.interests, avatar: readAvatar() });
       actions.append(app);
     } else {
       const a = el("a", "btn btn--secondary", "Conference page");
@@ -315,6 +323,94 @@ async function start() {
     applyAppLinks($("[data-pf]")).catch(() => {});
   }
 
+  // ---- your character
+  function refreshAppLinks() {
+    const kept = store.get(KEPT_PROFILE_KEY, null) || {};
+    for (const a of document.querySelectorAll("a[data-app-open]")) {
+      a.href = appTicketUrl({ slug: a.getAttribute("data-app-open"), name: kept.name, role: kept.role, interests: kept.interests, avatar: readAvatar() });
+    }
+  }
+  function renderCharacter() {
+    const box = $("[data-pf-character]");
+    if (!box) return;
+    let av = readAvatar();
+    const canvas = el("canvas", "pf-avatar");
+    canvas.setAttribute("role", "img");
+    canvas.setAttribute("aria-label", "Your character, front view");
+    const redraw = () => drawAvatar(canvas, av);
+    const form = el("div", "pf-char__form");
+    const groups = [["skin", "Skin"], ["hair", "Hair"], ["shirt", "Shirt"], ["pants", "Trousers"]];
+    for (const [key, label] of groups) {
+      const fs = el("fieldset", "pf-fs");
+      fs.append(el("legend", "pf-fs__legend", label));
+      const row = el("div", "pf-fs__row");
+      for (const sw of PALETTE[key]) {
+        const lab = el("label", "pf-sw");
+        const input = el("input", "pf-sw__in");
+        input.type = "radio"; input.name = `av-${key}`; input.value = sw.hex; input.checked = av[key] === sw.hex;
+        input.addEventListener("change", () => { av = { ...av, [key]: sw.hex }; writeAvatar(av); redraw(); refreshAppLinks(); });
+        const chip = el("span", "pf-sw__chip");
+        chip.style.background = `#${sw.hex}`;
+        lab.append(input, chip, el("span", "pf-sr", sw.name));
+        row.append(lab);
+      }
+      fs.append(row);
+      form.append(fs);
+    }
+    const cap = el("label", "pf-cap");
+    const capIn = el("input");
+    capIn.type = "checkbox"; capIn.checked = av.hat;
+    capIn.addEventListener("change", () => { av = { ...av, hat: capIn.checked }; writeAvatar(av); redraw(); refreshAppLinks(); });
+    cap.append(capIn, document.createTextNode("Wear a cap"));
+    const walk = el("button", "btn btn--secondary", "See me walk in");
+    walk.type = "button";
+    walk.addEventListener("click", () => {
+      const kept = store.get(KEPT_PROFILE_KEY, null) || {};
+      const first = String(kept.name || Object.values(readLinked())[0]?.displayName || "").trim().split(/\s+/)[0] || "You";
+      try { document.querySelector("[data-venue]")?.venue?.guide?.({ to: "lounge", label: first, look: avatarLook(av) }); } catch { /* the scene is not ready */ }
+    });
+    const side = el("div", "pf-char__side");
+    side.append(canvas, walk);
+    form.append(cap);
+    box.replaceChildren(side, form);
+    redraw();
+  }
+
+  // ---- linked accounts
+  async function renderLinked() {
+    const box = $("[data-pf-linked]");
+    if (!box) return;
+    const enabled = await fetchProviders();
+    const linked = readLinked();
+    const list = el("ul", "pf-acc");
+    for (const p of PROVIDERS) {
+      const li = el("li", "pf-acc__row");
+      const mine = linked[p.id];
+      const info = el("div", "pf-acc__info");
+      info.append(el("p", "pf-acc__name", p.name));
+      if (mine) {
+        const who = el("p", "pf-acc__who");
+        who.append(el("span", "pf-acc__ini", initials(mine.displayName)), document.createTextNode(mine.handle ? `${mine.displayName} (${mine.handle.startsWith("@") ? mine.handle : "@" + mine.handle})` : mine.displayName));
+        info.append(who);
+        const un = el("button", "btn btn--secondary", "Unlink");
+        un.type = "button";
+        un.setAttribute("aria-label", `Unlink ${p.name}`);
+        un.addEventListener("click", () => { writeLinked(unlinkProvider(readLinked(), p.id)); renderLinked(); renderProfile(); });
+        li.append(info, un);
+      } else if (enabled[p.id]) {
+        info.append(el("p", "pf-acc__state", "Not linked"));
+        const a = el("a", "btn btn--secondary", `Link ${p.name}`);
+        a.href = startUrl(p.id, "/site/profile.html");
+        li.append(info, a);
+      } else {
+        info.append(el("p", "pf-acc__state", "Not available here"));
+        li.append(info);
+      }
+      list.append(li);
+    }
+    box.replaceChildren(list, el("p", "pf-note", "Unlink only forgets the link in this browser. It does not sign you out of the provider."));
+  }
+
   $("[data-pf-sample]").addEventListener("click", () => {
     store.set(REGISTRATIONS_KEY, mergeSamples(store.get(REGISTRATIONS_KEY, []), sampleRegistrations(conferences, isoToday())));
     renderLists();
@@ -326,4 +422,6 @@ async function start() {
 
   renderProfile();
   renderLists();
+  renderCharacter();
+  renderLinked();
 }

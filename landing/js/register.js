@@ -7,6 +7,8 @@ import { drawQr } from "./qr.js";
 import { addRegistration, appTicketUrl, REGISTRATIONS_KEY, KEPT_PROFILE_KEY } from "./profile.js";
 import { loadConferences, getConference } from "./conferences.js";
 import { renderWifi, hasWifi } from "./wifi.js";
+import { readAvatar } from "./avatar.js";
+import { readLinked, providerName } from "./accounts.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -136,7 +138,7 @@ if (section) {
     a.className = "link";
     a.textContent = "Open in the app";
     a.setAttribute("data-app-open", "");
-    a.href = appTicketUrl({ slug, name: p.name, role: p.role, interests: p.interests });
+    a.href = appTicketUrl({ slug, name: p.name, role: p.role, interests: p.interests, avatar: readAvatar() });
     next.insertBefore(a, $(".reg__again", next));
   }
 
@@ -196,7 +198,13 @@ if (section) {
   const VIA = { github: "GitHub", google: "Google", linkedin: "LinkedIn" };
   const viaEl = $("[data-reg-via]");
   const via = params.get("via");
-  if (viaEl && via && (VIA[via] || via === "qr")) {
+  const linkedVia = via && VIA[via] ? readLinked()[via] : null;
+  if (viaEl && linkedVia) {
+    // a real sign-in (cc.linked.v1): say so above the chat; the chat itself still asks its own questions
+    viaEl.textContent = `Signed in as ${linkedVia.displayName} via ${providerName(via)}. Tell the host what to call you.`;
+    viaEl.setAttribute("data-signed", "");
+    viaEl.hidden = false;
+  } else if (viaEl && via && (VIA[via] || via === "qr")) {
     viaEl.textContent = via === "qr"
       ? "You opened this page from a QR code."
       : `You came from the ${VIA[via]} sign-in button. That button is a demo: nothing was checked and no account was linked.`;

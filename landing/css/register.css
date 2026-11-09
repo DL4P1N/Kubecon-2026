@@ -249,6 +249,8 @@ html:has(.reg) footer.reg-foot { height: var(--foot); background: var(--bg); bor
 }
 @media (max-width: 1100px) and (max-height: 700px) { .reg .reg__panel { padding: var(--s-4); } }
 
+@media (max-width: 759px) { .reg .reg__via[data-signed]:not([hidden]) { display: block; } }
+
 /* ------------------------------------------------------------ reduced motion: nothing moves, the caret rests visible */
 @media (prefers-reduced-motion: reduce) {
   .reg .chat-msg, .reg [data-chat-ticket]:not([hidden]) { animation: none; opacity: 1; transform: none; }

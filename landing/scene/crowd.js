@@ -241,7 +241,7 @@ export class Crowd {
     }
   }
   // A live arrival: walks in from the street to the desk, gets a badge and a check, then joins the crowd.
-  spawn(label) {
+  spawn(label, look) {
     const live = this.agents.filter((a) => a.spawned && !a.disabled);
     if (live.length >= 10) { const old = live[0]; this._abort(old); old.disabled = true; old.hidden = true; }
     const R = this.rnd;
@@ -251,6 +251,7 @@ export class Crowd {
     if (cluster >= FOLD0) cluster = OTHER;
     const a = this._agent('guest', cluster);
     a.id = this.agents.length;
+    a.custom = look || null;
     Object.assign(a, { spawned: true, label, labelUntil: this.t + 45, badge: false, x: STREET.x, z: STREET.z, yaw: PI, area: 'leave' });
     const q = this.deskQ;
     a.plan = [
@@ -263,7 +264,7 @@ export class Crowd {
     return a;
   }
   // Guided navigation: one highlighted person walks from the entrance to a room along the nav grid.
-  guide(to, label, instant) {
+  guide(to, label, instant, look) {
     const dest = this.L.guideDest[to];
     if (!dest) return null;
     this.clearGuide();
@@ -273,6 +274,7 @@ export class Crowd {
     a.id = this.agents.length;
     Object.assign(a, { label, labelUntil: Infinity, badge: true, x: st.x, z: st.z, yaw: PI, area: 'guide', route, arrived: false, instant: !!instant });
     a.look.shirt = 6; a.look.glasses = false;
+    a.custom = look || null;
     const arrive = (b) => { b.arrived = true; b.yaw = 0; this.bubble(b, G.EXCL, 2.5); };
     if (instant) {
       a.x = dest.x; a.z = dest.z;

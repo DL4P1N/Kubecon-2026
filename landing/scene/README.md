@@ -27,14 +27,14 @@ Unknown names fall back to `overview` (console.warn). Close shots are a diorama 
   `venue:shot` CustomEvent (`detail: { name, index, element }`). `<html data-venue-state="playing|paused|static">`.
 - Controls: every `[data-venue-control="pause|static"]` is wired (`aria-pressed` kept; text swapped only if
   `data-label-on` / `data-label-off` exist); the choice is remembered in localStorage.
-- API: `host.venue = { pause(), play(), setStatic(bool), goTo(name), spawn({ label }), ready /* Promise<{live}> */, destroy() }`.
+- API: `host.venue = { pause(), play(), setStatic(bool), goTo(name), spawn({ label, look }), ready /* Promise<{live}> */, destroy() }`.
   `spawn` (or `document.dispatchEvent(new CustomEvent('venue:spawn', { detail: { label } }))`): a new person walks in at the
   entrance to the desk, gets a badge and a check bubble, with a pixel name label (A–Z a–z 0–9 space, 12 chars) for a few seconds.
-- Guide: `host.venue.guide({ to, label })` (label defaults to "You") / `clearGuide()`, or any `[data-venue-guide="<room>"]`
+  `look` (spawn and guide): `{ skin, hair, shirt, pants: '#rrggbb', hat: bool }`, invalid fields ignored; `guide()` without `look` wears `localStorage['cc.avatar.v1']`.
+- Guide: `host.venue.guide({ to, label, look })` (label defaults to "You") / `clearGuide()`, or any `[data-venue-guide="<room>"]`
   on click (optional `data-venue-guide-label`). `to`: `stage` or `keynote`, `room-a`..`room-d`, `scan` (= `room-b`), `lounge`;
   anything else returns false. A lime-marked person walks from the entrance to the room along the nav grid, a dotted lime
   route shrinks ahead of them, three Bluetooth receivers on the walls pulse; the camera holds the `navigate` shot. Events on
   `document`: `venue:guide` at start, `venue:arrived` on arrival (both `detail: { to, label }`); clears 6 s after arrival or on
   `clearGuide()` / a new `guide()`. Reduced motion, paused or static view: full route, person placed at the room, no walking.
-- CSS variables (read at mount): `--venue-bg`, `--venue-floor`, `--venue-wall`, `--venue-ink`, `--venue-accent`.
-Fallbacks: reduced motion shows one composed still per shot (cuts, no walking); no WebGL or any error leaves the `<img>`. Stills: `still-overview.png` (`still-ambient.png` is a copy), `still-arrive.png`, `still-host.png`, `still-clusters.png`. Demo: `scene/demo.html`.
+- CSS variables (read at mount): `--venue-bg`, `--venue-floor`, `--venue-wall`, `--venue-ink`, `--venue-accent`. Fallbacks: reduced motion shows one composed still per shot (cuts, no walking); no WebGL or any error leaves the `<img>`. Stills: `still-overview.png` (`still-ambient.png` is a copy), `still-arrive.png`, `still-host.png`, `still-clusters.png`. Demo: `scene/demo.html`.

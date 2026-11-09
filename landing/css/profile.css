@@ -69,3 +69,33 @@ html:has(.pf) footer.pf-foot { height: var(--foot); background: var(--bg); borde
   .pf h1 { font-size: 28px; }
 }
 .pf-note--list { margin-top: var(--s-3); }
+
+/* your character */
+.pf-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.pf-char { display: flex; flex-wrap: wrap; gap: var(--s-6); align-items: flex-start; }
+.pf-char__side { display: grid; gap: var(--s-4); justify-items: start; }
+.pf-avatar { display: block; width: 128px; height: 192px; image-rendering: pixelated; background: color-mix(in oklab, var(--accent) 12%, var(--surface)); border: 1px solid var(--line-strong); }
+.pf-char__form { flex: 1 1 260px; min-width: 0; display: grid; gap: var(--s-4); }
+.pf-fs { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: var(--s-2); }
+.pf-fs__legend { padding: 0; font: 500 var(--t-label)/1.4 var(--font-mono); color: var(--muted); }
+.pf-fs__row { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.pf-sw { position: relative; display: block; width: 44px; height: 44px; cursor: pointer; }
+.pf-sw__in { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.pf-sw__chip { display: block; width: 100%; height: 100%; box-sizing: border-box; border: 1px solid var(--line-strong); }
+.pf-sw__in:checked + .pf-sw__chip { outline: 3px solid var(--ink); outline-offset: 2px; }
+.pf-sw__in:focus-visible + .pf-sw__chip { outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 5px var(--bg); }
+.pf-cap { display: inline-flex; align-items: center; gap: var(--s-3); min-height: 44px; cursor: pointer; }
+.pf-cap input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
+.pf-cap input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* linked accounts */
+.pf-acc { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); }
+.pf-acc__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); padding: var(--s-4) var(--s-5); }
+.pf-acc__row + .pf-acc__row { border-top: 1px solid var(--line); }
+.pf-acc__info { min-width: 0; display: grid; gap: 2px; }
+.pf-acc__name { margin: 0; font: 500 18px/24px var(--font-display); }
+.pf-acc__state { margin: 0; color: var(--muted); font-size: var(--t-small); line-height: 20px; }
+.pf-acc__who { margin: 0; display: flex; align-items: center; gap: var(--s-3); overflow-wrap: anywhere; }
+.pf-acc__ini { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; background: var(--accent); color: var(--accent-ink); font: 500 12px/1 var(--font-mono); }
+.pf-acc__row .btn { min-height: 44px; }
+@media (max-width: 639px) { .pf-acc__row { padding: var(--s-4); } .pf-acc__row .btn { flex: 1 1 100%; } }
