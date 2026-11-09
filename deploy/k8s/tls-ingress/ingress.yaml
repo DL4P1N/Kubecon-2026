@@ -1,4 +1,4 @@
-# Optional: requires an installed ingress-nginx controller and trusted public CA.
+# Requires an installed ingress-nginx controller and trusted public CA.
 # Set host, namespace annotation and tls Secret to match the provisioned release.
 apiVersion: networking.k8s.io/v1
 kind: Ingress

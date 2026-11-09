@@ -31,8 +31,8 @@ of those deployments. The public certificate covers localhost/127.0.0.1 and
 the web Service DNS names. For a public hostname, issue a certificate covering
 that hostname from an appropriate trusted CA before exposing the Service.
 Radar's admin UI must remain private.
-If ingress-nginx is installed, adapt `ingress.example.yaml` and apply
-`-k deploy/k8s/tls/ingress` rather than the direct-service overlay; it
+If ingress-nginx is installed, adapt `../tls-ingress/ingress.yaml` and apply
+`-k deploy/k8s/tls-ingress` rather than the direct-service overlay; it
 terminates attendee TLS and verifies TLS again to the web backend. Its host
 and Secret namespace annotation must match the provisioned release. The
 example is deliberately not auto-applied on kind hosts without a controller.
