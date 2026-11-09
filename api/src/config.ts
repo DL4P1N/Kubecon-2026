@@ -11,6 +11,10 @@ export interface Config {
   esPassword: string;
   tokenSigningKey: string;
   otelExporterOtlpEndpoint: string | undefined;
+  /** NODE_ENV; "production" turns on strict secret checks. */
+  nodeEnv: string;
+  /** Max POST /api/register requests per client IP per minute. */
+  registerRateLimitPerMinute: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -26,5 +30,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     esPassword: env.ES_PASSWORD ?? "",
     tokenSigningKey: env.TOKEN_SIGNING_KEY ?? "dev-only-insecure-key",
     otelExporterOtlpEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT || undefined,
+    nodeEnv: env.NODE_ENV ?? "development",
+    registerRateLimitPerMinute: positiveInt(env.REGISTER_RATE_LIMIT_PER_MINUTE, 60, "REGISTER_RATE_LIMIT_PER_MINUTE"),
   };
+}
+
+function positiveInt(raw: string | undefined, fallback: number, name: string): number {
+  if (raw === undefined || raw === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) throw new Error(`Invalid ${name}: ${raw}`);
+  return n;
 }
