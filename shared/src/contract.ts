@@ -214,11 +214,25 @@ export interface ScheduleItem {
   reason?: string;
 }
 
+/** A talk left out of a built schedule because it overlaps one that was kept. */
+export interface SkippedTalk {
+  talkId: string;
+  /** Ids of the kept talks it overlaps (at least one). */
+  conflictsWith: string[];
+  /** The skipped talk itself, so clients can show it without another fetch. */
+  talk?: Talk;
+}
+
 export interface ScheduleResponse {
   items: ScheduleItem[];
   updatedAt: string; // ISO 8601
   /** Talks that were left out because they overlap a higher-priority one. */
   droppedTalkIds?: string[];
+  /**
+   * Overlap-only subset of `droppedTalkIds` with what each one conflicts with.
+   * Only present on schedule builds (POST), never on reads (GET).
+   */
+  skipped?: SkippedTalk[];
 }
 
 // ---------------------------------------------------------------- access (QR per room)

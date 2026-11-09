@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import QRCode from "qrcode";
 import type { AccessTokenResponse, ScheduleResponse } from "@cc/shared";
 import { api, ApiError, getToken } from "../api.js";
+import { SkippedTalks } from "../components/SkippedTalks.js";
+import { recallSkipped, rememberSkipped } from "../skippedTalks.js";
 import "./discovery.css";
 import { RoomActivityBadge, useRoomActivity } from "./RoomActivity.js";
 
@@ -18,6 +20,7 @@ export function Schedule() {
   const [now, setNow] = useState(Date.now());
   const [calendarPending, setCalendarPending] = useState(false);
   const [calendarError, setCalendarError] = useState("");
+  const [skipped, setSkipped] = useState(recallSkipped);
   async function exportCalendar(talkId?: string) {
     if (calendarPending) return;
     setCalendarPending(true);
@@ -87,6 +90,9 @@ export function Schedule() {
       {calendarPending ? "Preparing calendar…" : "Add to calendar"}
     </button>}
     {calendarError && <p role="alert">{calendarError}</p>}
+    {schedule && <SkippedTalks items={schedule.items} skipped={skipped}
+      onSwapped={(next) => { rememberSkipped(next.skipped); setSkipped(next.skipped ?? []); setSchedule(next); }}
+      onUnauthorized={() => { setNeedsRegistration(true); setSchedule(null); }} />}
     <ol className="schedule-timeline">{[...(schedule?.items ?? [])].sort((a, b) => Date.parse(a.talk.start) - Date.parse(b.talk.start)).map(({ talk, reason }) =>
       <li key={talk.id}>
         <p><time dateTime={talk.start}>{new Date(talk.start).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</time>

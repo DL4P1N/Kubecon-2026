@@ -11,6 +11,8 @@ export interface ScheduleResult {
   chosen: ScoredTalk[];
   /** Ids of candidates skipped (overlap, invalid times, or over the cap). */
   dropped: string[];
+  /** Candidates dropped only because they overlap kept talks, with those talks' ids. */
+  skipped: { talk: Talk; conflictsWith: string[] }[];
 }
 
 export const DEFAULT_MAX_TALKS = 12;
@@ -40,16 +42,24 @@ export function buildSchedule(candidates: ScoredTalk[], maxTalks = DEFAULT_MAX_T
 
   const chosen: ScoredTalk[] = [];
   const dropped: string[] = [];
+  const skipped: ScheduleResult["skipped"] = [];
   const seen = new Set<string>();
   for (const cand of ranked) {
     if (seen.has(cand.talk.id)) continue;
     seen.add(cand.talk.id);
-    if (chosen.length >= maxTalks || !validTimes(cand.talk) || chosen.some((c) => overlaps(c.talk, cand.talk))) {
+    // Once the schedule is full the rest are cap drops, not conflicts worth surfacing.
+    if (chosen.length >= maxTalks || !validTimes(cand.talk)) {
       dropped.push(cand.talk.id);
+      continue;
+    }
+    const conflicts = chosen.filter((c) => overlaps(c.talk, cand.talk));
+    if (conflicts.length > 0) {
+      dropped.push(cand.talk.id);
+      skipped.push({ talk: cand.talk, conflictsWith: conflicts.map((c) => c.talk.id) });
       continue;
     }
     chosen.push(cand);
   }
   chosen.sort((a, b) => Date.parse(a.talk.start) - Date.parse(b.talk.start));
-  return { chosen, dropped };
+  return { chosen, dropped, skipped };
 }

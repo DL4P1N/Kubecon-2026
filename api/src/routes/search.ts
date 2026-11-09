@@ -186,7 +186,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
    * are traced too. Allowlisted attributes only: never the attendee id.
    */
   const scheduleSpan = <T>(name: string, method: string, path: string, reply: FastifyReply, fn: () => Promise<T>) =>
-    withSpan(name, { "http.request.method": method, "url.path": path }, async (span) => {
+    withSpan(name, { "http.request.method": method, "http.route": path }, async (span) => {
       try {
         const out = await fn();
         span.setAttribute("http.response.status_code", reply.statusCode);

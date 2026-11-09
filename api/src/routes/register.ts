@@ -115,7 +115,7 @@ async function traced(
     } finally {
       span.setAttributes({
         "http.request.method": method,
-        "url.path": path,
+        "http.route": path,
         "http.response.status_code": status,
         "db.system": "elasticsearch",
       });
