@@ -226,7 +226,7 @@ describe("POST /api/register and GET /api/me", () => {
     const spans = exporter.getFinishedSpans().filter((s) => s.name === "register");
     expect(spans).toHaveLength(1);
     const allow = new Set([
-      "http.request.method", "http.response.status_code", "url.path", "server.address", "server.port",
+      "http.request.method", "http.response.status_code", "http.route", "server.address", "server.port",
       "rpc.system", "rpc.service", "rpc.method", "db.system", "db.operation.name", "db.namespace",
       "room.id", "access.decision", "search.mode", "search.hits",
     ]);

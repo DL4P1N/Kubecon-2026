@@ -8,9 +8,9 @@ unreviewed fields cannot leave the collector.
 | Signal | Allowed attributes |
 | --- | --- |
 | Resource | `service.name`, `service.version`, `service.namespace`, `deployment.environment` |
-| Trace | `http.request.method`, `http.response.status_code`, `http.route`, `url.path`, `server.address`, `server.port`, `rpc.system`, `rpc.service`, `rpc.method`, `db.system`, `db.operation.name`, `db.namespace`, `room.id`, `access.decision`, `search.mode`, `search.hits`, `error.type`, `retention.deleted`, `clusters.attendees`, `clusters.k`, `clusters.shown`, `clusters.suppressed` |
-| Log | `log.severity`, `http.request.method`, `http.response.status_code`, `http.route`, `url.path`, `room.id`, `access.decision`, `search.mode`, `search.hits`, `error.type`, `retention.deleted` |
-| Metric point | `http.request.method`, `http.response.status_code`, `http.route`, `url.path`, `room.id`, `access.decision`, `search.mode` |
+| Trace | `http.request.method`, `http.response.status_code`, `http.route`, `server.address`, `server.port`, `rpc.system`, `rpc.service`, `rpc.method`, `db.system`, `db.operation.name`, `db.namespace`, `room.id`, `access.decision`, `search.mode`, `search.hits`, `error.type`, `retention.deleted`, `clusters.attendees`, `clusters.k`, `clusters.shown`, `clusters.suppressed` |
+| Log | `log.severity`, `http.request.method`, `http.response.status_code`, `http.route`, `room.id`, `access.decision`, `search.mode`, `search.hits`, `error.type`, `retention.deleted` |
+| Metric point | `http.request.method`, `http.response.status_code`, `http.route`, `room.id`, `access.decision`, `search.mode` |
 
 Why the later additions are safe:
 
@@ -21,11 +21,16 @@ Why the later additions are safe:
   status class. Exception messages are deliberately not recorded because they
   can echo user input.
 
+`url.path` is deliberately forbidden for every signal: real Fastify request
+spans put the full request target, including query text, under this key.
+Dropping `url.query` or `url.full` alone is insufficient. Use `http.route`
+from a known route template, never a request URL, for endpoint diagnostics.
+
 The same lists live in code as `SPAN_ATTRIBUTE_ALLOWLIST`,
 `LOG_ATTRIBUTE_ALLOWLIST` and `METRIC_ATTRIBUTE_ALLOWLIST` in
 `api/src/telemetry/allowlist.ts`. `withSpan()` and the metric helpers drop
-anything else in-process, and `api/test/telemetry.test.ts` fails if those
-constants drift from either collector config.
+anything else in-process. Privacy tests exercise exported spans and logs;
+validate collector enforcement against its actual output, not configuration text.
 
 Log message bodies are not attributes, so `keep_keys` does not cover them.
 The collector therefore also runs `replace_pattern(body, "\\?\\S*", "?[redacted]")`
