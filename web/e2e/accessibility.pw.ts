@@ -63,4 +63,14 @@ test("keyboard-only registration follows labels and keeps optional consent off",
   await expect(page.getByRole("button", { name: "Register", exact: true })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "Onboarding", exact: true })).toBeVisible();
+  await expect(page.getByRole("main")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("kubernetes", { exact: true })).toBeFocused();
+});
+
+test("typing on the same page does not move focus", async ({ page }) => {
+  await page.goto("/register");
+  await page.getByLabel("Name", { exact: true }).focus();
+  await page.keyboard.type("Demo");
+  await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
 });

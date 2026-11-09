@@ -1,14 +1,23 @@
-import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Kiosk } from "./pages/Kiosk.js";
 import { Onboarding } from "./pages/Onboarding.js";
 import { Register } from "./pages/Register.js";
 import { Schedule } from "./pages/Schedule.js";
 import { Search } from "./pages/Search.js";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 
 const NavDemo = lazy(() => import("./pages/NavDemo.js"));
 
 export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { navEnabled?: boolean } = {}) {
+  const { pathname } = useLocation();
+  const previousPath = useRef(pathname);
+  const main = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (previousPath.current !== pathname) {
+      main.current?.focus();
+      previousPath.current = pathname;
+    }
+  }, [pathname]);
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to content</a>
@@ -21,7 +30,7 @@ export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { n
           <Link to="/kiosk">Kiosk</Link>
         </nav>
       </header>
-      <main id="main-content" tabIndex={-1}>
+      <main ref={main} id="main-content" tabIndex={-1}>
         <Routes>
           <Route path="/" element={<Navigate to="/register" replace />} />
           <Route path="/register" element={<Register />} />
