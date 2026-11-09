@@ -15,16 +15,18 @@ import type {
 } from "@cc/shared";
 
 const TOKEN_KEY = "cc.token";
+let memoryToken: string | null = null;
 
 export function getToken(): string | null {
   try {
-    return sessionStorage.getItem(TOKEN_KEY);
+    return memoryToken ?? sessionStorage.getItem(TOKEN_KEY);
   } catch {
-    return null;
+    return memoryToken;
   }
 }
 
 export function setToken(token: string): void {
+  memoryToken = token;
   try {
     sessionStorage.setItem(TOKEN_KEY, token);
   } catch {
@@ -50,7 +52,9 @@ async function call<T>(route: RouteDef, opts: { body?: unknown; query?: Record<s
 export const api = {
   register: (body: RegisterRequest) => call<RegisterResponse>(routes.register, { body }),
   onboarding: (body: OnboardingRequest) => call<OnboardingResponse>(routes.onboarding, { body }),
-  search: (q: string, mode: SearchMode) => call<SearchResponse>(routes.search, { query: { q, mode } }),
+  search: (q: string, mode: SearchMode, debug = false) => call<SearchResponse & { debug?: unknown }>(routes.search, {
+    query: { q, mode, ...(debug ? { debug: "1" } : {}) },
+  }),
   getSchedule: () => call<ScheduleResponse>(routes.getSchedule),
   saveSchedule: (body: SaveScheduleRequest) => call<ScheduleResponse>(routes.saveSchedule, { body }),
   accessToken: () => call<AccessTokenResponse>(routes.accessToken, { body: {} }),

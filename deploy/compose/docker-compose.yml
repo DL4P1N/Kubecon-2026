@@ -1,4 +1,25 @@
 services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.6
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "true"
+      xpack.security.http.ssl.key: certs/tls.key
+      xpack.security.http.ssl.certificate: certs/tls.crt
+      xpack.security.transport.ssl.enabled: "true"
+      xpack.security.transport.ssl.key: certs/tls.key
+      xpack.security.transport.ssl.certificate: certs/tls.crt
+      xpack.security.transport.ssl.certificate_authorities: certs/tls.crt
+      xpack.security.transport.ssl.verification_mode: certificate
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?Set an admin bootstrap password}
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+    mem_limit: 4g
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+      - es-certs:/usr/share/elasticsearch/config/certs:ro
+    ports:
+      - "127.0.0.1:9200:9200"
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.116.1
     command: ["--config=/conf/config.yaml"]
@@ -10,3 +31,7 @@ services:
     ports:
       - "4317:4317"
       - "4318:4318"
+volumes:
+  es-data: {}
+  es-certs:
+    name: companion-es-certs

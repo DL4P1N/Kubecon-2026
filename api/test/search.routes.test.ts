@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
+import type { FastifyRequest } from "fastify";
 import type { OnboardingResponse, ScheduleResponse, SearchResponse } from "@cc/shared";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
+import { STUB_ATTENDEE_ID, defaultResolveAttendee } from "../src/routes/search.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
 import { esHit, fakeEs, talk, type FakeHandler } from "./helpers.js";
 
@@ -104,6 +106,17 @@ describe("GET /api/search", () => {
   });
 });
 
+describe("GET /api/search repeated params", () => {
+  it("returns 400 (not 500) for a repeated q parameter", async () => {
+    const { es } = memoryEs([]);
+    const app = buildServer(loadConfig({}), { es });
+    const res = await app.inject({ method: "GET", url: "/api/search?q=a&q=b" });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: "invalid_request" });
+    expect(es.calls).toHaveLength(0);
+  });
+});
+
 describe("POST /api/onboarding", () => {
   const answers = {
     topics: ["security", "supply chain"],
@@ -189,12 +202,49 @@ describe("schedule routes", () => {
     expect((docs.get("attendee-stub-1") as { talk_ids: string[] }).talk_ids).toEqual(["b", "c"]);
   });
 
-  it("keys schedules per attendee without exposing the id in spans", async () => {
+  it("keys schedules per injected attendee without exposing the id in spans", async () => {
     const { es, docs } = memoryEs([esHit(A, 1)]);
-    const app = buildServer(loadConfig({}), { es });
-    await app.inject({ method: "POST", url: "/api/schedule", headers: { authorization: "Bearer stub.zed-42" }, payload: { talkIds: ["a"] } });
+    const app = buildServer(loadConfig({}), { es, search: { resolveAttendee: () => "zed-42" } });
+    await app.inject({ method: "POST", url: "/api/schedule", payload: { talkIds: ["a"] } });
+    await app.inject({ method: "GET", url: "/api/schedule" });
     expect(docs.has("zed-42")).toBe(true);
     expect(JSON.stringify(spans)).not.toContain("zed-42");
+  });
+
+  it("does not trust an unsigned Bearer stub.<id> header (no IDOR on other attendees' schedules)", async () => {
+    const { es, docs } = memoryEs([esHit(A, 1)]);
+    docs.set("victim-7", { talk_ids: ["a"], updated_at: fixedNow.toISOString(), expires_at: "2099-01-01T00:00:00.000Z" });
+    const app = buildServer(loadConfig({}), { es });
+    const headers = { authorization: "Bearer stub.victim-7" };
+    const get = await app.inject({ method: "GET", url: "/api/schedule", headers });
+    expect((get.json() as ScheduleResponse).items).toEqual([]);
+    await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: ["a"] } });
+    expect(docs.has("attendee-stub-1")).toBe(true);
+    expect((docs.get("victim-7") as { updated_at: string }).updated_at).toBe(fixedNow.toISOString());
+    expect(defaultResolveAttendee({ headers } as FastifyRequest)).toBe(STUB_ATTENDEE_ID);
+  });
+
+  it("ignores expired schedules on load and serves unexpired ones", async () => {
+    const { es, docs } = memoryEs([esHit(A, 1)]);
+    const app = buildServer(loadConfig({}), { es, search: { now: () => fixedNow } });
+    const doc = (expires_at: string) => ({ talk_ids: ["a"], updated_at: "2026-11-09T00:00:00.000Z", expires_at });
+    docs.set("attendee-stub-1", doc("2026-11-10T06:59:59.000Z"));
+    const expired = await app.inject({ method: "GET", url: "/api/schedule" });
+    expect(expired.json()).toEqual({ items: [], updatedAt: new Date(0).toISOString() });
+    docs.set("attendee-stub-1", doc("2026-11-10T07:00:01.000Z"));
+    const live = await app.inject({ method: "GET", url: "/api/schedule" });
+    expect((live.json() as ScheduleResponse).items.map((i) => i.talk.id)).toEqual(["a"]);
+  });
+
+  it("wraps GET /api/schedule load and talk fetch in attribute-free spans", async () => {
+    const { es } = memoryEs([esHit(A, 1)]);
+    const app = buildServer(loadConfig({}), { es, search: { now: () => fixedNow } });
+    await app.inject({ method: "POST", url: "/api/schedule", payload: { talkIds: ["a"] } });
+    spans.length = 0;
+    await app.inject({ method: "GET", url: "/api/schedule" });
+    expect(spans.map((s) => s.name)).toEqual(["schedule.load", "talks.fetch"]);
+    expect(spans.every((s) => Object.keys(s.attrs).length === 0)).toBe(true);
+    expect(JSON.stringify(spans)).not.toContain("attendee-stub-1");
   });
 
   it("returns an empty schedule when nothing was saved", async () => {

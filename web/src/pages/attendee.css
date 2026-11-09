@@ -1,0 +1,13 @@
+.attendee-form { display: grid; gap: .5rem; line-height: 1.5; padding-bottom: 2rem; }
+.attendee-form h1 { margin-bottom: 0; }
+.attendee-form p { margin: .25rem 0 .75rem; }
+.attendee-form fieldset { margin: 1rem 0; border: 1px solid #64748b; border-radius: .5rem; padding: 1rem; min-width: 0; }
+.attendee-form legend { font-weight: 650; padding: 0 .35rem; }
+.attendee-form input:not([type=checkbox]), .attendee-form select, .attendee-form textarea { box-sizing: border-box; width: 100%; border: 1px solid #64748b; border-radius: .25rem; background: white; color: #1a1a1a; }
+.attendee-form textarea { font: inherit; padding: .6rem; }
+.attendee-form input[type=checkbox] { width: 1.15rem; height: 1.15rem; vertical-align: middle; }
+.attendee-form label { padding: .25rem 0; }
+.attendee-form button { background: #164e9b; color: white; border: 0; border-radius: .3rem; padding: .75rem 1rem; cursor: pointer; }
+.attendee-form button:disabled { background: #475569; cursor: wait; }
+.attendee-form [role=alert] { color: #991b1b; }
+.topic-choices { display: flex; flex-wrap: wrap; column-gap: 1rem; }
