@@ -55,11 +55,12 @@ export const talkRoutes: FastifyPluginAsync<TalkRouteOptions> = async (app, opts
   });
 
   /** Alternatives and related are semantic searches, so they count toward the hybrid leg on the status page. */
-  async function observed<T>(fn: () => Promise<T>): Promise<T> {
+  async function observed<T>(fn: () => Promise<T | undefined>): Promise<T | undefined> {
     const start = performance.now();
     try {
       const out = await fn();
-      opts.tracker?.recordSearch("hybrid", performance.now() - start, "ok");
+      // An unknown talk (undefined) stops at the id lookup and never ran a semantic search: not a health signal.
+      if (out !== undefined) opts.tracker?.recordSearch("hybrid", performance.now() - start, "ok");
       return out;
     } catch (err) {
       opts.tracker?.recordSearch("hybrid", performance.now() - start, err instanceof EsError && isEsOverload(err) ? "overloaded" : "error");
