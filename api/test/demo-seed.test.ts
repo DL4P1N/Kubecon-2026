@@ -91,13 +91,20 @@ describe("synthetic demo seed", () => {
       expect(Date.parse(signed.expiresAt) - Date.now()).toBeLessThanOrEqual(900_000);
       if (process.platform !== "win32") expect((await stat(file)).mode & 0o777).toBe(0o600);
       expect(JSON.stringify(log.mock.calls)).not.toContain(signed.token);
+      vi.mocked(fetch).mockClear();
       await expect(main(["--restore", "--session-file", file], env)).rejects.toMatchObject({ code: "EEXIST" });
+      expect(fetch).not.toHaveBeenCalled();
       if (process.platform !== "win32") {
         const link = join(dir, "link.json");
         await symlink(file, link);
         await expect(main(["--restore", "--session-file", link], env)).rejects.toMatchObject({ code: "EEXIST" });
+        expect(fetch).not.toHaveBeenCalled();
         expect(JSON.parse(await readFile(file, "utf8")).token).toBe(signed.token);
       }
+      const failedFile = join(dir, "failed-session.json");
+      vi.mocked(fetch).mockRejectedValueOnce(new Error("storage unavailable"));
+      await expect(main(["--restore", "--session-file", failedFile], env)).rejects.toThrow("storage unavailable");
+      await expect(stat(failedFile)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       vi.unstubAllGlobals();
       log.mockRestore();

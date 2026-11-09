@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { realpath, writeFile } from "node:fs/promises";
+import { open, realpath, rm } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTokenService } from "../api/src/auth/token.js";
@@ -100,19 +100,30 @@ export async function main(args = process.argv.slice(2), env: NodeJS.ProcessEnv 
     sessionDestination = path;
   }
   const es = createEsClient({ esUrl, esUsername: "companion_svc", esPassword: required(env, "ES_PASSWORD") });
-  if (args.includes("--revoke") || args.includes("--restore")) {
-    await setDemoPass(es, args.includes("--restore"));
-    console.log(args.includes("--restore") ? "Synthetic demo pass restored." : "Synthetic demo pass revoked.");
-  } else {
-    const embedder = createEmbedder(env, es);
-    const result = await seedDemo(es, new Date(), (text) => embedder.embed(text));
-    console.log(`Seeded ${result.attendees} SYNTHETIC DEMO attendees; ${result.optedIn} opted in; ${result.initiallyRevoked} initially revoked pass. No IDs or tokens printed.`);
-  }
-  if (sessionDestination && signingKey) {
-    const signed = await createTokenService({ key: signingKey, nodeEnv: env.NODE_ENV }).sign(ALLOWED_DEMO_ID, { ttlSeconds: 900 });
-    // wx refuses an existing file, including symlinks; never overwrite or follow a target.
-    await writeFile(sessionDestination, JSON.stringify(signed), { mode: 0o600, flag: "wx" });
-    console.log("Private synthetic session file created (15-minute expiry). Do not commit or record it.");
+  const signed = sessionDestination && signingKey
+    ? await createTokenService({ key: signingKey, nodeEnv: env.NODE_ENV }).sign(ALLOWED_DEMO_ID, { ttlSeconds: 900 })
+    : undefined;
+  // Reserve exclusively before the first ES request: a stale output file must
+  // never restore/reseed a pass and then make the overall command report failure.
+  const sessionHandle = sessionDestination ? await open(sessionDestination, "wx", 0o600) : undefined;
+  let sessionComplete = false;
+  try {
+    let summary: string;
+    if (args.includes("--revoke") || args.includes("--restore")) {
+      await setDemoPass(es, args.includes("--restore"));
+      summary = args.includes("--restore") ? "Synthetic demo pass restored." : "Synthetic demo pass revoked.";
+    } else {
+      const embedder = createEmbedder(env, es);
+      const result = await seedDemo(es, new Date(), (text) => embedder.embed(text));
+      summary = `Seeded ${result.attendees} SYNTHETIC DEMO attendees; ${result.optedIn} opted in; ${result.initiallyRevoked} initially revoked pass. No IDs or tokens printed.`;
+    }
+    if (sessionHandle && signed) await sessionHandle.writeFile(JSON.stringify(signed));
+    sessionComplete = true;
+    console.log(summary);
+    if (sessionHandle) console.log("Private synthetic session file created (15-minute expiry). Do not commit or record it.");
+  } finally {
+    await sessionHandle?.close();
+    if (sessionDestination && !sessionComplete) await rm(sessionDestination, { force: true });
   }
 }
 
