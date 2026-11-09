@@ -12,6 +12,7 @@
     "dev:api": "npm run dev -w api",
     "dev:web": "npm run dev -w web",
     "es:init": "npm run es:init -w api",
-    "seed": "npm run seed -w api"
+    "seed": "npm run seed -w api",
+    "retention": "npm run retention -w api"
   }
 }
