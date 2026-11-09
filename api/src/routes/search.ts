@@ -32,15 +32,17 @@ export const STUB_ATTENDEE_ID = "attendee-stub-1";
 
 export interface SearchRouteDeps {
   es: EsClient;
-  /** Returns the attendee id for the request. Default: `Bearer stub.<id>` or the stub attendee. */
+  /** Returns the attendee id for the request. Default: always the stub attendee (unsigned ids are never trusted). */
   resolveAttendee?: (req: FastifyRequest) => string;
   scheduleStore?: ScheduleStore;
   now?: () => Date;
 }
 
-export function defaultResolveAttendee(req: FastifyRequest): string {
-  const m = /^Bearer stub\.(.+)$/.exec(req.headers.authorization ?? "");
-  return m?.[1] ?? STUB_ATTENDEE_ID;
+export function defaultResolveAttendee(_req: FastifyRequest): string {
+  // Unsigned ids from the Authorization header are not trusted (they would let any
+  // caller read or overwrite another attendee's schedule). Signed attendee tokens
+  // replace this; tests inject `resolveAttendee`.
+  return STUB_ATTENDEE_ID;
 }
 
 function bad(message: string) {
@@ -103,7 +105,10 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
   app.get<{ Querystring: { q?: string; mode?: string; debug?: string; size?: string } }>(
     routes.search.path,
     async (req, reply): Promise<SearchResponse | void> => {
-      const q = (req.query.q ?? "").trim();
+      // A repeated query param (`?q=a&q=b`) is parsed into an array: reject it with 400.
+      const rawQ: unknown = req.query.q ?? "";
+      if (typeof rawQ !== "string") return reply.code(400).send(bad("q must be a single string"));
+      const q = rawQ.trim();
       const mode = (req.query.mode ?? "hybrid") as SearchMode;
       if (mode !== "hybrid" && mode !== "keyword") return reply.code(400).send(bad("mode must be hybrid or keyword"));
       if (q === "") return reply.code(400).send(bad("q is required"));
@@ -158,6 +163,6 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
   );
 
   app.get(routes.getSchedule.path, async (req): Promise<ScheduleResponse> => {
-    return loadSchedule(es, store, resolveAttendee(req));
+    return loadSchedule(es, store, resolveAttendee(req), now());
   });
 }
