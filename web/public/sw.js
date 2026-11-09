@@ -4,6 +4,45 @@ const SCHEDULES = "cc-schedules-v1";
 const TALKS = "cc-talks-v1";
 const validSession = (id) => /^[0-9a-f-]{36}$/.test(id || "");
 const scheduleKey = (id) => new URL(`/__offline/schedule/${id}`, self.location.origin).href;
+const SWEEP_INTERVAL_MS = 10 * 60 * 1000;
+let lastSweep = 0;
+
+// Delete every expired (or unreadable / undated) entry in both offline data caches.
+// Entries carry their own expiry in x-cc-offline-until, so this also removes entries
+// orphaned by closed tabs. It never creates a cache that does not already exist.
+async function sweepExpired() {
+  lastSweep = Date.now();
+  for (const name of [SCHEDULES, TALKS]) {
+    try {
+      if (!(await caches.has(name))) continue;
+      const cache = await caches.open(name);
+      for (const key of await cache.keys()) {
+        const saved = await cache.match(key);
+        const until = Number(saved?.headers.get("x-cc-offline-until"));
+        if (!(until > Date.now())) await cache.delete(key);
+      }
+    } catch { /* A failed sweep is retried on the next worker start or interval. */ }
+  }
+}
+
+// Opportunistic sweep from fetch events, at most once per interval per worker run.
+function maybeSweep(event) {
+  if (Date.now() - lastSweep >= SWEEP_INTERVAL_MS) event.waitUntil(sweepExpired());
+}
+
+// Static assets are only cached when the response really is that kind of asset.
+// A SPA fallback returns index.html with status 200 for a missing /assets/ file.
+function validAsset(pathname, response) {
+  if (!response.ok) return false;
+  const type = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  if (!type || type === "text/html" || type === "application/xhtml+xml") return false;
+  const extension = (pathname.match(/\.([a-z0-9]+)$/i)?.[1] || "").toLowerCase();
+  if (extension === "js" || extension === "mjs") return /^(text|application)\/(x-)?(javascript|ecmascript)$/.test(type);
+  if (extension === "css") return type === "text/css";
+  if (["woff", "woff2", "ttf", "otf"].includes(extension)) return /^(font\/|application\/(x-)?(font|octet-stream))/.test(type);
+  if (["svg", "png", "jpg", "jpeg", "gif", "webp", "avif", "ico"].includes(extension)) return type.startsWith("image/") || type === "application/octet-stream";
+  return false;
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
@@ -13,8 +52,13 @@ self.addEventListener("install", (event) => {
     const html = await response.clone().text();
     // Vite's production assets are content-hashed. Precache CSS and entry JS.
     const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"?]+)"/g)].map((match) => match[1]);
-    await cache.addAll(assets);
+    for (const asset of assets) {
+      const assetResponse = await fetch(asset);
+      if (!validAsset(new URL(asset, self.location.origin).pathname, assetResponse)) throw new Error(`Invalid asset ${asset}`);
+      await cache.put(asset, assetResponse);
+    }
     await cache.put("/index.html", response);
+    await sweepExpired();
   })());
 });
 
@@ -23,11 +67,7 @@ self.addEventListener("activate", (event) => {
     for (const name of await caches.keys()) {
       if (name.startsWith("cc-") && ![SHELL, SCHEDULES, TALKS].includes(name)) await caches.delete(name);
     }
-    const cache = await caches.open(SCHEDULES);
-    for (const key of await cache.keys()) {
-      const saved = await cache.match(key);
-      if (Number(saved?.headers.get("x-cc-offline-until")) <= Date.now()) await cache.delete(key);
-    }
+    await sweepExpired();
     await self.clients.claim();
   })());
 });
@@ -100,6 +140,7 @@ async function talkDetail(request) {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
+  maybeSweep(event);
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || request.method !== "GET") return;
   // OTLP, QR, registration, searches and all other APIs are network-only.
@@ -115,7 +156,7 @@ self.addEventListener("fetch", (event) => {
       const saved = await cache.match(url.href);
       if (saved) return saved;
       const response = await fetch(request);
-      if (response.ok) await cache.put(url.href, response.clone());
+      if (validAsset(url.pathname, response)) await cache.put(url.href, response.clone());
       return response;
     })());
   }
