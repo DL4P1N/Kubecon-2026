@@ -27,7 +27,7 @@
       {"name":"companion-slo - Availability budget slow burn","id":"api-102cbc09-b28a-431d-8d45-12561c3e4b1e","evaluation_interval":"5m0s"},
       {"name":"companion-slo - Dash0 SLO burn rate","id":"api-060412c9-09f9-44c1-a591-5ef314ede7b1","evaluation_interval":"1m0s"}
     ],
-    "api_constraint": "The initial apply accepted four rules, then returned HTTP 400 for the 6h slow-burn query because 6h queries require an evaluation interval of at least 5m. Applied that unchanged rule separately at 5m; applied the final rule separately. Persisted list confirms all six."
+    "api_constraint": "The initial apply accepted four rules, then returned HTTP 400 for the 6h slow-burn query because 6h queries require an evaluation interval of at least 5m. Applied that rule with its query unchanged and a 5m interval; applied the final rule separately. Persisted list confirms all six. At this snapshot deploy/dash0/check-rules.yaml still declares a 1m group for the slow-burn rule, so re-applying that source will fail until the rule moves to a 5m group."
   },
   "slos": {
     "apply_status": "both_created",

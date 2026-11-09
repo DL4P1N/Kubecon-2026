@@ -285,6 +285,10 @@ kubectl radar diagnose statefulset/elasticsearch \
   This is persisted-definition evidence, not a measurement of live panel data
   or SLO correctness. The 6h slow-burn rule required a 5-minute evaluation
   interval; the record describes that API constraint and subsequent apply.
+  The query was unchanged, but its interval changed: at this snapshot the
+  checked-in `deploy/dash0/check-rules.yaml` still puts it in a 1m group.
+  Re-applying that source will repeat the rejection until the slow-burn rule
+  moves to its own 5m group. This source/live drift remains a follow-up fix.
   No new live calls or traffic were generated to publish this record.
   **Live panel/SLO data verification remains pending.** `deploy/dash0/dashboard.yaml` (PersesDashboard:
   SLO tiles, burn rate, rate/p95/5xx by route, search p95 by mode, access scans,
