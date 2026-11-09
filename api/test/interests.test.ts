@@ -54,6 +54,7 @@ function aggEs(total: number, buckets: { key: string; doc_count: number }[], oth
       return { body: { hits: { total: { value: total }, hits: [] }, aggregations: { topics: { buckets } } } };
     }
     if (call.path === "/attendees/_count") return { body: { count: otherCount } };
+    if (call.path.startsWith("/interest_clusters/_delete_by_query")) return { body: { deleted: 0 } };
     return undefined;
   };
   const es = fakeEs(handler);
@@ -77,7 +78,7 @@ describe("GET /api/interests/aggregate", () => {
       ],
       5,
     );
-    const app = buildServer(loadConfig({}), { es });
+    const app = buildServer(loadConfig({}), { es, search: { now: () => new Date("2026-11-09T12:00:00Z") } });
     const res = await app.inject({ method: "GET", url: "/api/interests/aggregate" });
     expect(res.statusCode).toBe(200);
     const body = res.json() as InterestAggregateResponse;
@@ -91,6 +92,10 @@ describe("GET /api/interests/aggregate", () => {
 
     const search = es.calls[0]!;
     expect(JSON.stringify(search.body)).toContain('"consent.cluster_map":true');
+    // Attendees past their 24h retention are treated as deleted in both queries.
+    const notExpired = { range: { expires_at: { gt: "2026-11-09T12:00:00.000Z" } } };
+    expect((search.body as { query: { bool: { filter: unknown[] } } }).query.bool.filter).toContainEqual(notExpired);
+    expect((es.calls[1]!.body as { query: { bool: { filter: unknown[] } } }).query.bool.filter).toContainEqual(notExpired);
     expect(search.body).toMatchObject({ size: 0, aggs: { topics: { terms: { field: "interests" } } } });
     expect(JSON.stringify(es.calls[1]!.body)).toContain('"interests":["wasm","ebpf"]');
 
@@ -99,7 +104,11 @@ describe("GET /api/interests/aggregate", () => {
     expect(Object.keys({ ...spans[0]!.attrs, ...spans[0]!.set }).every((k) => allowed.has(k))).toBe(true);
 
     expect(bulked).toHaveLength(1);
+    expect(bulked[0]![0]).toEqual({ index: { _index: "interest_clusters", _id: "aggregate:kubernetes" } });
     expect(bulked[0]![1]).toMatchObject({ label: "kubernetes", size: 14, top_interests: ["kubernetes"] });
+    // Older aggregate runs are removed so the index does not grow per request.
+    const cleanup = es.calls.find((c) => c.path.startsWith("/interest_clusters/_delete_by_query"));
+    expect(cleanup?.body).toMatchObject({ query: { bool: { must_not: [{ term: { run_id: "aggregate-2026-11-09T12:00:00.000Z" } }] } } });
     expect(JSON.stringify(bulked)).not.toMatch(/attendee/);
   });
 

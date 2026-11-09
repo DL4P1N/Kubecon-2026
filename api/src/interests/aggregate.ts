@@ -35,7 +35,11 @@ export function buildTopicCounts(kept: InterestTopicCount[], otherCount: number,
   return topics.sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
 }
 
-const OPTED_IN = { term: { "consent.cluster_map": true } };
+/** Opted in to the cluster map and still inside the 24h retention window (expired docs count as deleted). */
+const optedIn = (now: Date) => [
+  { term: { "consent.cluster_map": true } },
+  { range: { expires_at: { gt: now.toISOString() } } },
+];
 
 interface AggResponse {
   hits: { total: { value: number } | number };
@@ -47,7 +51,7 @@ export async function aggregateInterests(es: EsClient, now: Date, k = MIN_CLUSTE
   const { body } = await es.request<AggResponse>("POST", "/attendees/_search", {
     size: 0,
     track_total_hits: true,
-    query: { bool: { filter: [OPTED_IN] } },
+    query: { bool: { filter: optedIn(now) } },
     aggs: { topics: { terms: { field: "interests", size: MAX_TOPICS } } },
   });
   const total = typeof body.hits.total === "number" ? body.hits.total : body.hits.total.value;
@@ -58,7 +62,7 @@ export async function aggregateInterests(es: EsClient, now: Date, k = MIN_CLUSTE
   let otherCount = 0;
   if (small.length > 0) {
     const res = await es.request<{ count: number }>("POST", "/attendees/_count", {
-      query: { bool: { filter: [OPTED_IN, { terms: { interests: small } }] } },
+      query: { bool: { filter: [...optedIn(now), { terms: { interests: small } }] } },
     });
     otherCount = res.body.count;
   }
@@ -71,24 +75,39 @@ export async function aggregateInterests(es: EsClient, now: Date, k = MIN_CLUSTE
   };
 }
 
+/** run_id prefix for aggregate snapshots (k-means runs, task #22, use their own). */
+export const AGGREGATE_RUN_PREFIX = "aggregate-";
+
 /**
- * Stores the latest result in `interest_clusters` (one doc per topic, same
- * run_id). Only suppressed, aggregate counts are written; no attendee IDs.
+ * Stores the latest result in `interest_clusters`: one doc per topic with a
+ * stable _id (each write overwrites the last), then deletes topics from older
+ * aggregate runs that are no longer present. Only suppressed, aggregate
+ * counts are written; no attendee IDs.
  */
 export async function writeAggregate(es: EsClient, result: InterestAggregateResponse): Promise<void> {
-  if (result.topics.length === 0) return;
-  const runId = `aggregate-${result.generatedAt}`;
-  const lines: object[] = [];
-  result.topics.forEach((t, i) => {
-    lines.push({ index: { _index: "interest_clusters", _id: `${runId}-${i}` } });
-    lines.push({
-      cluster_id: `topic:${t.topic}`,
-      run_id: runId,
-      label: t.topic,
-      size: t.count,
-      top_interests: [t.topic],
-      computed_at: result.generatedAt,
-    });
+  const runId = `${AGGREGATE_RUN_PREFIX}${result.generatedAt}`;
+  if (result.topics.length > 0) {
+    const lines: object[] = [];
+    for (const t of result.topics) {
+      lines.push({ index: { _index: "interest_clusters", _id: `aggregate:${t.topic}` } });
+      lines.push({
+        cluster_id: `topic:${t.topic}`,
+        run_id: runId,
+        label: t.topic,
+        size: t.count,
+        top_interests: [t.topic],
+        computed_at: result.generatedAt,
+      });
+    }
+    const res = await es.bulk(lines);
+    if (res.errors) throw new Error("interest_clusters write failed");
+  }
+  await es.request("POST", "/interest_clusters/_delete_by_query?conflicts=proceed", {
+    query: {
+      bool: {
+        filter: [{ prefix: { run_id: AGGREGATE_RUN_PREFIX } }],
+        must_not: [{ term: { run_id: runId } }],
+      },
+    },
   });
-  await es.bulk(lines);
 }
