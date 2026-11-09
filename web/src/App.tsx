@@ -8,6 +8,7 @@ import { Schedule } from "./pages/Schedule.js";
 import { Search } from "./pages/Search.js";
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { Status } from "./pages/Status.js";
+import { Organizer } from "./pages/Organizer.js";
 import { StatusBadge } from "./components/StatusBadge.js";
 
 const NavDemo = lazy(() => import("./pages/NavDemo.js"));
@@ -36,6 +37,7 @@ export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { n
           <Link to="/kiosk">Kiosk</Link>
           <Link to="/map">Interest map</Link>
           <Link to="/clusters">Clusters</Link>
+          <Link to="/organizer">Organizer</Link>
           <StatusBadge />
         </nav>
       </header>
@@ -50,6 +52,7 @@ export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { n
           <Route path="/map" element={<InterestMap />} />
           <Route path="/clusters" element={<ClusterMap />} />
           <Route path="/status" element={<Status />} />
+          <Route path="/organizer" element={<Organizer />} />
           {navEnabled && <Route path="/nav-demo" element={<Suspense fallback={<p role="status">Loading replay…</p>}><NavDemo /></Suspense>} />}
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>

@@ -46,7 +46,7 @@ export function resolveRateLimits(overrides: Partial<RateLimitPolicy> = {}): Rat
   return { ...DEFAULT_RATE_LIMITS, ...overrides };
 }
 
-/** Body for every 429: same `{ error, message }` shape as the other 4xx responses. */
+/** Body for every 429, in every scope: `{ statusCode: 429, error: "rate_limited", message }`. */
 export interface RateLimitedBody {
   statusCode: 429;
   error: "rate_limited";
@@ -75,10 +75,15 @@ export function limitFor(limit: RouteLimit) {
   return { config: { rateLimit: { max: limit.max, timeWindow: RATE_LIMIT_WINDOW } } };
 }
 
-/** For scopes with their own error handler: true (and the 429 sent) if `err` is a rate-limit rejection. */
+/**
+ * For scopes with their own error handler: true (and the 429 sent) if `err` is a rate-limit rejection.
+ * Sends exactly the builder's body, so a 429 looks the same in every scope, whether it goes
+ * through a custom handler or Fastify's default one.
+ */
 export function sendIfRateLimited(err: unknown, reply: FastifyReply): boolean {
   const e = err as Partial<RateLimitedBody> | null;
   if (e?.statusCode !== 429 || e.error !== "rate_limited") return false;
-  void reply.code(429).send({ error: "rate_limited", message: e.message });
+  const body: RateLimitedBody = { statusCode: 429, error: "rate_limited", message: String(e.message) };
+  void reply.code(429).send(body);
   return true;
 }

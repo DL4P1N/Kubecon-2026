@@ -39,8 +39,17 @@ export const MAX_ANSWER_ITEMS = 20;
 export const MAX_ANSWER_ITEM_LENGTH = 100;
 /** Matches the onboarding textarea's maxLength; only the first MAX_QUERY_LENGTH chars are searched. */
 export const MAX_FREE_TEXT_LENGTH = 1000;
-/** Onboarding and schedule bodies are small JSON; anything bigger is rejected with 413 before parsing. */
-export const BODY_LIMIT_BYTES = 16 * 1024;
+/**
+ * Most raw topic/goal entries accepted. The catalog returns at most 1000 tags, so the web UI
+ * can never send more; anything above gets a clean 400 (only the first 20 are used).
+ */
+export const MAX_RAW_ANSWER_ITEMS = 1000;
+/**
+ * Body cap for onboarding and schedule. Sized above the zod caps (1000 tags x 100 chars, plus
+ * goals and free text, is about 105 KiB of JSON) so the zod checks answer first with a 400;
+ * only bodies no valid client could send get the 413.
+ */
+export const BODY_LIMIT_BYTES = 256 * 1024;
 
 /**
  * Resolves the attendee for a schedule request. Returns the attendee id, or
@@ -87,8 +96,9 @@ const answerList = (field: string) =>
         .max(MAX_ANSWER_ITEM_LENGTH, `${field} entries must be at most ${MAX_ANSWER_ITEM_LENGTH} characters`),
       { error: `${field} must be an array of strings` },
     )
-    // The web UI lets attendees tick any number of tags: keep the first 20 rather than
-    // failing the request. The 16 KiB body limit bounds the raw list size.
+    .max(MAX_RAW_ANSWER_ITEMS, `${field} must have at most ${MAX_RAW_ANSWER_ITEMS} entries`)
+    // The web UI lets attendees tick any number of catalog tags: keep the first 20 rather
+    // than failing the request.
     .transform((list) => list.slice(0, MAX_ANSWER_ITEMS));
 
 export const answersSchema = z.object(
@@ -217,7 +227,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
    * are traced too. Allowlisted attributes only: never the attendee id.
    */
   const scheduleSpan = <T>(name: string, method: string, path: string, reply: FastifyReply, fn: () => Promise<T>) =>
-    withSpan(name, { "http.request.method": method, "url.path": path }, async (span) => {
+    withSpan(name, { "http.request.method": method, "http.route": path }, async (span) => {
       try {
         const out = await fn();
         span.setAttribute("http.response.status_code", reply.statusCode);

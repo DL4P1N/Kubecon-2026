@@ -47,7 +47,11 @@ They include necessary exceptions for catalog counts, authorized credential
 issuance and existing allowlisted keys. Each also applies to edits to itself,
 so its first PR can prove configuration evaluation without claiming runtime
 compliance. These are review checks; they grant no automatic write/merge rights.
-The new checks' actual dashboard evidence will be recorded after review.
+Verified on [PR55's dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/55#issuecomment-6750358094):
+"Rules 5/5 met", "5 passed", with all four new names and the original project
+check listed. The earlier head listed only three new checks; explicitly naming
+the aggregate rule's path in its trigger made that check run on the next head.
+This is configuration evaluation on that PR, not proof of runtime enforcement.
 
 On a PR that contains the rule, inspect Verification → Rules. Request
 `gitar display:verbose` to see rule applicability and evidence. Record the

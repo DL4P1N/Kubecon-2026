@@ -81,7 +81,7 @@ export interface RegisterRoutesOptions {
   tokens: TokenService;
   /** Defaults to the configured embedder (es/embeddings.ts). */
   embed?: (text: string) => Promise<number[]>;
-  /** Per client IP per minute. Default 60. */
+  /** Per client IP per minute. Default 120 (REGISTER_RATE_LIMIT_PER_MINUTE); attendees can share a venue NAT IP. */
   rateLimitPerMinute?: number;
   now?: () => number;
 }
@@ -115,7 +115,7 @@ async function traced(
     } finally {
       span.setAttributes({
         "http.request.method": method,
-        "url.path": path,
+        "http.route": path,
         "http.response.status_code": status,
         "db.system": "elasticsearch",
       });

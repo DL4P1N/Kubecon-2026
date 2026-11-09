@@ -133,7 +133,7 @@ export function registerClusterRoutes(root: FastifyInstance, deps: ClusterRouteD
         } finally {
           span.setAttributes({
             "http.request.method": "GET",
-            "url.path": routes.interestsClusters.path,
+            "http.route": routes.interestsClusters.path,
             "http.response.status_code": status,
             "db.system": "elasticsearch",
           });

@@ -36,18 +36,21 @@ describe("attendee journey", () => {
       consent: { clusterMap: optIn, qrCheckin: false } });
     expect(getToken()).toBe("signed");
   });
-  it("saves non-overlapping matches before showing the schedule", async () => {
+  it("sends ranked matches for the server to de-overlap and shows what it skipped", async () => {
+    const overlap = { ...talk, id: "overlap", title: "Overlapping talk" };
     vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "hybrid", tookMs: 1,
-      hits: [{ talk, score: 2 }, { talk: { ...talk, id: "overlap" }, score: 1 }] });
+      hits: [{ talk: overlap, score: 1 }, { talk, score: 2 }] });
     vi.spyOn(api, "onboarding").mockResolvedValue({ query: { text: "secure supply chain", topics: [], mode: "hybrid" } });
     const schedule = { items: [{ talk }], updatedAt: "" };
-    const save = vi.spyOn(api, "saveSchedule").mockResolvedValue(schedule);
+    const save = vi.spyOn(api, "saveSchedule").mockResolvedValue({ ...schedule, droppedTalkIds: ["overlap"],
+      skipped: [{ talkId: "overlap", conflictsWith: ["talk-1"], talk: overlap }] });
     vi.spyOn(api, "getSchedule").mockResolvedValue(schedule);
     render(<MemoryRouter initialEntries={["/onboarding"]}><App /></MemoryRouter>);
     fireEvent.change(screen.getByLabelText("What would you like to learn, in your own words?"), { target: { value: "secure supply chain" } });
     fireEvent.click(screen.getByRole("button", { name: "Find talks" }));
     await screen.findByRole("heading", { name: "My schedule" });
-    expect(save).toHaveBeenCalledWith({ talkIds: ["talk-1"] });
+    expect(save).toHaveBeenCalledWith({ talkIds: ["talk-1", "overlap"] });
+    expect(await screen.findByRole("heading", { name: "We skipped 1 talk that overlapped" })).toBeTruthy();
   });
   it("blocks empty or whitespace-only onboarding without saving a schedule", async () => {
     vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "keyword", tookMs: 1, hits: [] });

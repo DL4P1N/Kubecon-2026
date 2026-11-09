@@ -3,7 +3,7 @@ import { loadConfig } from "../src/config.js";
 import { buildServer, type ServerDeps } from "../src/server.js";
 import { AGGREGATE_CACHE_MS } from "../src/routes/interests.js";
 import { CATALOG_CACHE_MS } from "../src/routes/catalog.js";
-import { MAX_ANSWER_ITEMS, MAX_FREE_TEXT_LENGTH } from "../src/routes/search.js";
+import { BODY_LIMIT_BYTES, MAX_ANSWER_ITEMS, MAX_ANSWER_ITEM_LENGTH, MAX_FREE_TEXT_LENGTH, MAX_RAW_ANSWER_ITEMS } from "../src/routes/search.js";
 import { esHit, fakeEs, talk, type FakeHandler } from "./helpers.js";
 
 const A = talk("a", 9, 10);
@@ -48,8 +48,41 @@ describe("shared rate-limit policy", () => {
       for (let i = 0; i < 2; i++) expect((await app.inject(req)).statusCode).toBe(200);
       const res = await app.inject(req);
       expect(res.statusCode).toBe(429);
-      expect(res.json()).toMatchObject({ error: "rate_limited" });
+      expect(Object.keys(res.json()).sort()).toEqual(["error", "message", "statusCode"]);
+      expect(res.json()).toMatchObject({ statusCode: 429, error: "rate_limited" });
       expect(res.headers["retry-after"]).toBeDefined();
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("uses one 429 body shape in every scope (default and custom error handlers)", async () => {
+    // search and suggest have custom error handlers; status, register and access use Fastify's default.
+    const app = buildServer(loadConfig({ NODE_ENV: "test", REGISTER_RATE_LIMIT_PER_MINUTE: "1" } as NodeJS.ProcessEnv), {
+      es: setup().es,
+      rateLimits: { search: { max: 1 }, status: { max: 1 } },
+    });
+    try {
+      const reqs = [
+        { method: "GET" as const, url: "/api/search?q=k8s" },
+        { method: "GET" as const, url: "/api/status" },
+        { method: "POST" as const, url: "/api/register", payload: {} },
+      ];
+      const shapes = [];
+      for (const req of reqs) {
+        await app.inject(req);
+        const res = await app.inject(req);
+        expect(res.statusCode).toBe(429);
+        const body = res.json() as Record<string, unknown>;
+        shapes.push({ keys: Object.keys(body).sort(), statusCode: body.statusCode, error: body.error });
+      }
+      // suggest: 120/min default, so exhaust it.
+      let last;
+      for (let i = 0; i < 121; i++) last = await app.inject({ method: "GET", url: "/api/suggest?q=kub" });
+      expect(last!.statusCode).toBe(429);
+      const s = last!.json() as Record<string, unknown>;
+      shapes.push({ keys: Object.keys(s).sort(), statusCode: s.statusCode, error: s.error });
+      for (const shape of shapes) expect(shape).toEqual({ keys: ["error", "message", "statusCode"], statusCode: 429, error: "rate_limited" });
     } finally {
       await app.close();
     }
@@ -172,9 +205,23 @@ describe("input validation", () => {
   it("rejects bodies over the onboarding body limit with 413", async () => {
     const { app } = setup();
     try {
-      const res = await post(app, { topics: [], filler: "x".repeat(20_000) });
+      const res = await post(app, { topics: [], filler: "x".repeat(BODY_LIMIT_BYTES) });
       expect(res.statusCode).toBe(413);
       expect(res.json()).toEqual({ error: "payload_too_large", message: "request body too large" });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("answers the largest valid tag set (1000 x 100 chars) instead of 413, and rejects more with a clean 400", async () => {
+    const { app } = setup();
+    try {
+      const tags = (n: number) => Array.from({ length: n }, (_, i) => `${i}-`.padEnd(MAX_ANSWER_ITEM_LENGTH, "t"));
+      const largest = await post(app, { topics: tags(MAX_RAW_ANSWER_ITEMS), goals: tags(MAX_ANSWER_ITEMS), freeText: "f".repeat(MAX_FREE_TEXT_LENGTH) });
+      expect(largest.statusCode).toBe(200);
+      const tooMany = await post(app, { topics: tags(MAX_RAW_ANSWER_ITEMS + 1) });
+      expect(tooMany.statusCode).toBe(400);
+      expect(tooMany.json()).toEqual({ error: "invalid_request", message: `answers.topics must have at most ${MAX_RAW_ANSWER_ITEMS} entries` });
     } finally {
       await app.close();
     }

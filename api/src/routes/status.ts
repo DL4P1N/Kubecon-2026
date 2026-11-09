@@ -79,7 +79,7 @@ function addStatusRoute(app: FastifyInstance, deps: StatusRouteDeps): void {
   }
 
   app.get(routes.status.path, limitFor(deps.rateLimit ?? DEFAULT_RATE_LIMITS.status), async (_req, reply): Promise<StatusResponse> =>
-    withSpan("status", { "http.request.method": "GET", "url.path": routes.status.path }, async (span) => {
+    withSpan("status", { "http.request.method": "GET", "http.route": routes.status.path }, async (span) => {
       if (!cached || now() - cached.at >= STATUS_CACHE_MS) {
         inflight ??= compute().finally(() => {
           inflight = undefined;

@@ -52,7 +52,7 @@ export interface AccessRoutesOptions {
   tokens: TokenService;
   /** Per client IP per minute. Kiosks share a venue IP, so this is generous. Default 600. */
   scanRateLimitPerMinute?: number;
-  /** Per client IP per minute for token issuance. Default 120. */
+  /** Per client IP per minute for token issuance. Default 300: attendees can share a venue NAT IP. */
   tokenRateLimitPerMinute?: number;
   now?: () => number;
 }
@@ -74,7 +74,7 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
 
   app.post(
     routes.accessToken.path,
-    { config: { rateLimit: { max: opts.tokenRateLimitPerMinute ?? 120, timeWindow: "1 minute" } } },
+    { config: { rateLimit: { max: opts.tokenRateLimitPerMinute ?? 300, timeWindow: "1 minute" } } },
     async (req, reply) =>
       withSpan("access.token", {}, async () => {
         const id = await requireAttendee(tokens, req, reply);

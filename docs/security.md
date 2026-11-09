@@ -5,12 +5,19 @@ Rate limits are per client IP per minute, keyed on `request.ip`. That honours
 `TRUST_PROXY` (#27), so clients behind the ingress get their own bucket and a
 spoofed `X-Forwarded-For` entry beyond the trusted hops cannot open a new one.
 The shared policy is in `api/src/http/rateLimit.ts`. Counters are in memory
-per replica. Every 429 has the same body, `{ "error": "rate_limited", "message": "..." }`,
-plus `Retry-After`.
+per replica. Every 429 has the same body in every scope (Fastify's default
+error handler or a route's own), plus `Retry-After`:
+`{ "statusCode": 429, "error": "rate_limited", "message": "too many requests, retry in ..." }`.
 
-Conference Wi-Fi can put many attendees behind one public IP, so the
-attendee-facing limits are generous. Cached aggregate routes are cheap and
-get the most headroom.
+**Venue NAT tradeoff.** Conference Wi-Fi can put many attendees behind one
+public IP, and a per-IP limit then becomes a shared budget. The limits are
+generous for that reason. Registration (120/min, `REGISTER_RATE_LIMIT_PER_MINUTE`)
+and QR token issuance (300/min) are the tightest, because they write to ES or
+sign tokens. 120 registrations a minute from one IP is still well above the
+pace of a registration desk. If the venue routes everyone through one NAT
+address, raise `REGISTER_RATE_LIMIT_PER_MINUTE` in the ConfigMap. Every limit
+is per replica, so scaling the API out also raises the effective ceiling.
+Cached aggregate routes are cheap and get the most headroom.
 
 ## Route table
 
@@ -19,16 +26,17 @@ get the most headroom.
 | `GET /healthz` | none | **none** (kubelet probes) | none | none | `status`, `version`, `time` |
 | `GET /api/status` | none | 600 | 10 s in memory, single-flight, `Cache-Control: public, max-age=10` | none (no input) | Counts, latencies and states only. No paths, queries or IDs |
 | `GET /api/search` | none | 240 | none (per-query) | `q` one string, 1 to 500 chars; `mode` enum; `size` int 1 to 50 | Public talk catalog hits |
-| `POST /api/onboarding` | none | 60 | none | zod: `topics`/`goals` arrays of strings ≤ 100 chars (first 20 entries used), `experience` enum, `freeText` ≤ 1000 chars (first 500 searched), ISO dates; body ≤ 16 KiB (413) | Public talk catalog hits. Answers are not stored |
-| `POST /api/schedule` | Bearer session token (HS256) | 120 | none | `maxTalks` 1 to 50, `talkIds` ≤ 100 strings or onboarding answers as above; body ≤ 16 KiB | The caller's own schedule |
+| `POST /api/onboarding` | none | 60 | none | zod: `topics`/`goals` arrays of strings ≤ 100 chars (first 20 entries used), `experience` enum, `freeText` ≤ 1000 chars (first 500 searched), ISO dates; ≤ 1000 raw entries per list (400). Body ≤ 256 KiB (413), sized above the zod caps so the largest valid tag set gets a 400 or a 200, never a 413 | Public talk catalog hits. Answers are not stored |
+| `POST /api/schedule` | Bearer session token (HS256) | 120 | none | `maxTalks` 1 to 50, `talkIds` ≤ 100 strings or onboarding answers as above; body ≤ 256 KiB | The caller's own schedule |
 | `GET /api/schedule` | Bearer session token | 120 | none | none | The caller's own schedule |
 | `GET /api/schedule.ics` | Bearer session token | 120 (shares the schedule limit value) | `Cache-Control: private, no-store` | `talkId` one string of 1 to 200 chars | The caller's own schedule as iCalendar |
-| `POST /api/register` | none | 60 (`REGISTER_RATE_LIMIT_PER_MINUTE`) | none | zod: name ≤ 80, email ≤ 254 (never stored), 1 to 20 interests × ≤ 64, consent booleans; unknown fields dropped | The new attendee ID and token, to that caller only |
+| `POST /api/register` | none | 120 (`REGISTER_RATE_LIMIT_PER_MINUTE`) | none | zod: name ≤ 80, email ≤ 254 (never stored), 1 to 20 interests × ≤ 64, consent booleans; unknown fields dropped | The new attendee ID and token, to that caller only |
 | `GET /api/me` | Bearer session token, plus expiry checked against ES | 120 | none | none | The caller's own profile (vector excluded) |
-| `POST /api/access/token` | Bearer session token + `qr_checkin` consent | 120 | none | none | Short-lived QR token (`aud` = access) |
+| `POST /api/access/token` | Bearer session token + `qr_checkin` consent | 300 | none | none | Short-lived QR token (`aud` = access) |
 | `POST /api/access/scan` | Signed QR token, entitlement checked server-side | 600 | none | zod: token, room (known room catalog) | `allow`/`deny`, room, reason. Never the attendee ID |
 | `GET /api/interests/aggregate` | none (public organizer view) | 300 | 15 s in memory, single-flight, `Cache-Control: public, max-age=15`; ES copy written at most once a minute | none (no input) | Topic counts with k ≥ 5 suppression (small buckets merged into `other`, dropped if still < 5) |
 | `GET /api/interests/clusters` | `x-organizer-key` (constant-time compare; 503 in production if unset) | 120 | 15 s in memory, after authorization | none (no input) | Cluster labels and sizes ≥ `MIN_CLUSTER_SIZE`. Centroids stay server-side |
+| `GET /api/suggest` | none | 120 (shared policy, own scope) | 30 s in-memory per-query cache (≤ 500 entries) | `q` one string, 2 to 100 chars | Public talk titles and speakers |
 | `GET /api/catalog/topics` | none | 300 | 30 s in memory (successes only), single-flight, `Cache-Control: public, max-age=30` | none (no input) | Public catalog tags. Never attendee interests |
 | `GET /api/rooms/*` (room occupancy) | covered by #42 review (PR #41) | covered by #42 review | covered by #42 review | covered by #42 review | covered by #42 review |
 | any unknown route | — | — | — | — | Fixed `404 { "error": "not_found" }`. The raw path/query is not echoed (Fastify's default message did echo it) |
@@ -78,6 +86,10 @@ status are logged.
 
 `api/test/security.test.ts` covers:
 
+- One 429 body shape (`statusCode`, `error`, `message`) across scopes with
+  default and custom error handlers (search, status, register, suggest).
+- The largest valid onboarding tag set (1000 × 100 chars) gets a 200, not a
+  413, and 1001 entries get a clean 400.
 - 429 with the shared body on search, catalog topics, status, interests
   aggregate, interests clusters and onboarding.
 - A catalog topics cache hit makes no second ES call.
