@@ -6,6 +6,8 @@ navigation. Enable it at frontend build/dev-server startup with
 `npm.cmd run dev:web` (or `npm.cmd run build`). Unset the variable or rebuild
 with any other value to disable it. This is a build-time flag, not a setting
 on the running nginx container.
+For a container build, pass `--build-arg NAV_ESTIMATOR=on` to
+`docker build -f web/Dockerfile`; the default image keeps the route disabled.
 
 `data/nav-replay.json` contains entirely synthetic vectors for three labelled
 demo rooms and five replay frames. The estimator uses one nearest neighbor
