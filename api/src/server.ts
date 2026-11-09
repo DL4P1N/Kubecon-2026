@@ -57,7 +57,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
     rateLimitPerMinute: config.registerRateLimitPerMinute,
   });
 
-  registerSearchRoutes(app, { es, ...deps.search });
+  registerSearchRoutes(app, { es, tokens, ...deps.search });
 
   app.post(routes.accessToken.path, async (): Promise<AccessTokenResponse> => ({
     token: `stub.${STUB_ATTENDEE_ID}`,

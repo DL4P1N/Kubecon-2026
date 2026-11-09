@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   routes,
   type OnboardingAnswers,
@@ -9,7 +9,9 @@ import {
   type SearchMode,
   type SearchResponse,
 } from "@cc/shared";
+import { requireAttendee, type TokenService } from "../auth/token.js";
 import { EsError, type EsClient } from "../es/client.js";
+import { withSpan } from "../telemetry/span.js";
 import { DEFAULT_MAX_TALKS, type ScoredTalk } from "../search/schedule.js";
 import {
   buildAndSaveSchedule,
@@ -27,23 +29,32 @@ export const MAX_SIZE = 50;
 const MAX_SCHEDULE_IDS = 100;
 const LEVELS = new Set(["beginner", "intermediate", "advanced"]);
 
-/** Stand-in identity until signed attendee tokens land. Never logged or put on spans. */
-export const STUB_ATTENDEE_ID = "attendee-stub-1";
+/**
+ * Resolves the attendee for a schedule request. Returns the attendee id, or
+ * null after it has already sent a 401. Never logs or spans the id.
+ */
+export type AttendeeResolver = (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>;
 
 export interface SearchRouteDeps {
   es: EsClient;
-  /** Returns the attendee id for the request. Default: always the stub attendee (unsigned ids are never trusted). */
-  resolveAttendee?: (req: FastifyRequest) => string;
+  /** Verifies signed attendee session tokens (auth/token.ts). Required for the schedule routes. */
+  tokens?: TokenService;
+  /** Test seam: overrides token verification. Production uses `tokenResolver(tokens)`. */
+  resolveAttendee?: AttendeeResolver;
   scheduleStore?: ScheduleStore;
   now?: () => Date;
 }
 
-export function defaultResolveAttendee(_req: FastifyRequest): string {
-  // Unsigned ids from the Authorization header are not trusted (they would let any
-  // caller read or overwrite another attendee's schedule). Signed attendee tokens
-  // replace this; tests inject `resolveAttendee`.
-  return STUB_ATTENDEE_ID;
+/** Attendee from a valid signed `Authorization: Bearer <token>`; 401 otherwise. */
+export function tokenResolver(tokens: TokenService): AttendeeResolver {
+  return (req, reply) => requireAttendee(tokens, req, reply);
 }
+
+/** Fail closed: without a token service no request is attributed to any attendee. */
+const rejectAll: AttendeeResolver = async (_req, reply) => {
+  await reply.code(401).header("www-authenticate", "Bearer").send({ error: "unauthorized", message: "missing bearer token" });
+  return null;
+};
 
 function bad(message: string) {
   return { error: "invalid_request", message };
@@ -86,7 +97,7 @@ export function registerSearchRoutes(root: FastifyInstance, deps: SearchRouteDep
 
 function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
   const { es } = deps;
-  const resolveAttendee = deps.resolveAttendee ?? defaultResolveAttendee;
+  const resolveAttendee = deps.resolveAttendee ?? (deps.tokens ? tokenResolver(deps.tokens) : rejectAll);
   const store = deps.scheduleStore ?? createScheduleStore(es);
   const now = deps.now ?? (() => new Date());
 
@@ -130,15 +141,33 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
     },
   );
 
-  app.post<{ Body: SaveScheduleRequest }>(
-    routes.saveSchedule.path,
-    async (req, reply): Promise<ScheduleResponse | void> => {
+  /**
+   * Request-level span for the schedule routes, so rejected (401/400) requests
+   * are traced too. Allowlisted attributes only: never the attendee id.
+   */
+  const scheduleSpan = <T>(name: string, method: string, path: string, reply: FastifyReply, fn: () => Promise<T>) =>
+    withSpan(name, { "http.request.method": method, "url.path": path }, async (span) => {
+      try {
+        const out = await fn();
+        span.setAttribute("http.response.status_code", reply.statusCode);
+        return out;
+      } catch (err) {
+        span.setAttribute("http.response.status_code", err instanceof EsError ? 502 : 500);
+        throw err;
+      }
+    });
+
+  app.post<{ Body: SaveScheduleRequest }>(routes.saveSchedule.path, async (req, reply) =>
+    scheduleSpan("schedule.save", "POST", routes.saveSchedule.path, reply, async (): Promise<ScheduleResponse | void> => {
+      // Authenticate before validating, so callers without a session learn nothing else.
+      const attendeeId = await resolveAttendee(req, reply);
+      if (attendeeId === null) return reply;
+
       const body = req.body ?? {};
       const maxTalks = body.maxTalks === undefined ? DEFAULT_MAX_TALKS : body.maxTalks;
       if (!Number.isInteger(maxTalks) || maxTalks < 1 || maxTalks > 50) {
         return reply.code(400).send(bad("maxTalks must be an integer from 1 to 50"));
       }
-      const attendeeId = resolveAttendee(req);
       const opts = { attendeeId, store, now: now(), maxTalks };
 
       if (body.answers !== undefined) {
@@ -159,10 +188,14 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       // Caller order is priority order: earlier ids win conflicts.
       const candidates: ScoredTalk[] = talks.map((talk, i) => ({ talk, score: talks.length - i }));
       return buildAndSaveSchedule(candidates, unknown, opts);
-    },
+    }),
   );
 
-  app.get(routes.getSchedule.path, async (req): Promise<ScheduleResponse> => {
-    return loadSchedule(es, store, resolveAttendee(req), now());
-  });
+  app.get(routes.getSchedule.path, async (req, reply) =>
+    scheduleSpan("schedule.get", "GET", routes.getSchedule.path, reply, async (): Promise<ScheduleResponse | void> => {
+      const attendeeId = await resolveAttendee(req, reply);
+      if (attendeeId === null) return reply;
+      return loadSchedule(es, store, attendeeId, now());
+    }),
+  );
 }
