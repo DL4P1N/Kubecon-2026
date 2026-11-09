@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ScanResponse } from "@cc/shared";
 import { api } from "../api.js";
+import { RoomActivityBadge, useRoomActivity } from "./RoomActivity.js";
 import "./kiosk.css";
 
 const REASONS: Record<string, string> = {
@@ -30,6 +31,7 @@ interface CameraScanner {
  * not depend on colour, and is announced through a live region.
  */
 export function Kiosk() {
+  const { activity, refresh } = useRoomActivity();
   const [token, setToken] = useState("");
   const [room, setRoom] = useState("");
   const [result, setResult] = useState<ScanResponse | null>(null);
@@ -56,6 +58,7 @@ export function Kiosk() {
     setResult(null);
     try {
       setResult(await api.scan({ token: value.trim(), room: trimmedRoom }));
+      refresh();
       setError("");
     } catch {
       setError("Could not check access. Try again.");
@@ -131,6 +134,8 @@ export function Kiosk() {
   return (
     <section className="kiosk">
       <h1>Room check-in</h1>
+      <p><RoomActivityBadge room={room} activity={activity} /></p>
+      <p>Recent check-ins are a room activity signal, not a headcount.</p>
       <form onSubmit={onSubmit}>
         <label htmlFor="room">Room</label>
         <input id="room" value={room} onChange={(e) => setRoom(e.target.value)} maxLength={200} autoComplete="off" />

@@ -1,0 +1,8 @@
+{
+  "name": "Conference Companion",
+  "short_name": "Companion",
+  "start_url": "/schedule",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#17324d"
+}

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 import { Search } from "../src/pages/Search.js";
 import { Schedule } from "../src/pages/Schedule.js";
-import { api, setToken } from "../src/api.js";
+import { api, ApiError, setToken } from "../src/api.js";
 
 // Search persists its query in the URL; reset it so one test does not auto-run the next one's search.
 afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.replaceState(null, "", "/"); });
@@ -46,7 +46,7 @@ it("prompts unregistered visitors to register instead of loading a schedule", as
 
 it("prompts to register again when the session token is rejected (401)", async () => {
   setToken("expired-session");
-  vi.spyOn(api, "getSchedule").mockRejectedValue(new Error("GET /api/schedule failed: 401"));
+  vi.spyOn(api, "getSchedule").mockRejectedValue(new ApiError("GET /api/schedule failed: 401", 401));
   render(<MemoryRouter><Schedule /></MemoryRouter>);
   expect(await screen.findByRole("link", { name: "Register now" })).toBeTruthy();
   expect(screen.queryByRole("alert")).toBeNull();

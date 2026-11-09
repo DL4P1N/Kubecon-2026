@@ -16,6 +16,7 @@ import { createEsClient, type EsClient } from "../src/es/client.js";
 import { accessRoutes, scanBodySchema } from "../src/routes/access.js";
 import { registerRoutes } from "../src/routes/register.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
+import { RoomActivityCounter } from "../src/rooms/activity.js";
 
 const KEY = "test-signing-key-that-is-long-enough-0123456789";
 const ROOM = "Salt Palace | Level 1 | Hall DE";
@@ -70,6 +71,7 @@ describe("QR access", () => {
   let t = Date.parse("2026-11-09T12:00:00Z");
   let spans: Recorded[];
   let logs: string[];
+  let roomActivity: RoomActivityCounter;
   const now = () => t;
   const tokens = () => createTokenService({ key: KEY, now });
 
@@ -82,7 +84,7 @@ describe("QR access", () => {
     });
     const a = Fastify({ logger: { level: "trace", stream: logStream } });
     await a.register(registerRoutes, { es: es.client, tokens: tokens(), embed: async () => [1], now });
-    await a.register(accessRoutes, { es: es.client, tokens: tokens(), scanRateLimitPerMinute: opts.scanLimit, now });
+    await a.register(accessRoutes, { es: es.client, tokens: tokens(), scanRateLimitPerMinute: opts.scanLimit, now, roomActivity });
     await a.ready();
     return a;
   }
@@ -101,6 +103,7 @@ describe("QR access", () => {
       });
     });
     es = fakeEs();
+    roomActivity = new RoomActivityCounter(now);
     app = await build();
   });
   afterEach(async () => {
@@ -137,6 +140,17 @@ describe("QR access", () => {
     expect(out.statusCode).toBe(200);
     expect(out.json() as ScanResponse).toEqual({ decision: "allow", room: ROOM });
     expect(out.body).not.toContain(reg.attendeeId);
+  });
+
+  it("counts allowed scans but not invalid or revoked scans", async () => {
+    const reg = await register();
+    const qr = (await qrToken(reg)).json() as AccessTokenResponse;
+    for (let i = 0; i < 4; i++) expect((await scan(qr.token)).json()).toMatchObject({ decision: "allow" });
+    await scan("invalid-token");
+    const entitlement = es.docs.get(`entitlements/${reg.attendeeId}`)!;
+    es.docs.set(`entitlements/${reg.attendeeId}`, { ...entitlement, rooms: [] });
+    expect((await scan(qr.token)).json()).toMatchObject({ decision: "deny" });
+    expect(roomActivity.snapshot([ROOM]).rooms[0]).toEqual({ room: ROOM, level: "quiet" });
   });
 
   it("returns 403 on token for an attendee without QR consent, and 401 without or with a bad session", async () => {
