@@ -54,7 +54,11 @@ export function Schedule() {
     api.getSchedule().then((result) => { if (active) { setSchedule(result); setError(""); } }, (err: unknown) => {
       if (!active) return;
       // api.ts reports the HTTP status at the end of the message; 401 means a missing or expired session.
-      if (err instanceof Error && / 401$/.test(err.message)) setNeedsRegistration(true);
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        setNeedsRegistration(true);
+        setSchedule(null);
+        setAccess(null);
+      }
       else setError("Your schedule could not be loaded. Please reload or register again if your session expired.");
     });
     return () => { active = false; };

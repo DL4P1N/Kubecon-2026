@@ -73,9 +73,13 @@ for (const failure of ["expired cache", "authentication rejected"] as const) {
         await cache.put(key!, new Response(await response.text(), { headers }));
       });
     } else {
+      await context.setOffline(true);
+      await expect(page.getByText(/Offline: showing schedule saved at/)).toBeVisible();
       await page.evaluate(() => sessionStorage.setItem("cc.token", "expired"));
-      await page.reload();
+      await context.setOffline(false);
       await expect(page.getByRole("link", { name: "Register now" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Synthetic offline schedule" })).toHaveCount(0);
+      await expect(page.getByText(/Offline: showing schedule saved at/)).toHaveCount(0);
       expect(await page.evaluate(async () => (await (await caches.open("cc-schedules-v1")).keys()).length)).toBe(0);
     }
     await context.setOffline(true);
