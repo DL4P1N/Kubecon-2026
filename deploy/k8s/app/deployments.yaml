@@ -130,7 +130,7 @@ spec:
               memory: 128Mi
           startupProbe:
             httpGet:
-              path: /healthz
+              path: /index.html
               port: http
             periodSeconds: 2
             failureThreshold: 30
@@ -141,7 +141,7 @@ spec:
             periodSeconds: 5
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /index.html
               port: http
             periodSeconds: 10
           volumeMounts:

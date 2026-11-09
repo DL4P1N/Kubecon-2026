@@ -26,6 +26,7 @@ COPY --from=build /app/shared/package.json shared/package.json
 COPY --from=build /app/shared/dist shared/dist
 COPY --from=build /app/api/package.json api/package.json
 COPY --from=build /app/api/dist api/dist
+COPY data/talks.json /app/data/talks.json
 USER node
 EXPOSE 3000
 WORKDIR /app/api

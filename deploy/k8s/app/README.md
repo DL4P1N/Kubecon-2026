@@ -109,8 +109,10 @@ curl --fail http://127.0.0.1:8080/healthz
 ```
 
 `/healthz` on web proxies to API; it proves that hop, not Elasticsearch health,
-inference availability, or that stub routes have been replaced. Both workloads
-have startup, readiness and liveness probes. They run non-root, with dropped
+inference availability, or that stub routes have been replaced. Web startup and
+liveness probe local `/index.html`; only readiness depends on API `/healthz`,
+so an API outage removes web from service without restarting healthy nginx.
+Both workloads have startup, readiness and liveness probes. They run non-root, with dropped
 capabilities, no API token mount, and read-only root filesystems; nginx config
 and temporary files use bounded emptyDir volumes.
 
