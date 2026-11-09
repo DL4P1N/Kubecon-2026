@@ -36,7 +36,8 @@ The before request was an empty-query 400; the later successful searches used
 valid input. Their 200 responses do not prove the registration bug was fixed.
 That separate contract fix is [PR28](https://github.com/DL4P1N/Kubecon-2026/pull/28).
 The durable collector and manual route-attribute migration is checkpoint commit
-`fe34415`, completed by board task #40's PR. At after-capture time API/web still
+`fe34415`, completed by [PR61](https://github.com/DL4P1N/Kubecon-2026/pull/61)
+for board task #40. At after-capture time API/web still
 ran `753dd61`; the collector correction was live, while the manual code migration
 had not been deployed. Tests retain code/docs/collector synchronization checks
 and verify raw `url.path` is dropped both at span creation and later mutation.
