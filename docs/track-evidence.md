@@ -65,6 +65,21 @@ The fix commit is the PR link until the merge hash is known.
 
 Still pending: CI-failure diagnosis and the review link for the demo.
 
+### Repository-rule verification (task #34)
+
+The existing `.gitar/review/` files are review guidance. Prior PR dashboards
+reported Rules as "No rules evaluated"; those reviews do not prove execution
+of a repository rule. `.gitar/rules/conference-companion-check.md` adds an
+explicit project check with documented frontmatter. Verified on
+[PR #25's Gitar dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/25#issuecomment-6749180455):
+"Rules 1/1 met", "1 passed". The check states that this docs/config-only PR
+preserves all seven project requirements and explicitly limits the result
+to static review. This proves repository-rule execution on this PR, not
+runtime compliance or a separate Knowledge-library fact citation.
+The human confirmed a Pro trial. Functional validation remains "Not enabled"
+and requires Enterprise; CI-failure diagnosis still needs separate observed
+failure-analysis evidence. No claim is made that either was demonstrated.
+
 ## Radar
 
 - Cluster: new local kind cluster `conference-companion` (Kubernetes v1.37.0, arm64),
