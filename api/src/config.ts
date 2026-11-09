@@ -15,6 +15,8 @@ export interface Config {
   nodeEnv: string;
   /** Max POST /api/register requests per client IP per minute. */
   registerRateLimitPerMinute: number;
+  /** Number of trusted reverse-proxy hops; zero ignores forwarded client IPs. */
+  trustProxyHops: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -29,6 +31,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error(`Missing required environment variables in production: ${missing.join(", ")}`);
     }
   }
+  const trustProxyHops = Number(env.TRUST_PROXY ?? 0);
+  if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 10) {
+    throw new Error("TRUST_PROXY must be an integer from 0 to 10");
+  }
   return {
     port,
     host: env.HOST ?? "0.0.0.0",
@@ -39,6 +45,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     otelExporterOtlpEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT || undefined,
     nodeEnv: env.NODE_ENV ?? "development",
     registerRateLimitPerMinute: positiveInt(env.REGISTER_RATE_LIMIT_PER_MINUTE, 60, "REGISTER_RATE_LIMIT_PER_MINUTE"),
+    trustProxyHops,
   };
 }
 

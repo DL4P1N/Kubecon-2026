@@ -42,7 +42,12 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   const tokens = deps.tokens ?? createTokenService({ key: config.tokenSigningKey, nodeEnv: config.nodeEnv });
   const es = deps.es ?? createEsClient(config);
   const embedder = createEmbedder(process.env, es);
-  const app = Fastify({ logger: loggerOptions });
+  const app = Fastify({
+    logger: loggerOptions,
+    trustProxy: config.trustProxyHops > 0
+      ? (_address: string, hop: number) => hop < config.trustProxyHops
+      : false,
+  });
 
   app.get(routes.health.path, async (): Promise<HealthResponse> => ({
     status: "ok",
