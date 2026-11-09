@@ -3,6 +3,7 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.19.6
     environment:
       discovery.type: single-node
+      xpack.ml.max_machine_memory_percent: "50"
       xpack.security.enabled: "true"
       xpack.security.http.ssl.enabled: "true"
       xpack.security.http.ssl.key: certs/tls.key

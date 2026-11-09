@@ -6,6 +6,11 @@ native inference. On a 7.65 GiB Docker host this leaves limited headroom for
 kind and the app; inspect memory during model deployment. ELSER is outside
 this budget. E5 on arm64 still requires live model deployment verification.
 
+Set `xpack.ml.max_machine_memory_percent=50` (2 GiB ML allowance). Live
+arm64 deployment showed the default 30% budget could not allocate E5 at
+this container limit and returned 429 insufficient-capacity errors. The
+cluster owner persists the same setting in the Kubernetes manifest.
+
 ## Local Compose
 
 Generate short-lived demo certificates (seven days) with `bash scripts/es-certs.sh`.
