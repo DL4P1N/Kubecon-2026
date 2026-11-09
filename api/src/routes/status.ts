@@ -4,6 +4,7 @@ import type { EsClient } from "../es/client.js";
 import { TALKS_INDEX } from "../search/queries.js";
 import { WINDOW_SECONDS, type StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
+import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor, type RouteLimit } from "../http/rateLimit.js";
 
 /** Responses are cached this long so a busy status page cannot load Elasticsearch. */
 export const STATUS_CACHE_MS = 10_000;
@@ -17,6 +18,8 @@ export interface StatusRouteDeps {
   tracker: StatusTracker;
   version: string;
   now?: () => number;
+  /** Per-IP limit; defaults to DEFAULT_RATE_LIMITS.status. */
+  rateLimit?: RouteLimit;
 }
 
 async function esReachable(es: EsClient): Promise<boolean> {
@@ -36,7 +39,15 @@ async function esReachable(es: EsClient): Promise<boolean> {
   }
 }
 
-export function registerStatusRoutes(app: FastifyInstance, deps: StatusRouteDeps): void {
+/** GET /api/status in its own plugin scope (rate limited, 10 s cache). */
+export function registerStatusRoutes(root: FastifyInstance, deps: StatusRouteDeps): void {
+  root.register(async (app) => {
+    await applyRateLimit(app);
+    addStatusRoute(app, deps);
+  });
+}
+
+function addStatusRoute(app: FastifyInstance, deps: StatusRouteDeps): void {
   const now = deps.now ?? Date.now;
   let cached: { at: number; value: StatusResponse } | undefined;
   let inflight: Promise<StatusResponse> | undefined;
@@ -67,7 +78,7 @@ export function registerStatusRoutes(app: FastifyInstance, deps: StatusRouteDeps
     };
   }
 
-  app.get(routes.status.path, async (_req, reply): Promise<StatusResponse> =>
+  app.get(routes.status.path, limitFor(deps.rateLimit ?? DEFAULT_RATE_LIMITS.status), async (_req, reply): Promise<StatusResponse> =>
     withSpan("status", { "http.request.method": "GET", "http.route": routes.status.path }, async (span) => {
       if (!cached || now() - cached.at >= STATUS_CACHE_MS) {
         inflight ??= compute().finally(() => {

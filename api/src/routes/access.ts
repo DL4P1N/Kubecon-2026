@@ -1,4 +1,3 @@
-import rateLimit from "@fastify/rate-limit";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { routes, type AccessTokenResponse, type ScanResponse } from "@cc/shared";
@@ -7,6 +6,7 @@ import type { EsClient } from "../es/client.js";
 import { TALKS_INDEX } from "../search/queries.js";
 import { recordAccessScan } from "../telemetry/metrics.js";
 import { withSpan } from "../telemetry/span.js";
+import { applyRateLimit } from "../http/rateLimit.js";
 import { ALL_ROOMS, type AttendeeDoc, type EntitlementDoc } from "./register.js";
 import type { RoomActivityCounter } from "../rooms/activity.js";
 
@@ -54,7 +54,7 @@ export interface AccessRoutesOptions {
   tokens: TokenService;
   /** Per client IP per minute. Kiosks share a venue IP, so this is generous. Default 600. */
   scanRateLimitPerMinute?: number;
-  /** Per client IP per minute for token issuance. Default 120. */
+  /** Per client IP per minute for token issuance. Default 300: attendees can share a venue NAT IP. */
   tokenRateLimitPerMinute?: number;
   now?: () => number;
 }
@@ -72,11 +72,11 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
   const now = opts.now ?? Date.now;
 
   // Scoped to this plugin; only routes that opt in via config.rateLimit are limited.
-  await app.register(rateLimit, { global: false });
+  await applyRateLimit(app); // shared 429 shape and req.ip key (http/rateLimit.ts)
 
   app.post(
     routes.accessToken.path,
-    { config: { rateLimit: { max: opts.tokenRateLimitPerMinute ?? 120, timeWindow: "1 minute" } } },
+    { config: { rateLimit: { max: opts.tokenRateLimitPerMinute ?? 300, timeWindow: "1 minute" } } },
     async (req, reply) =>
       withSpan("access.token", {}, async () => {
         const id = await requireAttendee(tokens, req, reply);

@@ -19,6 +19,7 @@ import { suggestRoutes } from "./routes/suggest.js";
 import { registerStatusRoutes } from "./routes/status.js";
 import { createStatusTracker, type StatusTracker } from "./status/tracker.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
+import { resolveRateLimits, type RateLimitPolicy } from "./http/rateLimit.js";
 import { RoomActivityCounter } from "./rooms/activity.js";
 import { registerRoomRoutes } from "./routes/rooms.js";
 
@@ -34,6 +35,8 @@ export interface ServerDeps {
   roomActivity?: RoomActivityCounter;
   /** In-process counters behind GET /api/status; tests inject one to control time. */
   status?: StatusTracker;
+  /** Per-IP rate limits (http/rateLimit.ts); tests lower them. /healthz is never limited. */
+  rateLimits?: Partial<RateLimitPolicy>;
 }
 
 /**
@@ -62,6 +65,11 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
 
   // Rolling counters for GET /api/status: status codes only, never paths, bodies or ids.
   const tracker = deps.status ?? createStatusTracker();
+  const limits = resolveRateLimits(deps.rateLimits);
+
+  // Fastify's default 404 body echoes the method and raw URL (including the query
+  // string); answer with a fixed JSON shape instead.
+  app.setNotFoundHandler((_req, reply) => reply.code(404).send({ error: "not_found", message: "route not found" }));
   app.addHook("onResponse", async (req, reply) => {
     const path = req.routeOptions?.url;
     if (path === routes.health.path || path === routes.status.path) return;
@@ -82,18 +90,18 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
     rateLimitPerMinute: config.registerRateLimitPerMinute,
   });
 
-  registerSearchRoutes(app, { es, tokens, tracker, ...deps.search });
+  registerSearchRoutes(app, { es, tokens, tracker, rateLimits: limits, ...deps.search });
   app.register(talkRoutes, { es, tracker, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/talks/:id, /related, /alternatives
-  registerStatusRoutes(app, { es, tracker, version: VERSION, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/status
-  registerClusterRoutes(app, { es }); // Module 4: GET /api/interests/clusters
+  registerStatusRoutes(app, { es, tracker, version: VERSION, rateLimit: limits.status, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/status
+  registerClusterRoutes(app, { es, rateLimit: limits.interestsClusters }); // Module 4: GET /api/interests/clusters
   app.register(suggestRoutes, { es, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/suggest
-  registerCatalogRoutes(app, es);
+  registerCatalogRoutes(app, es, { rateLimit: limits.catalogTopics, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined });
 
   // Module 3: POST /api/access/token + POST /api/access/scan (routes/access.ts).
   app.register(accessRoutes, { es, tokens, roomActivity });
   registerRoomRoutes(app, es, roomActivity);
 
-  registerInterestRoutes(app, { es, now: deps.search?.now });
+  registerInterestRoutes(app, { es, now: deps.search?.now, rateLimit: limits.interestsAggregate });
 
   // `config` is wired for later tasks (ES client, token signing, OTel).
   app.decorate("config", config);

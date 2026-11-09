@@ -49,7 +49,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     tokenSigningKey: env.TOKEN_SIGNING_KEY || "dev-only-insecure-key",
     otelExporterOtlpEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT || undefined,
     nodeEnv: env.NODE_ENV ?? "development",
-    registerRateLimitPerMinute: positiveInt(env.REGISTER_RATE_LIMIT_PER_MINUTE, 60, "REGISTER_RATE_LIMIT_PER_MINUTE"),
+    registerRateLimitPerMinute: positiveInt(env.REGISTER_RATE_LIMIT_PER_MINUTE, 120, "REGISTER_RATE_LIMIT_PER_MINUTE"),
     trustProxyHops,
     apiTlsCertFile: env.API_TLS_CERT_FILE || undefined,
     apiTlsKeyFile: env.API_TLS_KEY_FILE || undefined,

@@ -9,7 +9,9 @@ import {
   type SearchMode,
   type SearchResponse,
 } from "@cc/shared";
+import { z } from "zod";
 import { requireAttendee, type TokenService } from "../auth/token.js";
+import { applyRateLimit, limitFor, resolveRateLimits, sendIfRateLimited, type RateLimitPolicy } from "../http/rateLimit.js";
 import { createCalendar } from "../calendar/ical.js";
 import { EsError, isEsOverload, type EsClient } from "../es/client.js";
 import type { StatusTracker } from "../status/tracker.js";
@@ -33,7 +35,21 @@ export const MAX_SIZE = 50;
 /** Seconds clients should wait before retrying after an Elasticsearch overload (503). */
 export const RETRY_AFTER_SECONDS = 5;
 const MAX_SCHEDULE_IDS = 100;
-const LEVELS = new Set(["beginner", "intermediate", "advanced"]);
+export const MAX_ANSWER_ITEMS = 20;
+export const MAX_ANSWER_ITEM_LENGTH = 100;
+/** Matches the onboarding textarea's maxLength; only the first MAX_QUERY_LENGTH chars are searched. */
+export const MAX_FREE_TEXT_LENGTH = 1000;
+/**
+ * Most raw topic/goal entries accepted. The catalog returns at most 1000 tags, so the web UI
+ * can never send more; anything above gets a clean 400 (only the first 20 are used).
+ */
+export const MAX_RAW_ANSWER_ITEMS = 1000;
+/**
+ * Body cap for onboarding and schedule. Sized above the zod caps (1000 tags x 100 chars, plus
+ * goals and free text, is about 105 KiB of JSON) so the zod checks answer first with a 400;
+ * only bodies no valid client could send get the 413.
+ */
+export const BODY_LIMIT_BYTES = 256 * 1024;
 
 /**
  * Resolves the attendee for a schedule request. Returns the attendee id, or
@@ -51,6 +67,8 @@ export interface SearchRouteDeps {
   now?: () => Date;
   /** Records search outcomes for GET /api/status (counts and timings only). */
   tracker?: StatusTracker;
+  /** Per-IP limits; defaults to DEFAULT_RATE_LIMITS (http/rateLimit.ts). */
+  rateLimits?: Partial<RateLimitPolicy>;
 }
 
 /** Attendee from a valid signed `Authorization: Bearer <token>`; 401 otherwise. */
@@ -68,39 +86,56 @@ function bad(message: string) {
   return { error: "invalid_request", message };
 }
 
-function isIso(v: unknown): v is string {
-  return typeof v === "string" && Number.isFinite(Date.parse(v));
-}
+const iso = (field: string) =>
+  z.string({ error: `${field} must be ISO 8601` }).refine((v) => Number.isFinite(Date.parse(v)), `${field} must be ISO 8601`);
+const answerList = (field: string) =>
+  z
+    .array(
+      z
+        .string({ error: `${field} must be an array of strings` })
+        .max(MAX_ANSWER_ITEM_LENGTH, `${field} entries must be at most ${MAX_ANSWER_ITEM_LENGTH} characters`),
+      { error: `${field} must be an array of strings` },
+    )
+    .max(MAX_RAW_ANSWER_ITEMS, `${field} must have at most ${MAX_RAW_ANSWER_ITEMS} entries`)
+    // The web UI lets attendees tick any number of catalog tags: keep the first 20 rather
+    // than failing the request.
+    .transform((list) => list.slice(0, MAX_ANSWER_ITEMS));
 
-/** Validates onboarding answers; returns an error message or the cleaned answers. */
+export const answersSchema = z.object(
+  {
+    topics: answerList("answers.topics"),
+    experience: z
+      .enum(["beginner", "intermediate", "advanced"], { error: "answers.experience must be beginner, intermediate or advanced" })
+      .default("intermediate"),
+    goals: answerList("answers.goals").default([]),
+    freeText: z
+      .string({ error: "answers.freeText must be a string" })
+      .max(MAX_FREE_TEXT_LENGTH, `answers.freeText must be at most ${MAX_FREE_TEXT_LENGTH} characters`)
+      .optional(),
+    availableFrom: iso("answers.availableFrom").optional(),
+    availableTo: iso("answers.availableTo").optional(),
+  },
+  { error: "answers.topics is required" },
+);
+
+/** Validates onboarding answers; returns an error message (never the submitted values) or the cleaned answers. */
 export function parseAnswers(raw: unknown): { error: string } | { answers: OnboardingAnswers } {
-  const a = raw as Partial<OnboardingAnswers> | undefined;
-  if (!a || typeof a !== "object" || !Array.isArray(a.topics) || !a.topics.every((t) => typeof t === "string")) {
-    return { error: "answers.topics is required" };
+  const parsed = answersSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]!;
+    const missingTopics = issue.path.length === 1 && issue.path[0] === "topics" && issue.code === "invalid_type";
+    return { error: missingTopics ? "answers.topics is required" : issue.message };
   }
-  if (a.experience !== undefined && !LEVELS.has(a.experience)) {
-    return { error: "answers.experience must be beginner, intermediate or advanced" };
-  }
-  if (a.goals !== undefined && (!Array.isArray(a.goals) || !a.goals.every((g) => typeof g === "string"))) {
-    return { error: "answers.goals must be an array of strings" };
-  }
-  if (a.freeText !== undefined && typeof a.freeText !== "string") return { error: "answers.freeText must be a string" };
-  if (a.availableFrom !== undefined && !isIso(a.availableFrom)) return { error: "answers.availableFrom must be ISO 8601" };
-  if (a.availableTo !== undefined && !isIso(a.availableTo)) return { error: "answers.availableTo must be ISO 8601" };
-  const answers: OnboardingAnswers = {
-    topics: a.topics.slice(0, 20),
-    experience: a.experience ?? "intermediate",
-    goals: (a.goals ?? []).slice(0, 20),
-    freeText: a.freeText?.slice(0, MAX_QUERY_LENGTH),
-    availableFrom: a.availableFrom,
-    availableTo: a.availableTo,
-  };
-  return { answers };
+  const a = parsed.data;
+  return { answers: { ...a, freeText: a.freeText?.slice(0, MAX_QUERY_LENGTH) } };
 }
 
 /** Registers search, onboarding and schedule routes in their own plugin scope (own error handler). */
 export function registerSearchRoutes(root: FastifyInstance, deps: SearchRouteDeps): void {
-  root.register(async (app) => addRoutes(app, deps));
+  root.register(async (app) => {
+    await applyRateLimit(app);
+    addRoutes(app, deps);
+  });
 }
 
 function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
@@ -108,6 +143,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
   const resolveAttendee = deps.resolveAttendee ?? (deps.tokens ? tokenResolver(deps.tokens) : rejectAll);
   const store = deps.scheduleStore ?? createScheduleStore(es);
   const now = deps.now ?? (() => new Date());
+  const limits = resolveRateLimits(deps.rateLimits);
 
   /** Runs a search and tells the status tracker how it went (never what it was). */
   async function observed<T>(mode: SearchMode, fn: () => Promise<T>): Promise<T> {
@@ -123,6 +159,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
   }
 
   app.setErrorHandler((err: Error, req, reply) => {
+    if (sendIfRateLimited(err, reply)) return reply;
     if (err instanceof EsError) {
       const overloaded = isEsOverload(err);
       // One diagnostic line with the ES error type and status only. Never the
@@ -143,7 +180,9 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       return reply.code(502).send({ error: "search_unavailable" });
     }
     const status = (err as { statusCode?: number }).statusCode;
+    if (status === 413) return reply.code(413).send({ error: "payload_too_large", message: "request body too large" });
     if (status && status >= 400 && status < 500) {
+      // Fastify's own 4xx (e.g. malformed JSON); its messages do not include the body.
       return reply.code(status).send({ error: "invalid_request", message: err.message });
     }
     return reply.code(500).send({ error: "internal_error" });
@@ -151,6 +190,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
 
   app.get<{ Querystring: { q?: string; mode?: string; debug?: string; size?: string } & Record<string, unknown> }>(
     routes.search.path,
+    limitFor(limits.search),
     async (req, reply): Promise<SearchResponse | void> => {
       // A repeated query param (`?q=a&q=b`) is parsed into an array: reject it with 400.
       const rawQ: unknown = req.query.q ?? "";
@@ -172,6 +212,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
 
   app.post<{ Body: OnboardingRequest; Querystring: { debug?: string } }>(
     routes.onboarding.path,
+    { ...limitFor(limits.onboarding), bodyLimit: BODY_LIMIT_BYTES },
     async (req, reply): Promise<OnboardingResponse | void> => {
       const parsed = parseAnswers(req.body?.answers);
       if ("error" in parsed) return reply.code(400).send(bad(parsed.error));
@@ -197,7 +238,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       }
     });
 
-  app.post<{ Body: SaveScheduleRequest }>(routes.saveSchedule.path, async (req, reply) =>
+  app.post<{ Body: SaveScheduleRequest }>(routes.saveSchedule.path, { ...limitFor(limits.schedule), bodyLimit: BODY_LIMIT_BYTES }, async (req, reply) =>
     scheduleSpan("schedule.save", "POST", routes.saveSchedule.path, reply, async (): Promise<ScheduleResponse | void> => {
       // Authenticate before validating, so callers without a session learn nothing else.
       const attendeeId = await resolveAttendee(req, reply);
@@ -231,7 +272,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
     }),
   );
 
-  app.get(routes.getSchedule.path, async (req, reply) =>
+  app.get(routes.getSchedule.path, limitFor(limits.schedule), async (req, reply) =>
     scheduleSpan("schedule.get", "GET", routes.getSchedule.path, reply, async (): Promise<ScheduleResponse | void> => {
       const attendeeId = await resolveAttendee(req, reply);
       if (attendeeId === null) return reply;
@@ -239,7 +280,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
     }),
   );
 
-  app.get<{ Querystring: { talkId?: string } }>(routes.exportCalendar.path, async (req, reply) =>
+  app.get<{ Querystring: { talkId?: string } }>(routes.exportCalendar.path, limitFor(limits.schedule), async (req, reply) =>
     scheduleSpan("schedule.export", "GET", routes.exportCalendar.path, reply, async () => {
       reply.header("Cache-Control", "private, no-store");
       const attendeeId = await resolveAttendee(req, reply);
