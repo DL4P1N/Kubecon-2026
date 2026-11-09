@@ -92,7 +92,7 @@ An explicitly requested retrospective CI diagnosis is now verified; see the
 [specific audit](gitar-ci-diagnosis.md). Automatic triggering and auto-apply
 remain unproven.
 
-Task #44 audited the two real failed Actions runs (PR14 Docker build and PR22
+Task #44 initially audited two real failed Actions runs (PR14 Docker build and PR22
 schedule browser tests). Their current Gitar dashboards contain Code Review,
 without retained CI-analysis output. PR14's missing-fixture finding predates
 the actual failure, so it proves useful review, not CI-log analysis. The fix
@@ -106,6 +106,8 @@ This proves requested CI-log access/analysis, not automatic triggering or a
 Gitar-authored fix. The earlier lack-of-access hypothesis is resolved without
 inventing a settings or plan restriction. See the audit for the distinct
 historical requests and causal limits.
+The owner reports automatic reviews work and the documented toggle is not
+visible in their dashboard. No permission changes or auto-apply were needed.
 
 ### Repository-rule verification (task #34)
 
@@ -118,7 +120,8 @@ explicit project check with documented frontmatter. Verified on
 preserves all seven project requirements and explicitly limits the result
 to static review. This proves repository-rule execution on this PR, not
 runtime compliance or a separate Knowledge-library fact citation.
-The human confirmed a Pro trial. Functional validation remains "Not enabled".
+The human confirmed a Pro trial. Functional validation remains "Not enabled"
+and requires Enterprise.
 Requested retrospective CI diagnosis is verified separately in the
 [CI evidence audit](gitar-ci-diagnosis.md); automatic triggering and auto-apply
 are not claimed.
