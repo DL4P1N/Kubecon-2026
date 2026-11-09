@@ -22,6 +22,10 @@ FROM node:22-alpine
 ENV NODE_ENV=production PORT=3000
 WORKDIR /app
 COPY --from=deps /app/node_modules node_modules
+# npm nests some deps (e.g. @opentelemetry/sdk-node, because of the @opentelemetry/api
+# version split) under api/node_modules; without this the app crash-loops with
+# ERR_MODULE_NOT_FOUND (task #39).
+COPY --from=deps /app/api/node_modules api/node_modules
 COPY --from=build /app/shared/package.json shared/package.json
 COPY --from=build /app/shared/dist shared/dist
 COPY --from=build /app/api/package.json api/package.json

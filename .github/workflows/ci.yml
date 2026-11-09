@@ -27,4 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f api/Dockerfile -t cc-api .
+      # Start the image, not just build it: catches missing runtime deps (task #39).
+      - run: scripts/smoke-api-image.sh cc-api
       - run: docker build -f web/Dockerfile -t cc-web .
