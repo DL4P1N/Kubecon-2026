@@ -8,6 +8,7 @@ import { TALKS_INDEX } from "../search/queries.js";
 import { recordAccessScan } from "../telemetry/metrics.js";
 import { withSpan } from "../telemetry/span.js";
 import { ALL_ROOMS, type AttendeeDoc, type EntitlementDoc } from "./register.js";
+import type { RoomActivityCounter } from "../rooms/activity.js";
 
 /**
  * Module 3: QR access per room.
@@ -48,6 +49,7 @@ export const scanBodySchema = z.object({
 });
 
 export interface AccessRoutesOptions {
+  roomActivity?: RoomActivityCounter;
   es: EsClient;
   tokens: TokenService;
   /** Per client IP per minute. Kiosks share a venue IP, so this is generous. Default 600. */
@@ -116,6 +118,7 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
         // Room that passed the catalog check; user input is never used as a metric label before that.
         let knownRoom: string | undefined;
         const decide = (decision: ScanResponse["decision"]) => {
+          if (decision === "allow" && knownRoom) opts.roomActivity?.recordAllowed(knownRoom);
           span.setAttribute("access.decision", decision);
           recordAccessScan(decision, knownRoom ?? UNKNOWN_ROOM);
         };

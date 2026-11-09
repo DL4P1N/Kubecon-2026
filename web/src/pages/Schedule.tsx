@@ -6,8 +6,10 @@ import { api, ApiError, getToken } from "../api.js";
 import { SkippedTalks } from "../components/SkippedTalks.js";
 import { recallSkipped, rememberSkipped } from "../skippedTalks.js";
 import "./discovery.css";
+import { RoomActivityBadge, useRoomActivity } from "./RoomActivity.js";
 
 export function Schedule() {
+  const { activity } = useRoomActivity();
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
   const [error, setError] = useState("");
   // Schedules are personal: without a session token from /register there is nothing to load.
@@ -79,6 +81,7 @@ export function Schedule() {
   return <section className="discovery">
     <h1>My schedule</h1>
     <p>All session times use your device’s local time zone.</p>
+    <p>Room activity reflects recent check-ins, not a headcount.</p>
     {needsRegistration && <p role="status">Register to build your personal schedule. <Link to="/register">Register now</Link>.</p>}
     {error && <p role="alert">{error}</p>}
     {!schedule && !error && !needsRegistration && <p role="status">Loading your schedule…</p>}
@@ -95,6 +98,7 @@ export function Schedule() {
         <p><time dateTime={talk.start}>{new Date(talk.start).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</time>
           {" – "}<time dateTime={talk.end}>{new Date(talk.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></p>
         <h2>{talk.title}</h2><p>{talk.room} · {talk.speaker}</p>
+        <p><RoomActivityBadge room={talk.room} activity={activity} /></p>
         {reason && <p><strong>Why recommended:</strong> {reason}</p>}
         <button type="button" disabled={calendarPending} aria-label={`Add ${talk.title} to calendar`}
           onClick={() => void exportCalendar(talk.id)}>Add this talk to calendar</button>

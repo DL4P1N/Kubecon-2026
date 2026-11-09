@@ -18,6 +18,8 @@ import { suggestRoutes } from "./routes/suggest.js";
 import { registerStatusRoutes } from "./routes/status.js";
 import { createStatusTracker, type StatusTracker } from "./status/tracker.js";
 import { registerSearchRoutes, type SearchRouteDeps } from "./routes/search.js";
+import { RoomActivityCounter } from "./rooms/activity.js";
+import { registerRoomRoutes } from "./routes/rooms.js";
 
 const VERSION = "0.1.0";
 
@@ -28,6 +30,7 @@ export interface ServerDeps {
   search?: Omit<SearchRouteDeps, "es">;
   /** Attendee token service; defaults to HS256 with TOKEN_SIGNING_KEY. */
   tokens?: TokenService;
+  roomActivity?: RoomActivityCounter;
   /** In-process counters behind GET /api/status; tests inject one to control time. */
   status?: StatusTracker;
 }
@@ -43,6 +46,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   const tokens = deps.tokens ?? createTokenService({ key: config.tokenSigningKey, nodeEnv: config.nodeEnv });
   const es = deps.es ?? createEsClient(config);
   const embedder = createEmbedder(process.env, es);
+  const roomActivity = deps.roomActivity ?? new RoomActivityCounter();
   const app = Fastify({
     ...(config.apiTlsCertFile ? { https: {
       cert: readFileSync(config.apiTlsCertFile),
@@ -84,7 +88,8 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   registerCatalogRoutes(app, es);
 
   // Module 3: POST /api/access/token + POST /api/access/scan (routes/access.ts).
-  app.register(accessRoutes, { es, tokens });
+  app.register(accessRoutes, { es, tokens, roomActivity });
+  registerRoomRoutes(app, es, roomActivity);
 
   registerInterestRoutes(app, { es, now: deps.search?.now });
 
