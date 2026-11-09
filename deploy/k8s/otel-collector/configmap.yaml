@@ -25,7 +25,7 @@ data:
               - keep_keys(attributes, ["service.name", "service.version", "service.namespace", "deployment.environment"])
           - context: span
             statements:
-              - keep_keys(attributes, ["http.request.method", "http.response.status_code", "url.path", "server.address", "server.port", "rpc.system", "rpc.service", "rpc.method", "db.system", "db.operation.name", "db.namespace", "room.id", "access.decision", "search.mode", "search.hits", "retention.deleted"])
+              - keep_keys(attributes, ["http.request.method", "http.response.status_code", "url.path", "server.address", "server.port", "rpc.system", "rpc.service", "rpc.method", "db.system", "db.operation.name", "db.namespace", "room.id", "access.decision", "search.mode", "search.hits", "retention.deleted", "clusters.attendees", "clusters.k", "clusters.shown", "clusters.suppressed"])
         log_statements:
           - context: resource
             statements:

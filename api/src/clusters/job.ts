@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { loadConfig } from "../config.js";
 import { createEsClient, type EsClient } from "../es/client.js";
+import { withSpan } from "../telemetry/span.js";
 import { buildClusters, finalize, type BuildOptions, type ClusterInput, type ClusterRun } from "./build.js";
 
 /**
@@ -154,36 +154,25 @@ export async function writeRun(es: EsClient, runId: string, run: ClusterRun, com
 export async function runClusterJob(es: EsClient, opts: ClusterJobOptions = {}): Promise<ClusterJobResult> {
   const now = (opts.now ?? (() => new Date()))();
   const runId = opts.runId ?? newRunId(now);
-  const tracer = trace.getTracer("companion-clusters");
-  return tracer.startActiveSpan("clusters.run", async (span) => {
-    try {
-      const { inputs, skipped } = await loadOptedInAttendees(es, now, opts.pageSize, opts.dims);
-      const run = buildClusters(inputs, opts);
-      await writeRun(es, runId, run, now);
-      const result: ClusterJobResult = {
-        runId,
-        attendees: inputs.length,
-        skipped,
-        k: run.k,
-        shown: run.clusters.length,
-        suppressed: run.suppressed,
-      };
-      // Counts only; keys are on the collector allowlist (docs/telemetry-allowlist.md).
-      span.setAttributes({
-        "db.system": "elasticsearch",
-        "clusters.attendees": result.attendees,
-        "clusters.k": result.k,
-        "clusters.shown": result.shown,
-        "clusters.suppressed": result.suppressed,
-      });
-      return result;
-    } catch (err) {
-      // The message is deliberately not recorded: ES errors can include query text.
-      span.setStatus({ code: SpanStatusCode.ERROR, message: "cluster_run_failed" });
-      throw err;
-    } finally {
-      span.end();
-    }
+  // Tracing seam (telemetry/span.ts), like retention.run; the SDK wiring is task #12.
+  return withSpan("clusters.run", { "db.system": "elasticsearch" }, async (span) => {
+    const { inputs, skipped } = await loadOptedInAttendees(es, now, opts.pageSize, opts.dims);
+    const run = buildClusters(inputs, opts);
+    await writeRun(es, runId, run, now);
+    const result: ClusterJobResult = {
+      runId,
+      attendees: inputs.length,
+      skipped,
+      k: run.k,
+      shown: run.clusters.length,
+      suppressed: run.suppressed,
+    };
+    // Counts only; keys are on the collector allowlist (docs/telemetry-allowlist.md).
+    span.setAttribute("clusters.attendees", result.attendees);
+    span.setAttribute("clusters.k", result.k);
+    span.setAttribute("clusters.shown", result.shown);
+    span.setAttribute("clusters.suppressed", result.suppressed);
+    return result;
   });
 }
 

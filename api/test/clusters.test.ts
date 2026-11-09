@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import Fastify from "fastify";
-import { trace } from "@opentelemetry/api";
-import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { setSpanRunner } from "../src/telemetry/span.js";
 import { MIN_CLUSTER_SIZE, type InterestClustersResponse } from "@cc/shared";
 import { buildClusters, chooseK, finalize, labelFor, topInterests, type ClusterInput } from "../src/clusters/build.js";
 import { seededRandom } from "../src/clusters/kmeans.js";
@@ -166,16 +165,16 @@ describe("cluster building and k-anonymity", () => {
 });
 
 describe("cluster job, demo seed and route", () => {
-  const exporter = new InMemorySpanExporter();
-  const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] });
+  const spans: { name: string; attrs: Record<string, string | number | boolean> }[] = [];
   beforeAll(() => {
-    trace.setGlobalTracerProvider(provider);
+    setSpanRunner(async (name, attrs, fn) => {
+      const rec = { name, attrs: { ...attrs } };
+      spans.push(rec);
+      return fn({ setAttribute: (k, v) => void (rec.attrs[k] = v) });
+    });
   });
-  afterAll(async () => {
-    trace.disable();
-    await provider.shutdown();
-  });
-  beforeEach(() => exporter.reset());
+  afterAll(() => setSpanRunner());
+  beforeEach(() => void (spans.length = 0));
 
   const embedder = new LocalHashEmbedder(256);
   const now = new Date("2026-11-09T12:00:00Z");
@@ -243,12 +242,12 @@ describe("cluster job, demo seed and route", () => {
     const es = fakeEs();
     await seedDemoAttendees(es.client, embedder, now);
     await runClusterJob(es.client, { now: () => now, runId: "run-test-3" });
-    const span = exporter.getFinishedSpans().find((s) => s.name === "clusters.run");
+    const span = spans.find((s) => s.name === "clusters.run");
     expect(span).toBeDefined();
-    const keys = Object.keys(span!.attributes).sort();
+    const keys = Object.keys(span!.attrs).sort();
     expect(keys).toEqual(["clusters.attendees", "clusters.k", "clusters.shown", "clusters.suppressed", "db.system"]);
-    expect(span!.attributes["clusters.attendees"]).toBe(40);
-    expect(JSON.stringify(span!.attributes)).not.toMatch(/demo-|run-test|interests/);
+    expect(span!.attrs["clusters.attendees"]).toBe(40);
+    expect(JSON.stringify(span!.attrs)).not.toMatch(/demo-|run-test|interests/);
   });
 
   it("route: empty before the first run, key-gated, fail-closed in production, 502 on ES failure", async () => {
