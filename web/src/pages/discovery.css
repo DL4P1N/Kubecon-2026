@@ -1,0 +1,13 @@
+.discovery { line-height: 1.5; }
+.discovery button { border: 0; border-radius: .3rem; padding: .65rem 1rem; background: #164e9b; color: white; cursor: pointer; }
+.discovery button:disabled { background: #475569; cursor: wait; }
+.discovery input:not([type=checkbox]) { box-sizing: border-box; width: 100%; }
+.discovery [role=alert] { color: #991b1b; }
+.search-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+.talk-results, .schedule-timeline { padding-left: 1.5rem; }
+.talk-results li, .schedule-timeline li { margin-bottom: 1.5rem; padding: .5rem; border-bottom: 1px solid #94a3b8; }
+.talk-results h3, .schedule-timeline h2 { margin: .25rem 0; }
+.discovery pre { overflow: auto; background: #f1f5f9; padding: .75rem; max-height: 24rem; }
+.discovery summary { cursor: pointer; padding: .5rem 0; }
+.checkin-token { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .search-comparison { grid-template-columns: 1fr; } }
