@@ -304,6 +304,30 @@ payloads are cited instead.
 
 ## Dash0
 
+### Live API measurements on deployed `9c047d7` (#73, 2026-11-09)
+
+- [Timestamped queries, native SLO values, traffic summary and redacted trace](evidence/dash0-live-73.json).
+  The owner shortened the generator to three minutes: `npx tsx scripts/traffic.ts
+  --url http://127.0.0.1:18086 --minutes 3`, launched at 23:27:13Z, completed in
+  181.57 seconds. It made 362 requests: 357 HTTP 200 and 5 HTTP 201, with no
+  recorded request errors. Attendees were synthetic; client p95 was 442 ms.
+- At 23:31:10Z, the persisted dashboard's actual PromQL queries returned
+  keyword/hybrid search p95 of about 71/411 ms, a non-5xx ratio of 1, and a
+  search/onboarding <=500 ms ratio of 1. Native SLO targets were 0.95 (latency)
+  and 0.99 (availability); both fast-burn values were 0. Availability slow burn
+  was about 0.0605, not zero. The JSON preserves the queries and raw responses.
+- The captured real hybrid-search trace has seven spans, including `search`,
+  `embed`, and a successful HTTP POST to Elasticsearch. Only selected
+  non-sensitive fields are retained; this is not an exhaustive privacy audit.
+- **Boundary:** these are read-only API measurements, not Dash0 UI screenshots
+  or verification of panel rendering. The dashboard, latency-SLO,
+  availability-SLO and trace screenshots remain pending a signed-in browser.
+  The owner-supplied API token permits queries but does not log into the UI.
+  An earlier longer generator run was interrupted; 5-minute/1-hour queries
+  include preceding activity and other clients. This short run does not prove
+  28-day SLO compliance. No dashboard/SLO definition or application code changed.
+
+
 - Board task #40: the operator asked Agent0 to investigate actual search 400s;
   [raw question/output and direct span evidence](demo/dash0-agent0-investigation.json),
   [readable rendering of captured output](demo/dash0-agent0-output.png), and
