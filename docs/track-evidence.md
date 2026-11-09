@@ -38,6 +38,16 @@ The fix commit is the PR link until the merge hash is known.
 
 Still pending: CI-failure diagnosis and the review link for the demo.
 
+### Repository-rule verification (task #34)
+
+The existing `.gitar/review/` files are review guidance. Prior PR dashboards
+reported Rules as "No rules evaluated"; those reviews do not prove execution
+of a repository rule. `.gitar/rules/conference-companion-check.md` adds an
+explicit project check with documented frontmatter. Its PR outcome and
+dashboard link are pending; do not claim evaluated rules until recorded here.
+Functional validation and CI-failure diagnosis remain separate, unproven
+capabilities. An organization-plan/toggle question is on the board.
+
 ## Radar
 
 - Workload evidence: pending.

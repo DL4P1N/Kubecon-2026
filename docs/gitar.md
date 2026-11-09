@@ -3,7 +3,15 @@
 Gitar reviews pull requests and reads the repository guidance in
 `.gitar/review/`. The rules for this project are in
 `.gitar/review/conference-companion.md`; update that file when a durable
-review rule is needed.
+review rule is needed. These are code-review instructions, distinct from
+repository rules in `.gitar/rules/`. The explicit project check is
+`.gitar/rules/conference-companion-check.md`: Markdown with YAML frontmatter
+(`title`, `description`, `type`, `when`, `actions`). It references the canonical
+guidance rather than replacing it. `.gitar/config/apply.md` limits auto-apply
+and is read from the default branch after merge.
+
+References: [repository customization](https://docs.gitar.ai/configuration/repository-config),
+[repository rules](https://docs.gitar.ai/features/rules).
 
 ## One-time administrator setup
 
@@ -11,14 +19,27 @@ review rule is needed.
    organization or repository admin access.
 2. Install the Gitar GitHub App and grant it access to `DL4P1N/Kubecon-2026`.
 3. Confirm the repository is enabled in the Gitar dashboard.
-4. In Gitar **Settings → Configuration**, enable CI-failure diagnosis. It
-   automatically classifies failures as change-related, flaky, or
-   infrastructure-related when a pull request has CI results.
+4. Verify repository-rule access on the organization's plan. Rules require
+   Pro or Enterprise; configuration files alone cannot enable a paid feature.
 5. Configure organization-level auto-apply criteria, then keep the stricter
    repository criteria in `.gitar/config/apply.md`. Leave per-PR auto-apply
    opt-in enabled.
 
 No credentials, GitHub App private keys, or tokens belong in this repository.
+
+Functional validation is a separate Enterprise feature, controlled by
+**Settings → Configuration → Behavior → Validate PRs against linked issues**.
+It checks linked GitHub issues against the diff; it does not execute tests.
+See [functional validation](https://docs.gitar.ai/features/functional-validation).
+Board task numbers are not GitHub issue links. CI-failure diagnosis is also
+separate from Rules and must have its own observed failure-analysis evidence.
+
+## Verifying repository-rule execution
+
+On a PR that contains the rule, inspect Verification → Rules. Request
+`gitar display:verbose` to see rule applicability and evidence. Record the
+actual dashboard link and outcome in `docs/track-evidence.md`; neither a
+green Gitar status check nor an ordinary review proves rule execution.
 
 ## Pull-request workflow
 
