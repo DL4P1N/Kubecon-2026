@@ -1,5 +1,10 @@
 # Recent room activity
 
+The public endpoint limits each client to 120 reads per minute before work.
+Its bounded catalog room list is cached server-side for 60 seconds with
+concurrent refreshes shared; scan buckets are evaluated fresh on each request.
+Responses use `Cache-Control: no-store` so browsers do not reuse stale activity.
+
 `GET /api/rooms/occupancy` is a public aggregate view. It gets room names from
 the talks index and reports allowed scans in roughly the last ten minutes,
 using minute buckets in the API process. No attendee IDs, device identifiers,

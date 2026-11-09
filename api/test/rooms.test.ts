@@ -47,6 +47,24 @@ it("rate limits before querying Elasticsearch", async () => {
     expect((await app.inject("/api/rooms/occupancy")).statusCode).toBe(200);
     expect((await app.inject("/api/rooms/occupancy")).statusCode).toBe(200);
     expect((await app.inject("/api/rooms/occupancy")).statusCode).toBe(429);
+    expect(es.calls).toHaveLength(1);
+  } finally { await app.close(); }
+});
+it("caches catalog rooms for one minute while scan activity stays fresh", async () => {
+  let now = 0;
+  const es = fakeEs(() => ({ body: { aggregations: { rooms: { buckets: [{ key: "A" }] } } } }));
+  const counter = new RoomActivityCounter(new Map(), () => now);
+  const app = Fastify();
+  registerRoomRoutes(app, es, counter, 120, () => now);
+  try {
+    const first = await app.inject("/api/rooms/occupancy");
+    expect(first.json().rooms[0].recentScans).toBeNull();
+    expect(first.headers["cache-control"]).toBe("no-store");
+    for (let i = 0; i < 5; i++) counter.recordAllowed("A");
+    expect((await app.inject("/api/rooms/occupancy")).json().rooms[0].recentScans).toBe(5);
+    expect(es.calls).toHaveLength(1);
+    now = 60_000;
+    await app.inject("/api/rooms/occupancy");
     expect(es.calls).toHaveLength(2);
   } finally { await app.close(); }
 });
