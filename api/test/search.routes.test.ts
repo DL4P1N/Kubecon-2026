@@ -44,6 +44,18 @@ afterEach(() => {
 const hits = [esHit(A, 0.03, ["keyword", "semantic"]), esHit(C, 0.02, ["semantic"]), esHit(B, 0.01, ["keyword"])];
 
 describe("GET /api/search", () => {
+  it("sends a misspelled query to Elasticsearch with fuzziness in both modes (#55)", async () => {
+    for (const mode of ["keyword", "hybrid"]) {
+      const { es } = memoryEs([esHit(A, 4.2, ["keyword"])]);
+      const app = buildServer(loadConfig({}), { es });
+      const res = await app.inject({ method: "GET", url: `/api/search?q=kuberentes&mode=${mode}` });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.stringify(es.calls[0]!.body);
+      expect(body).toContain('"query":"kuberentes"');
+      expect(body).toContain('"fuzziness":"AUTO"');
+      expect(body).toContain('"prefix_length":1');
+    }
+  });
   it("keyword mode sends a multi_match and returns scored hits", async () => {
     const { es } = memoryEs([esHit(A, 4.2, ["keyword"])]);
     const app = buildServer(loadConfig({}), { es });
