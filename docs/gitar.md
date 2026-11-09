@@ -33,6 +33,9 @@ It checks linked GitHub issues against the diff; it does not execute tests.
 See [functional validation](https://docs.gitar.ai/features/functional-validation).
 Board task numbers are not GitHub issue links. CI-failure diagnosis is also
 separate from Rules and must have its own observed failure-analysis evidence.
+For GitHub Actions, the existing code-host connection supplies CI-log access;
+there is no separate CI connection required. Auto-apply remains a separate
+per-PR opt-in. See [CI-failure analysis](https://docs.gitar.ai/features/ci-failure-analysis).
 
 ## Verifying repository-rule execution
 
