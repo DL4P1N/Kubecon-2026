@@ -70,7 +70,8 @@ schedule browser tests). Their current Gitar dashboards contain Code Review,
 without retained CI-analysis output. PR14's missing-fixture finding predates
 the actual failure, so it proves useful review, not CI-log analysis. The fix
 and subsequent green run are linked in the [CI evidence audit](gitar-ci-diagnosis.md).
-A read-only retrospective diagnosis was requested; admin access/settings
+A read-only retrospective diagnosis was requested; its bot reply gave no CI
+root cause or log analysis, so it is not diagnosis evidence. Admin settings
 confirmation is pending on board question #15. CI diagnosis and auto-apply
 remain unproven; no separate enable toggle or unavailable-plan explanation
 is invented.

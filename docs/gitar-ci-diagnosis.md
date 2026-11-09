@@ -55,6 +55,17 @@ log access. An admin was asked on board question #15 to confirm these states
 and any access warnings. Credentials were not requested. Regular reviews
 already work; missing Actions access is a hypothesis, not an observed fact.
 
+Follow-up checks: the repository reports `push: true`, `admin: false` for this
+CLI account. Installation-administration endpoints reject this credential.
+The Gitar App metadata attached to
+[the original check run](https://api.github.com/repos/DL4P1N/Kubecon-2026/check-runs/129369968026)
+declares `actions`, `checks`, `workflows`, and `statuses` write permissions;
+this describes the App's declared permissions, not a verified inspection of
+the installation's effective grant or pending permission warnings. Gitar also
+reviewed this audit PR automatically, which is evidence that automatic review
+processing is active for it. The organization and repository override controls
+still require an authenticated administrator to inspect directly.
+
 A [read-only retrospective request](https://github.com/DL4P1N/Kubecon-2026/pull/14#issuecomment-6749678468)
 asks Gitar to analyze the real PR14 failure and cite evidence, without changing
 code, pushing, retrying CI, or enabling auto-apply. Its
