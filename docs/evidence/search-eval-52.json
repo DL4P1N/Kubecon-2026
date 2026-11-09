@@ -1,0 +1,228 @@
+{
+  "task": 52,
+  "measured_at": "2026-11-09T22:40Z",
+  "environment": {
+    "cluster": "kind-conference-companion (single node, arm64)",
+    "elasticsearch": "8.19.6 via port-forward https://127.0.0.1:19201, CA-verified",
+    "index": "talks alias, 417 real KubeCon NA 2026 sessions",
+    "inference": ".multilingual-e5-small-elasticsearch (semantic_text)",
+    "size": 10,
+    "credentials": "companion_svc from Kubernetes Secret, process env only, never logged"
+  },
+  "shipped_change": {
+    "file": "api/src/search/queries.ts",
+    "symbols": [
+      "QUERY_EXPANSIONS",
+      "expandQueryText",
+      "SearchTuning.queryExpansion"
+    ],
+    "default": "queryExpansion: \"both\"",
+    "nature": "generic term-level synonyms; triggers are single terms or catalog phrases, none taken from eval question wording; no per-query branch",
+    "index_or_mapping_changed": false,
+    "removed_eval_phrase_triggers": [
+      "graphics card",
+      "allowed to (do|access)",
+      "internal (docs|documents)",
+      "traffic spikes"
+    ]
+  },
+  "rejected_revision": {
+    "why": "first revision matched phrases taken from the tuned questions themselves; test-set leakage",
+    "leaked_result_hybrid": {
+      "hit_at_3": "10/12",
+      "mrr_at_10": 0.815
+    },
+    "not_shipped": true
+  },
+  "tuned_set": {
+    "count": 12,
+    "source": "EVAL_SET in scripts/search-eval-set.ts, judgments unchanged",
+    "expansion_off": {
+      "keyword_hit_at_3": "0/12",
+      "keyword_mrr_at_10": 0.042,
+      "hybrid_hit_at_3": "4/12",
+      "hybrid_mrr_at_10": 0.313
+    },
+    "expansion_on": {
+      "keyword_hit_at_3": "3/12",
+      "keyword_mrr_at_10": 0.208,
+      "hybrid_hit_at_3": "6/12",
+      "hybrid_mrr_at_10": 0.5
+    },
+    "hybrid_on_vs_off": {
+      "wins": 3,
+      "ties": 9,
+      "losses": 0
+    },
+    "in_sample": true,
+    "queries_with_a_trigger": [
+      "pager",
+      "spend",
+      "passwords"
+    ]
+  },
+  "held_out_set": {
+    "count": 8,
+    "harness": "scripts/search-heldout-eval.mts",
+    "questions": [
+      {
+        "q": "how do we ship a change to only five percent of traffic and watch it",
+        "relevant": [
+          "kcna26-1247840",
+          "kcna26-1250982",
+          "kcna26-1250076"
+        ]
+      },
+      {
+        "q": "we lost a namespace and need the data restored",
+        "relevant": [
+          "kcna26-1289913"
+        ]
+      },
+      {
+        "q": "our kubernetes spend is growing faster than usage",
+        "relevant": [
+          "kcna26-1289666",
+          "kcna26-1243852"
+        ]
+      },
+      {
+        "q": "several teams want to share one gpu node",
+        "relevant": [
+          "kcna26-1243199",
+          "kcna26-1250789",
+          "kcna26-1241974"
+        ]
+      },
+      {
+        "q": "alerts wake me up but most are noise",
+        "relevant": [
+          "kcna26-1244963",
+          "kcna26-1250770"
+        ]
+      },
+      {
+        "q": "proving the artifact we run was built from our source",
+        "relevant": [
+          "kcna26-1370530",
+          "kcna26-1289646",
+          "kcna26-1247300",
+          "kcna26-1334787"
+        ]
+      },
+      {
+        "q": "restricting pod to pod traffic in a shared cluster",
+        "relevant": [
+          "kcna26-1247970",
+          "kcna26-1249358",
+          "kcna26-1289674"
+        ]
+      },
+      {
+        "q": "isolating ai generated code so it cannot reach production",
+        "relevant": [
+          "kcna26-1247804",
+          "kcna26-1301749",
+          "kcna26-1249842",
+          "kcna26-1247753"
+        ]
+      }
+    ],
+    "expansion_off": {
+      "keyword_hit_at_3": "0/8",
+      "keyword_mrr_at_10": 0.016,
+      "hybrid_hit_at_3": "3/8",
+      "hybrid_mrr_at_10": 0.215
+    },
+    "expansion_on": {
+      "keyword_hit_at_3": "4/8",
+      "keyword_mrr_at_10": 0.516,
+      "hybrid_hit_at_3": "6/8",
+      "hybrid_mrr_at_10": 0.642
+    },
+    "hybrid_on_vs_off": {
+      "wins": 4,
+      "ties": 4,
+      "losses": 0
+    },
+    "primary_evidence": true
+  },
+  "leg_ablation_under_rejected_rules": {
+    "note": "measured before the rules were made generic; retained to show the both-legs requirement, not as current numbers",
+    "off": {
+      "hit_at_3": "4/12",
+      "mrr_at_10": 0.313
+    },
+    "keyword_leg_only": {
+      "hit_at_3": "4/12",
+      "mrr_at_10": 0.408
+    },
+    "semantic_leg_only": {
+      "hit_at_3": "4/12",
+      "mrr_at_10": 0.351
+    },
+    "both": {
+      "hit_at_3": "10/12",
+      "mrr_at_10": 0.815
+    }
+  },
+  "fusion_knobs_rechecked": {
+    "rank_constant_20": 0.246,
+    "minimum_should_match_30": 0.125,
+    "linear_1_1": 0.097,
+    "linear_semantic_2": 0.139,
+    "rank_window_100": 0.306,
+    "changed": false
+  },
+  "latency_ms": {
+    "method": "36 sequential warm queries per mode (12 tuned questions x3), port-forwarded single-node cluster",
+    "keyword_median": 35,
+    "hybrid_median_with_expansion": 80,
+    "hybrid_median_without": 70
+  },
+  "limitations": [
+    "Both sets are small and hand-judged with 1-4 relevant ids per query; the result bounds the claim to these judged paraphrases.",
+    "The tuned set was read while the rules were written (in-sample); the 8-question held-out set, written by the same author after the rule table existed, is the primary evidence.",
+    "Keyword mode improves too, so hybrid-versus-keyword narrows; the change is query understanding, not a hybrid-only fix.",
+    "One measurement session against a single-node cluster; no longitudinal or live-traffic A/B data."
+  ],
+  "harness_run": {
+    "command": "npx tsx scripts/search-heldout-eval.mts",
+    "clean": true,
+    "note": "judged sets imported from side-effect-free scripts/search-eval-set.ts; earlier runs imported search-eval.ts, whose top-level main() started the full eval concurrently"
+  },
+  "superseded_revision": {
+    "commit": "20399c7",
+    "why": "generic synonyms but four triggers were still eval-question phrases; removed",
+    "tuned_result_hybrid": {
+      "hit_at_3": "8/12",
+      "mrr_at_10": 0.683
+    },
+    "held_out_result_hybrid": {
+      "hit_at_3": "6/8",
+      "mrr_at_10": 0.642
+    },
+    "not_shipped": true
+  },
+  "demo_queries_with_expansion": [
+    {
+      "q": "keep passwords and API keys out of my config files",
+      "hybrid_first_relevant_rank": 1,
+      "keyword_first_relevant_rank": 1,
+      "hybrid_top": "Kubernetes Secrets Were a Bad Idea. Now What?",
+      "keyword_top": "Stop Writing Secrets Into YAML: A Rotation-First Identity Pattern for Kubernetes"
+    },
+    {
+      "q": "release a new version to a small slice of users first so a bad deploy does not break everything",
+      "hybrid_first_relevant_rank": 1,
+      "keyword_first_relevant_rank": null,
+      "hybrid_top": "Hope Is Not a Rollout Strategy: Balancing (AI) Quality, Cost, and Risk Through Experimentation"
+    },
+    {
+      "q": "my pods take ages to start because downloading the container takes forever",
+      "hybrid_first_relevant_rank": 1,
+      "keyword_first_relevant_rank": 4,
+      "hybrid_top": "Hidden Pod Startup Latency: Container Image Pull"
+    }
+  ]
+}

@@ -40,6 +40,47 @@ export interface SearchTuning {
   fuzziness?: string;
   /** Leading characters that must match exactly before fuzziness applies (cheaper, fewer false hits). */
   fuzzyPrefixLength?: number;
+  /**
+   * Whether both retrieval legs receive the curated attendee-vocabulary
+   * expansion of the query text (#52). The text is expanded once and both legs
+   * rank the same string; an ablation under an earlier (rejected) rule set found
+   * semantic-leg-only expansion far weaker than both legs, so the default
+   * applies it to both.
+   */
+  queryExpansion?: "off" | "both";
+}
+
+/**
+ * Attendee phrasing that does not share vocabulary with the talk catalog.
+ * Applied term-wise to every query; triggers are single terms or catalog
+ * phrases, never wording taken from the judged eval questions. Measured live on
+ * the 417-talk index (docs/evidence/search-eval-52.md): held-out 8 questions
+ * hybrid hit@3 3/8 -> 6/8, MRR@10 0.215 -> 0.642; the 12 tuned questions
+ * 4/12 -> 6/12, 0.313 -> 0.500. No per-query regression on either set.
+ */
+const QUERY_EXPANSIONS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\bpager\b|\bon-?call\b|\balert(?:s|ing)?\b/i, "on-call incident response alert triage"],
+  [/\bbackups?\b|\brestor(?:e|ed|ing)\b|\brecover(?:y|ed)?\b/i, "backup restore disaster recovery velero"],
+  [/\bgpus?\b/i, "GPU sharing time-slicing DRA"],
+  [/\bcanary\b|\brollout\b|\bprogressive delivery\b/i, "canary progressive delivery rollout"],
+  [/\bfinops\b|\bcost\b|\bspend(?:ing)?\b|\bbill\b/i, "kubernetes cost optimization finops opencost"],
+  [/\bsupply chain\b|\battestation\b|\bprovenance\b|\bsbom\b/i,
+    "supply chain security attestation sigstore sbom in-toto"],
+  [/\bsandbox(?:es|ed|ing)?\b|\buntrusted\b/i, "agent sandbox isolation runtime untrusted"],
+  [/\bnetwork polic(?:y|ies)\b|\bnetworkpolicy\b/i, "network policy cilium ebpf"],
+  [/\bsecrets?\b|\bpasswords?\b|\bcredentials?\b/i, "kubernetes secrets rotation external secrets"],
+  [/\bautoscal(?:e|er|ing)\b/i, "autoscaling HPA KEDA"],
+  [/\bimage pull\b|\bpull time\b|\bdownload(?:ing)? (?:the )?image\b/i,
+    "container image pull latency startup"],
+  [/\brbac\b|\bauthoriz(?:ed|ation)\b/i, "kubernetes authorization RBAC OPA policy"],
+  [/\brag\b|\bprivate (?:data|documents)\b/i,
+    "RAG retrieval augmented generation self-hosted LLM vector search"],
+];
+
+/** Query text plus any matching attendee-vocabulary bridge terms. */
+export function expandQueryText(text: string): string {
+  const additions = QUERY_EXPANSIONS.filter(([pattern]) => pattern.test(text)).map(([, terms]) => terms);
+  return additions.length > 0 ? `${text} ${additions.join(" ")}` : text;
 }
 
 export const DEFAULT_TUNING: SearchTuning = {
@@ -50,6 +91,7 @@ export const DEFAULT_TUNING: SearchTuning = {
   semanticWeight: 1,
   fuzziness: "AUTO",
   fuzzyPrefixLength: 1,
+  queryExpansion: "both",
 };
 
 export interface SearchFilters {
@@ -101,6 +143,11 @@ export function eligibilityClauses(f: SearchFilters = {}, tuning: SearchTuning =
   return clauses;
 }
 
+/** Text both retrieval legs rank, with the attendee-vocabulary bridge when enabled. */
+function expandedText(text: string, tuning: SearchTuning): string {
+  return tuning.queryExpansion === "both" ? expandQueryText(text) : text;
+}
+
 function keywordQuery(text: string, tuning: SearchTuning, minimumShouldMatch?: string) {
   return {
     multi_match: {
@@ -124,7 +171,7 @@ export function buildKeywordBody(
   return {
     size,
     _source: SOURCE_FIELDS,
-    query: { bool: { must: [keywordQuery(text, tuning)], filter: eligibilityClauses(filters, tuning) } },
+    query: { bool: { must: [keywordQuery(expandedText(text, tuning), tuning)], filter: eligibilityClauses(filters, tuning) } },
   };
 }
 
@@ -143,16 +190,22 @@ export function buildHybridBody(
   tuning: SearchTuning = DEFAULT_TUNING,
 ): EsBody {
   const filter = eligibilityClauses(filters, tuning);
+  const semanticText = expandedText(text, tuning);
   const keywordLeg = {
     standard: {
       _name: LEG_KEYWORD,
-      query: { bool: { must: [keywordQuery(text, tuning, tuning.hybridKeywordMinimumShouldMatch)], filter } },
+      query: {
+        bool: {
+          must: [keywordQuery(semanticText, tuning, tuning.hybridKeywordMinimumShouldMatch)],
+          filter,
+        },
+      },
     },
   };
   const semanticLeg = {
     standard: {
       _name: LEG_SEMANTIC,
-      query: { bool: { must: [{ semantic: { field: SEMANTIC_FIELD, query: text } }], filter } },
+      query: { bool: { must: [{ semantic: { field: SEMANTIC_FIELD, query: semanticText } }], filter } },
     },
   };
   const rankWindowSize = Math.max(tuning.rankWindowSize, size);
