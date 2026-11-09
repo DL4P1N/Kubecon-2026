@@ -3,10 +3,12 @@
  * the `routes` table lists every endpoint so both sides can reference paths
  * without string duplication.
  *
- * Auth: endpoints other than /healthz and POST /api/register expect
+ * Auth: endpoints other than /healthz, GET /api/catalog/topics and POST /api/register expect
  * `Authorization: Bearer <attendee token>`. Tokens are short-lived, signed,
  * and carry the attendee ID only (see design doc section 6).
  */
+
+import type { SearchFacets, SearchFilterParams } from "./facets.js";
 
 // ---------------------------------------------------------------- common
 
@@ -157,7 +159,7 @@ export interface SearchHit {
   matched?: SearchLeg[];
 }
 
-export interface SearchQuery {
+export interface SearchQuery extends SearchFilterParams {
   q: string;
   mode?: SearchMode;
   /** `1` returns the Elasticsearch request body in `debug`. */
@@ -171,8 +173,15 @@ export interface SearchResponse {
   mode: SearchMode;
   tookMs: number;
   hits: SearchHit[];
+  /** Track/level/day counts for this query and its filters (optional: older servers omit it). */
+  facets?: SearchFacets;
   /** Elasticsearch request body, only when `?debug=1`. */
   debug?: unknown;
+}
+
+/** Public talk-catalog tags, available before attendee registration. */
+export interface CatalogTopicsResponse {
+  topics: string[];
 }
 
 // ---------------------------------------------------------------- schedule
@@ -282,6 +291,7 @@ export interface InterestClustersResponse {
 // ---------------------------------------------------------------- route table
 
 export const routes = {
+  catalogTopics: { method: "GET", path: "/api/catalog/topics" },
   health: { method: "GET", path: "/healthz" },
   status: { method: "GET", path: "/api/status" },
   register: { method: "POST", path: "/api/register" },
@@ -290,6 +300,7 @@ export const routes = {
   search: { method: "GET", path: "/api/search" },
   saveSchedule: { method: "POST", path: "/api/schedule" },
   getSchedule: { method: "GET", path: "/api/schedule" },
+  exportCalendar: { method: "GET", path: "/api/schedule.ics" },
   accessToken: { method: "POST", path: "/api/access/token" },
   accessScan: { method: "POST", path: "/api/access/scan" },
   interestsAggregate: { method: "GET", path: "/api/interests/aggregate" },

@@ -13,13 +13,14 @@ and [demo evidence ledger](docs/track-evidence.md) for scope and observed result
 | --- | --- | --- |
 | Register with separate optional consent choices, then get recommendations | `/register` → `/onboarding` | [Attendee flow](web/src/pages/Onboarding.tsx), [signed registration](api/src/routes/register.ts) |
 | Save a personal schedule and display a short-lived room QR | `/schedule` | [Schedule authentication](https://github.com/DL4P1N/Kubecon-2026/pull/22), [QR/entitlement checks](https://github.com/DL4P1N/Kubecon-2026/pull/21) |
-| Compare keyword and hybrid search, with Elasticsearch request bodies | `/search` | [Measured earlier results](docs/demo/search-comparison-measured.json), [evaluation script](scripts/search-eval.ts); a consistent hybrid relevance win remains unproven |
+| Compare keyword and hybrid search, with Elasticsearch request bodies | `/search` | [Initial five-query results](docs/demo/search-comparison-measured.json), [measured 12-query report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162), [evaluation script](scripts/search-eval.ts); 5 wins, 7 ties, 0 losses, not a majority win |
 | Scan a room QR or use its text alternative; reread entitlements on each scan | `/kiosk` | [Access implementation and tests](https://github.com/DL4P1N/Kubecon-2026/pull/21); live camera/cluster acceptance must be checked separately |
 | Inspect opted-in topic counts and organizer-keyed clusters | `/map`, `/clusters` | [Aggregation](api/src/interests/aggregate.ts), [cluster design and limitations](docs/cluster-map.md); groups below five are suppressed, thresholds untested on real attendee data |
 
 The screenshots below show the actual local Kubernetes environment, not an
-attendee UI mockup. Attendee-flow recording and screenshots are pending in
-[board task #18's evidence](docs/track-evidence.md).
+attendee UI mockup. The [offline UI recording and screenshots](docs/demo/recording.md)
+use visibly disclosed synthetic data and mock API responses; live attendee-flow
+recording remains pending.
 
 ![Radar overview of the conference-companion namespace](docs/demo/radar-overview.png)
 
@@ -80,6 +81,14 @@ run on the host. See [Compose ES setup](docs/es-deployment.md#local-compose)
 and [telemetry setup](docs/observability.md#run-locally) for required environment
 variables. Keep Dash0 credentials in the collector environment only.
 
+Registration loads public talk tags from `GET /api/catalog/topics` (`{ topics: string[] }`).
+This reads a keyword terms aggregation on `talks.tags` (up to 1,000 distinct tags),
+not attendee interests. Empty user queries on `/api/search` remain invalid.
+If the catalog is unavailable the form offers a retry rather than sending an
+empty search. To smoke-test a deployed app without API mocks, set
+`LIVE_APP_URL` to its origin and run `npm run test:a11y -w web -- --grep "live catalog"`.
+The smoke test only reads catalog metadata and selects a checkbox; it creates no attendee.
+
 ```sh
 # In separate terminals after configuring the dependencies:
 docker compose -f deploy/compose/docker-compose.yml up -d elasticsearch otel-collector
@@ -114,8 +123,11 @@ merge and verification status in the [evidence ledger](docs/track-evidence.md).
 - Attendee-level records expire after 24 hours; scheduled cleanup deletes them.
   [Retention behavior and validation limits](docs/retention.md).
 - Telemetry uses explicit resource, trace, log, and metric allowlists, and
-  scrubs URL query strings from log bodies. No attendee IDs, precise user
-  locations, tokens, or free-text answers belong in telemetry.
+  scrubs URL query strings from log bodies. Attendee IDs, precise user
+  locations, tokens, and free-text answers are prohibited by policy; the
+  [privacy regression](https://github.com/DL4P1N/Kubecon-2026/pull/30) covers its
+  tested flows. Additional raw URL/path findings are being investigated in
+  board task #40; do not read the policy as complete live proof.
   [Allowlist](docs/telemetry-allowlist.md), [SDK/logging design](docs/observability.md).
 - Application ES access uses `companion_svc`; admin bootstrap credentials are
   separate. ES has authentication and CA-validated TLS. Internal app/collector
@@ -129,9 +141,14 @@ merge and verification status in the [evidence ledger](docs/track-evidence.md).
 [Real catalog and inference evidence](docs/track-evidence.md#judge-swimlanes-and-claim-gates),
 [observed five-query comparisons](docs/demo/search-comparison-measured.json),
 [evaluation/tuning PR #27](https://github.com/DL4P1N/Kubecon-2026/pull/27).
-The earlier live comparison succeeded in both modes but did not establish a
-consistent relevance win. A tuned live evaluation is pending; hypotheses are
-not results.
+The [operator's measured report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162)
+uses 12 hand-judged questions against 417 indexed talks: current hybrid won 5,
+tied 7 and lost 0; hit@3 was 5/12 vs keyword 0/12, MRR@10 was 0.306 vs 0.017.
+This does not meet the majority-of-12 win criterion. The other tested tuning
+variants were no better; current configuration was retained. The
+[measured report in the repository](docs/demo/search-eval-report.md) and
+[updated comparison](docs/search-comparison.md) landed in
+[PR #40](https://github.com/DL4P1N/Kubecon-2026/pull/40), separately from the evaluator.
 
 ### Dash0
 
@@ -151,8 +168,11 @@ and collector configuration; it does not run a real collector.
 [topology screenshot](docs/demo/radar-topology.png),
 [deployment and probe-fix PR #6](https://github.com/DL4P1N/Kubecon-2026/pull/6).
 Radar UI and read-only MCP were used against the live kind namespace. The
-original ES allocation diagnosis came from ES APIs; do not attribute it to
-Radar's later AI investigation without the separate investigation record.
+original ES allocation diagnosis came from ES APIs. The later
+[actual Radar AI run and verification](docs/track-evidence.md#actual-radar-ai-investigation-task-30)
+is captured in [PR #37](https://github.com/DL4P1N/Kubecon-2026/pull/37);
+its retained scaling-error finding is distinguished from current healthy
+one-allocation serving.
 
 ### Gitar / Sonar track
 
@@ -161,5 +181,6 @@ Radar's later AI investigation without the separate investigation record.
 [PR #25 Gitar dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/25#issuecomment-6749180455).
 “Rules 1/1 met” proves the check ran on a config/docs PR; the probe finding was
 acted on and tested during a **controlled** API outage. Functional validation
-is disabled, and CI-failure diagnosis remains unproven. This is a Gitar entry;
+is disabled. An [explicitly requested retrospective CI diagnosis](docs/gitar-ci-diagnosis.md)
+is verified; automatic CI-failure triggering and auto-apply remain unproven. This is a Gitar entry;
 no Sonar tooling integration is claimed.

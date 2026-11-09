@@ -7,3 +7,7 @@
 .kiosk-allow { color: #0b5e1f; border-color: #0b5e1f; background: #e6f4ea; border-style: solid; }
 /* Dashed border and a different icon keep deny distinguishable without colour. */
 .kiosk-deny { color: #8c1d18; border-color: #8c1d18; background: #fce8e6; border-style: dashed; }
+@media (max-width: 600px) {
+  .kiosk-result { padding: 1rem .75rem; }
+  .kiosk-decision { font-size: 2rem; }
+}
