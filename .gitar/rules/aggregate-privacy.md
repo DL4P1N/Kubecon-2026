@@ -2,7 +2,7 @@
 title: Attendee aggregate privacy
 description: Review the changed implementation for attendee aggregate privacy.
 type: check
-when: Changes to attendee aggregate endpoints, aggregate services, or this rule file.
+when: A pull request modifies attendee aggregate endpoints or services, or adds or modifies .gitar/rules/aggregate-privacy.md (including this configuration-only PR).
 actions: Report applicable evidence and violated requirements in Verification Rules. Do not modify code, send external messages, or approve/merge automatically.
 ---
 
