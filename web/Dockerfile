@@ -8,6 +8,9 @@ COPY web/package.json web/
 RUN npm ci
 COPY shared shared
 COPY web web
+COPY data/nav-replay.json data/nav-replay.json
+ARG NAV_ESTIMATOR=off
+ENV NAV_ESTIMATOR=$NAV_ESTIMATOR
 RUN npm run build -w shared && npm run build -w web
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine

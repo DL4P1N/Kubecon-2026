@@ -197,11 +197,27 @@ export interface InterestCluster {
   count: number;
 }
 
+/** Label of the bucket that merges every topic below the minimum group size. */
+export const OTHER_TOPIC = "other";
+
+export interface InterestTopicCount {
+  /** Interest topic, or OTHER_TOPIC for the merged small groups. */
+  topic: string;
+  /** Opted-in attendees with this interest (always >= suppressedBelow). */
+  count: number;
+}
+
+/**
+ * Aggregate interests of attendees who opted in to the cluster map. Topics
+ * with fewer than `suppressedBelow` attendees are merged into OTHER_TOPIC,
+ * which is itself dropped when below the threshold. Never contains attendee IDs.
+ */
 export interface InterestAggregateResponse {
-  clusters: InterestCluster[];
-  /** Attendees folded into "other" because their cluster was below the minimum. */
-  suppressed: number;
-  minClusterSize: number;
+  /** Sorted by count, descending. */
+  topics: InterestTopicCount[];
+  /** Attendees who opted in (0 when fewer than `suppressedBelow`). */
+  totalOptedIn: number;
+  suppressedBelow: number;
   generatedAt: string; // ISO 8601
 }
 
