@@ -34,9 +34,21 @@ describe("attendee journey", () => {
     const save = vi.spyOn(api, "saveSchedule").mockResolvedValue(schedule);
     vi.spyOn(api, "getSchedule").mockResolvedValue(schedule);
     render(<MemoryRouter initialEntries={["/onboarding"]}><App /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("What would you like to learn, in your own words?"), { target: { value: "secure supply chain" } });
     fireEvent.click(screen.getByRole("button", { name: "Find talks" }));
     await screen.findByRole("heading", { name: "My schedule" });
     expect(save).toHaveBeenCalledWith({ talkIds: ["talk-1"] });
+  });
+  it("blocks empty or whitespace-only onboarding without saving a schedule", async () => {
+    vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "keyword", tookMs: 1, hits: [] });
+    const onboard = vi.spyOn(api, "onboarding");
+    const save = vi.spyOn(api, "saveSchedule");
+    render(<MemoryRouter initialEntries={["/onboarding"]}><App /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("What would you like to learn, in your own words?"), { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("button", { name: "Find talks" }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(onboard).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
   });
   it("retains the token when storage is unavailable", () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("disabled"); });

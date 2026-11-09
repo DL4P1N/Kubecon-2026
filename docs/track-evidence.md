@@ -14,7 +14,7 @@ entry only after a real review finding is acted on.
 | Sonar: Never Merge Broken | Gitar repo rules, PR review, acted-on finding and CI diagnosis | Gitar review findings acted on, including verified PR #6 probe fix below. CI diagnosis and project-rule evaluation still need evidence. No Sonar tooling claim. |
 | Dash0: Stop Flying Blind | Browser → API → ES trace, search/embedding/access spans, p95 SLO, dashboard, scrubbing proof, real issue investigation | Collector-to-Dash0 export and synthetic attribute scrubbing verified live. Browser/API/ES trace, full privacy test, SLO and issue evidence remain pending. |
 | Radar: AI SRE | Ready Kubernetes workloads, UI and MCP used, real investigation with remediation | Live: kind cluster, Radar UI + read-only MCP (28 tools) connected, api/web/ES Ready. Real-investigation story still to be captured (see Radar section). |
-| Elasticsearch: Find the Right Talk | Real catalog and ES inference per human decisions; BM25 vs hybrid results and query comparison | Live: TLS+auth ES, least privilege proven, E5 endpoint visible. Real-catalog seed + hybrid-vs-keyword comparison pending seed result. |
+| Elasticsearch: Find the Right Talk | Real catalog and ES inference per human decisions; BM25 vs hybrid results and query comparison | Live: 417 real talks indexed with ES E5, keyword and hybrid APIs return 200. All five planned comparisons measured; they do not establish a consistent relevance win. Results in `docs/demo/search-comparison-measured.json`; quality work is #36. |
 
 Do not substitute scaffold/mock routes for end-to-end acceptance. A `/healthz`
 response alone does not verify Elasticsearch inference or token entitlements.
@@ -91,6 +91,12 @@ Still pending: CI-failure diagnosis and the review link for the demo.
   overhead, about 1.27GB, so it could never allocate.
 - Fix: `xpack.ml.max_machine_memory_percent=50` (2048mb), set live and persisted as an env
   var in `deploy/k8s/elasticsearch/statefulset.yaml`.
+- Recovery: the seed Job completed 1/1 in 7m57s; index count **417**. E5 reported
+  `started` / `fully_allocated`. ES cgroup memory was 2,675,273,728 bytes under its
+  4Gi limit. Direct RRF and deployed keyword/hybrid search returned HTTP 200.
+- The first deployed hybrid request returned 502 during indexing; it succeeded
+  after seed completion. Its original backend error was not retained, so the
+  cause of that transient request is unconfirmed (diagnostics work tracked in #35).
 - Honesty note: Radar surfaced the failed Job/pod state, but the root cause came from ES.
 
 ### Controlled fault (labelled controlled)
@@ -110,3 +116,20 @@ Still pending: CI-failure diagnosis and the review link for the demo.
   `attendee.id` / `geo.location` values. This proves collector-to-Dash0 export and the
   basic scrub, not the browser-to-API-to-ES trace or complete privacy-flow test.
 - TLS is end-to-end only for ES; web to api and api to collector are plaintext HTTP (board #24).
+- `TRUST_PROXY=1` is consumed by the upstream #27 implementation; verified inside
+  the actual API pod (`trustProxyHops: 1`, Node v22.23.4). Configuration/proxy tests:
+  10 passed after installing current upstream dependencies.
+
+## Accessibility
+
+- Real-browser check: Edge on Windows, 2026-11-09; 11 Playwright tests passed.
+- Axe WCAG 2 A/AA and WCAG 2.1 AA checks on register, onboarding, schedule
+  (with generated QR), populated keyword/hybrid search and kiosk at 375px and
+  1280px widths: zero serious or critical violations. No horizontal overflow.
+- Keyboard-only registration: skip link to main, visible focus outline,
+  labelled fields, topic selection, both consent choices off, submit and
+  arrival at onboarding verified. Added skip link and wrapping navigation.
+- Run `npm run test:a11y -w web`; on a machine using installed Edge set
+  `PLAYWRIGHT_CHANNEL=msedge`. CI installs Chromium and runs the same checks.
+- Tests use synthetic, mocked API responses. This verifies rendered UI and
+  keyboard behavior, not backend correctness or a manual screen-reader audit.
