@@ -3,8 +3,9 @@
 Status: rehearsal draft for the confirmed three-minute slot. Erick presents the
 mobile demo; **human decision still needed:** assign presenters for the remaining
 beats.
-Use synthetic attendees only. The recording and fallback screenshots belong to
-board task #18; this document does not claim that a recording exists.
+Use synthetic attendees only. The fallback screenshots remain with task #18;
+the live recording is board task #74. This document does not claim that a
+recording exists.
 
 ## Roles and preflight (before recording)
 
@@ -30,9 +31,9 @@ rehearsal.**
 4. Open `/search`, submit the first query below once to warm hybrid inference,
    and wait for both columns. Use the three [measured demo
    queries](search-comparison.md#recommended-demo-queries-for-18), not an
-   improvised relevance claim. #36 measured hybrid hit@3 **5/12** versus
-   keyword **0/12** on the live index. The later query-understanding evidence
-   has a small held-out set: hybrid **3/8 to 6/8**, with no losses (and
+   improvised relevance claim. Before query understanding shipped, #36 measured
+   hybrid hit@3 **5/12** versus keyword **0/12** on the live index. The later
+   query-understanding evidence has a small held-out set: hybrid **3/8 to 6/8**, with no losses (and
    in-sample **4/12 to 6/12**); it is not a general claim that hybrid wins.
 5. Prepare two attendee tabs: a new `/register` tab for the live registration,
    and a private synthetic demo-pass tab using the session file below. In the
@@ -129,7 +130,7 @@ step. Expired tokens and revoked entitlements are separate checks.
 | --- | --- | --- |
 | 0:00–0:20 | Erick introduces the attendee problem and registers `SYNTHETIC DEMO presenter`, selecting a topic and the optional consent choices. | “Finding the right talk, avoiding overlaps, and getting into the right room takes work. Consent starts off; recommendations still work.” |
 | 0:20–0:45 | Complete onboarding and open `/schedule`. Use **Room full? Similar talks now**, open a talk detail page with related talks, and demonstrate the conflict-safe schedule swap. Mention `.ics` export and offline support. | “The schedule stays workable, offers same-time alternatives, exports to a calendar, and is available offline after a successful online visit.” See [room alternatives](room-alternatives.md), [talk detail](talk-detail.md), [calendar](calendar.md), and [offline schedule](offline-schedule.md). |
-| 0:45–1:20 | At `/search`, use `keep passwords and API keys out of my config files`, then point to the rollout and image-pull queries from [the measured list](search-comparison.md#recommended-demo-queries-for-18). Show [suggestions and filters](search-suggest.md), query details, and both modes. | “In #36's live 12-question evaluation, hybrid put a relevant talk in the top three 5 times, versus 0 for keyword. Small held-out query-understanding evidence moved hybrid from 3/8 to 6/8 with no losses; keyword also improves, so this is not a hybrid-only claim.” |
+| 0:45–1:20 | At `/search`, lead with `release a new version to a small slice of users first so a bad deploy does not break everything`, then point to the image-pull and secrets queries from [the measured list](search-comparison.md#recommended-demo-queries-for-18). Show [suggestions and filters](search-suggest.md), query details, and both modes. | “Before query understanding shipped, #36's live 12-question evaluation put a relevant hybrid result in the top three 5 times, versus 0 for keyword. The shipped small held-out query-understanding evidence moved hybrid from 3/8 to 6/8 with no losses; keyword also improves, so this is not a hybrid-only claim.” |
 | 1:20–1:50 | Switch to the prepared synthetic demo-pass `/schedule`, show **Show room QR**, then scan at `/kiosk`. If rehearsed, revoke the entitlement and rescan the still-valid QR; restore afterward. | “Each scan rereads current entitlements, so revocation does not wait for QR expiry.” Never show a token or QR code legibly. |
 | 1:50–2:10 | Open `/map`, then `/clusters` only if verified in preflight, and the organizer dashboard. | “Synthetic opted-in interests help organizers plan rooms; groups below five are hidden.” |
 | 2:10–2:35 | Observability presenter opens the committed Dash0 trace and applied dashboard/SLO definitions. | “Telemetry follows the request through the app while the privacy regression catches an attendee ID added to a span.” Say that populated dashboard/SLO screenshots remain pending. |
@@ -144,12 +145,12 @@ script is timed for the confirmed three-minute slot.
 
 | Track | Evidence to open | Claim boundary |
 | --- | --- | --- |
-| Elasticsearch | [Search comparison](search-comparison.md), [#52 measured evidence](evidence/search-eval-52.md), [live smoke](evidence/live-smoke.md) | The 417-talk catalog, E5 inference, query bodies and #36 live 5/12 versus 0/12 result are proven. The small held-out query-understanding result is bounded as above. |
+| Elasticsearch | [Search comparison](search-comparison.md), [#52 measured evidence](evidence/search-eval-52.md), [live smoke](evidence/live-smoke.md) | The 417-talk catalog, E5 inference and query bodies are proven. #36's pre-query-understanding result was 5/12 versus 0/12; the small shipped-tuning held-out result is bounded as above. |
 | Dash0 | [live trace](evidence/live-smoke-dash0-trace.json), [applied definitions](evidence/dash0-live-definitions.json), [telemetry privacy test](telemetry-privacy-test.md) | A real browser-to-API-to-ES trace and applied dashboard/SLO definitions are recorded. Populated dashboard/SLO screenshots and a live exported privacy sample remain pending. |
 | Radar | [real incident and boundaries](track-evidence.md#radar), [resource sizing](evidence/radar-resources.md), #30 saved AI transcript/screenshots | Keep the natural ML incident, retrospective investigation, and controlled outage distinct; the resource evidence is a short synthetic-load sample. |
 | Gitar | [rule execution](track-evidence.md#repository-rule-verification-task-34), [CI diagnosis](gitar-ci-diagnosis.md) and acted-on findings | Five rules are committed and findings informed fixes. Several PRs had no completed written Gitar review, so those merges rely on CI and independent review rather than claiming a Gitar verdict. |
 
-## Fallback and recording handoff (#18)
+## Fallback (#18) and recording handoff (#74)
 
 The live recording is owned by board task #74 and is not yet recorded. When it
 exists, add its date, duration, release commit, and out-of-git storage link here;
