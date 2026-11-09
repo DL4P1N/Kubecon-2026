@@ -239,6 +239,43 @@ kubectl radar diagnose statefulset/elasticsearch \
   allocation. The controlled outage remains explicitly labelled below.
 
 
+### Resource sizing with Radar MCP (task #61)
+
+Radar's read-only MCP reported the live namespace had no open problems
+(`totalProblems: 0`, `issues.total: 0`, no related issues on api, web,
+elasticsearch or otel-collector), plus the current requests/limits and topology.
+Radar's own `metrics` field was **null** for all four workloads because no
+metrics-server is installed — unavailable, not zero, so no usage figures are
+attributed to Radar.
+
+Usage therefore came from the operator reading container CRI stats on the kind
+node: 10 timestamped samples per running container during a labelled synthetic
+window of 10 read-only searches (≤2 req/s, keyword/hybrid alternating, all HTTP
+200, no fault injected).
+
+| Container | Peak CPU | of limit | Peak working set | of limit | Restarts |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| elasticsearch | 200.2 mCPU | 10.0% (2 CPU) | 2376.6 MiB | 58.0% (4 GiB) | 0 |
+| otel-collector | 38.2 mCPU | 7.6% (500m) | 68.9 MiB | 13.4% (512Mi) | 0 |
+| api | 41.3 mCPU | 4.1% (1 CPU) | 54.5 MiB | 10.6% (512Mi) | 0 |
+| web | 2.4 mCPU | 0.5% (500m) | 15.8 MiB | 12.3% (128Mi) | 0 |
+
+PSI was 0 across CPU, memory and I/O in all 40 samples; no OOMKill, no restarts,
+and node Memory/Disk/PID pressure conditions were False.
+
+**Decision: no change needed.** Every peak is far under its limit and under its
+request, so resizing from this short gentle window would be arbitrary and would
+remove headroom the earlier ES ML-capacity incident showed is needed. The
+Elasticsearch 4 Gi model limit and its 50% ML memory budget are unchanged, and
+no manifest was edited. Evidence:
+[resource report](evidence/radar-resources.md),
+[machine-readable samples and Radar payloads](evidence/radar-resources.json).
+
+Boundaries: this is a short labelled load, not a soak test; usage numbers are
+operator-collected while topology, configuration and issue state are Radar's;
+the Radar UI screenshot attempt failed in the headless browser, so the raw MCP
+payloads are cited instead.
+
 ### Controlled fault (labelled controlled)
 
 - API scaled to 0 for ~40s to verify the Gitar probe fix above. Radar MCP `diagnose`
