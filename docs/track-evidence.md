@@ -28,6 +28,10 @@ boundaries in the Design Doc.
 
 ## Gitar findings acted on
 
+Board task #62 adds four focused privacy/protection checks alongside the
+original project check. Evaluation evidence is pending its PR dashboard;
+configuration alone does not prove execution or runtime compliance.
+
 Gitar requested changes on PR #1 and PR #3; both were merged before the findings
 were addressed. They are fixed in PR #25's branch (`task/25-fix-open-gitar-findings-on-mer`).
 The fix commit is the PR link until the merge hash is known.
