@@ -88,6 +88,8 @@ test("keyboard-only registration follows labels and keeps optional consent off",
   });
   await expect(page.getByRole("heading", { name: "Onboarding", exact: true })).toBeVisible();
   await expect(page.getByRole("main")).toBeFocused();
+  // Topic options load asynchronously; wait for them before checking tab order.
+  await expect(page.getByLabel("kubernetes", { exact: true })).toBeVisible();
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("kubernetes", { exact: true })).toBeFocused();
 });
