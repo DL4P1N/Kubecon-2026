@@ -3,7 +3,7 @@
  * the `routes` table lists every endpoint so both sides can reference paths
  * without string duplication.
  *
- * Auth: endpoints other than /healthz and POST /api/register expect
+ * Auth: endpoints other than /healthz, GET /api/catalog/topics and POST /api/register expect
  * `Authorization: Bearer <attendee token>`. Tokens are short-lived, signed,
  * and carry the attendee ID only (see design doc section 6).
  */
@@ -175,6 +175,11 @@ export interface SearchResponse {
   debug?: unknown;
 }
 
+/** Public talk-catalog tags, available before attendee registration. */
+export interface CatalogTopicsResponse {
+  topics: string[];
+}
+
 // ---------------------------------------------------------------- schedule
 
 /**
@@ -282,6 +287,7 @@ export interface InterestClustersResponse {
 // ---------------------------------------------------------------- route table
 
 export const routes = {
+  catalogTopics: { method: "GET", path: "/api/catalog/topics" },
   health: { method: "GET", path: "/healthz" },
   status: { method: "GET", path: "/api/status" },
   register: { method: "POST", path: "/api/register" },

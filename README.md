@@ -80,6 +80,14 @@ run on the host. See [Compose ES setup](docs/es-deployment.md#local-compose)
 and [telemetry setup](docs/observability.md#run-locally) for required environment
 variables. Keep Dash0 credentials in the collector environment only.
 
+Registration loads public talk tags from `GET /api/catalog/topics` (`{ topics: string[] }`).
+This reads a keyword terms aggregation on `talks.tags` (up to 1,000 distinct tags),
+not attendee interests. Empty user queries on `/api/search` remain invalid.
+If the catalog is unavailable the form offers a retry rather than sending an
+empty search. To smoke-test a deployed app without API mocks, set
+`LIVE_APP_URL` to its origin and run `npm run test:a11y -w web -- --grep "live catalog"`.
+The smoke test only reads catalog metadata and selects a checkbox; it creates no attendee.
+
 ```sh
 # In separate terminals after configuring the dependencies:
 docker compose -f deploy/compose/docker-compose.yml up -d elasticsearch otel-collector
