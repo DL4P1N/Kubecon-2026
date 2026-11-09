@@ -8,6 +8,8 @@
  * and carry the attendee ID only (see design doc section 6).
  */
 
+import type { SearchFacets, SearchFilterParams } from "./facets.js";
+
 // ---------------------------------------------------------------- common
 
 export type HttpMethod = "GET" | "POST";
@@ -157,7 +159,7 @@ export interface SearchHit {
   matched?: SearchLeg[];
 }
 
-export interface SearchQuery {
+export interface SearchQuery extends SearchFilterParams {
   q: string;
   mode?: SearchMode;
   /** `1` returns the Elasticsearch request body in `debug`. */
@@ -171,6 +173,8 @@ export interface SearchResponse {
   mode: SearchMode;
   tookMs: number;
   hits: SearchHit[];
+  /** Track/level/day counts for this query and its filters (optional: older servers omit it). */
+  facets?: SearchFacets;
   /** Elasticsearch request body, only when `?debug=1`. */
   debug?: unknown;
 }
