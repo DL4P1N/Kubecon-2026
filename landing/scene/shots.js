@@ -10,10 +10,13 @@ export const SHOTS = {
   scan: { box: [22.7, 3.2, 29.2, 13.6], h: 2.6, az: 0.45, el: 0.62, wall: 1, pad: 1.0, minH: 9.5, cut: true },
   stage: { box: [0, 0, 16.4, 10.6], h: 2.6, az: 0.3, el: 0.72, wall: 1, pad: 1.0, minH: 0, cut: true },
   lounge: { box: [12.6, 13.8, 26.4, 24.2], h: 1.9, az: 0.72, el: 0.8, wall: 1, pad: 1.0, minH: 0, cut: true },
+  navigate: { box: [0, 0, 34, 27], h: 1.8, az: 0.5, el: 1.0, wall: 1, pad: 1.0, minH: 0, cut: false },
   clusters: { box: [0, 0, 34, 24], boxN: [3, 8, 31, 23], h: 0.3, az: 0.16, el: 1.42, wall: 0, pad: 1.0, minH: 0, cut: false },
 };
 const NOCUT = [-2, -2, 36, 29];
 export const SHOT_NAMES = Object.keys(SHOTS);
+// guided navigation frames the route from the entrance to the destination
+export function setNavigateBox(b) { SHOTS.navigate.box = b; }
 
 // where the subject goes for each content side: centre (fractions of the frame, y from the top) and region size
 const REGION = {

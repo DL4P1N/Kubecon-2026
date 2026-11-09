@@ -42,9 +42,31 @@ interface ClusterDoc {
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
 
-function keyMatches(expected: string, given: unknown): boolean {
+export function keyMatches(expected: string, given: unknown): boolean {
   if (typeof given !== "string") return false;
   return timingSafeEqual(digest(expected), digest(given));
+}
+
+/**
+ * Organizer-key check shared by the organizer-only routes. With no key set the route is open
+ * outside production (local demo) and answers 503 in production; otherwise a missing or wrong
+ * `x-organizer-key` is a 401. Returns false after sending the reply.
+ */
+export function organizerAuthorizer(deps: { organizerKey: string | undefined; nodeEnv: string | undefined }) {
+  return (req: FastifyRequest, reply: FastifyReply): boolean => {
+    if (deps.organizerKey === undefined) {
+      if (deps.nodeEnv === "production") {
+        reply.code(503).send({ error: "organizer_key_not_configured" });
+        return false;
+      }
+      return true;
+    }
+    if (!keyMatches(deps.organizerKey, req.headers[ORGANIZER_KEY_HEADER])) {
+      reply.code(401).send({ error: "unauthorized", message: "organizer key required" });
+      return false;
+    }
+    return true;
+  };
 }
 
 /** Latest completed run: newest marker, then that run's clusters. Never returns a cluster under the minimum. */
@@ -96,20 +118,7 @@ export function registerClusterRoutes(root: FastifyInstance, deps: ClusterRouteD
     const organizerKey = deps.organizerKey ?? (process.env.ORGANIZER_KEY || undefined);
     const nodeEnv = deps.nodeEnv ?? process.env.NODE_ENV;
 
-    function authorize(req: FastifyRequest, reply: FastifyReply): boolean {
-      if (organizerKey === undefined) {
-        if (nodeEnv === "production") {
-          reply.code(503).send({ error: "organizer_key_not_configured" });
-          return false;
-        }
-        return true;
-      }
-      if (!keyMatches(organizerKey, req.headers[ORGANIZER_KEY_HEADER])) {
-        reply.code(401).send({ error: "unauthorized", message: "organizer key required" });
-        return false;
-      }
-      return true;
-    }
+    const authorize = organizerAuthorizer({ organizerKey, nodeEnv });
 
     const limit = limitFor(deps.rateLimit ?? DEFAULT_RATE_LIMITS.interestsClusters);
     app.get(routes.interestsClusters.path, limit, async (req, reply) =>

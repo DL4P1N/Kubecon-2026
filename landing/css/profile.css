@@ -1,0 +1,71 @@
+/* profile.html: your kept profile and your conferences. Loaded after css/site.css and scene/venue.css.
+   The page background is the fixed pixel venue (lounge shot). Copy and controls sit on the shared opaque .panel
+   (site.css, 640px, left aligned); the conference list may go to 760px like the finder on the home page. */
+
+html:has(.pf), html:has(.pf) body { background: transparent; }
+html:has(.pf) { background: var(--venue-bg, #0f1f10); --foot: 60px; }
+:where([data-venue]) { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+:where([data-venue] > img[data-venue-still]) { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 70% 50%; }
+
+main > section.section.pf { background: transparent; padding-top: calc(72px + var(--s-6)); }
+.pf__stack { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-5); height: auto; }
+main .panel.pf-wide:not(.ui-panel) { width: min(760px, 100%); }
+.pf h1 { margin: 0 0 var(--s-5); font-size: 32px; line-height: 1.1; letter-spacing: var(--display-tracking); }
+.pf h2 { margin: 0 0 var(--s-2); font-size: 28px; line-height: 1.15; letter-spacing: var(--display-tracking); }
+.pf-sub { margin: var(--s-5) 0 var(--s-3); font: 500 var(--t-label)/1.4 var(--font-mono); color: var(--muted); letter-spacing: 0.02em; text-transform: none; }
+.pf-lead { margin: 0 0 var(--s-5); max-width: 52ch; color: var(--ink); }
+
+/* header block */
+.pf-facts { display: grid; gap: var(--s-4); margin: 0; }
+.pf-facts > div { display: grid; grid-template-columns: 9ch minmax(0, 1fr); gap: var(--s-4); align-items: baseline; }
+.pf-facts dt { font: 500 var(--t-label)/1.4 var(--font-mono); color: var(--muted); }
+.pf-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.pf-name { font: 500 22px/1.2 var(--font-display); letter-spacing: -0.01em; }
+.pf-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+.pf-chip { padding: 4px 12px; background: color-mix(in oklab, var(--accent) 14%, var(--surface)); border: 1px solid color-mix(in oklab, var(--accent) 45%, var(--surface)); font-size: var(--t-small); line-height: 20px; }
+@media (max-width: 639px) { .pf-facts > div { grid-template-columns: minmax(0, 1fr); gap: var(--s-1); } }
+
+/* lists */
+.pf-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); }
+.pf-row { display: grid; gap: var(--s-3); padding: var(--s-4) var(--s-5); }
+.pf-row + .pf-row, .pf-empty + .pf-row { border-top: 1px solid var(--line); }
+.pf-empty { padding: var(--s-4) var(--s-5); color: var(--muted); }
+.pf-row__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-1) var(--s-5); }
+.pf-row__name { margin: 0; font: 500 18px/24px var(--font-display); }
+.pf-row__meta { margin: 0; font: 500 var(--t-small)/24px var(--font-mono); color: var(--muted); }
+.pf-tag { display: inline-block; margin-left: var(--s-3); padding: 0 8px; border: 1px solid var(--line-strong); font: 500 12px/20px var(--font-mono); color: var(--muted); vertical-align: 2px; }
+.pf-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.pf-actions .btn { min-height: 44px; }
+.pf-note { margin: var(--s-5) 0 0; font-size: var(--t-small); line-height: 1.5; color: var(--muted); max-width: 60ch; }
+.pf-tools { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); margin-top: var(--s-2); }
+.pf-quiet { appearance: none; min-height: 44px; padding: 0; background: none; border: 0; color: var(--ink); font: 500 var(--t-small)/1 var(--font-text); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; cursor: pointer; }
+.pf-quiet:hover { text-decoration-color: currentColor; }
+.pf-quiet[hidden] { display: none; }
+.pf :is(.pf-quiet, .btn, .pf-input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* inline panels: invite and Wi-Fi */
+.pf-panel { display: flex; flex-wrap: wrap; gap: var(--s-5); align-items: flex-start; padding: var(--s-4) 0 0; border-top: 1px solid var(--line); }
+.pf-panel[hidden] { display: none; }
+.pf-panel__text { flex: 1 1 260px; min-width: 0; display: grid; gap: var(--s-3); }
+.pf-panel__text .t-label { color: var(--muted); }
+.pf-input { width: 100%; min-height: 44px; padding: 0 var(--s-3); background: var(--bg); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 0; font: 400 var(--t-small)/1 var(--font-mono); box-sizing: border-box; }
+.pf-status { margin: 0; min-height: 22px; font-size: var(--t-small); line-height: 22px; color: var(--ink); }
+.pf-shares { margin: 0; font-size: var(--t-small); line-height: 20px; color: var(--muted); }
+.pf-shares:empty { display: none; }
+.pf-qr { --px-line: var(--accent); --px-fill: #f4f7ee; flex: none; }
+.pf-qr .pxframe__in { padding: var(--s-2); }
+.pf-qr canvas[data-qr] { width: auto; height: auto; max-width: 100%; }
+/* slim footer line, as on the sign-up page */
+html:has(.pf) footer.pf-foot { height: var(--foot); background: var(--bg); border-top: 1px solid var(--line); }
+.pf-foot__bar { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
+.pf-foot__legal { font-size: var(--t-small); color: var(--ink); }
+.pf-foot .scene-ctl { position: static; transform: none; left: auto; bottom: auto; }
+
+@media (max-width: 639px) {
+  .pf-row { padding: var(--s-4); }
+  .pf-actions .btn { flex: 1 1 calc(50% - var(--s-2)); padding-inline: var(--s-3); }
+  .pf-panel { flex-direction: column; }
+  .pf-panel__text { flex-basis: auto; width: 100%; }
+  .pf h1 { font-size: 28px; }
+}
+.pf-note--list { margin-top: var(--s-3); }

@@ -2,6 +2,7 @@ import { Route, Routes, useLocation } from "react-router-dom";
 import { ClusterMap } from "./pages/ClusterMap.js";
 import { InterestMap } from "./pages/InterestMap.js";
 import { Kiosk } from "./pages/Kiosk.js";
+import { Navigate } from "./pages/Navigate.js";
 import { Onboarding } from "./pages/Onboarding.js";
 import { Schedule } from "./pages/Schedule.js";
 import { Search } from "./pages/Search.js";
@@ -46,6 +47,7 @@ export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { n
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/search" element={<Search />} />
+          <Route path="/navigate" element={<Navigate />} />
           <Route path="/kiosk" element={<Kiosk />} />
           <Route path="/map" element={<InterestMap />} />
           <Route path="/clusters" element={<ClusterMap />} />

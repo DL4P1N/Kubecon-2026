@@ -1,0 +1,134 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import {
+  isoToday, parseRegistrations, addRegistration, splitRegistrations, sampleRegistrations, mergeSamples, withoutSamples,
+  inviteUrl, inviteMailto, appTicketUrl, formatRange, bumpShare, shareLabel,
+} from "../js/profile.js";
+import { wifiQrPayload, escapeWifi, hasWifi } from "../js/wifi.js";
+import { FALLBACK_CONFERENCES as CONFS } from "../js/conferences.js";
+
+const TODAY = "2026-11-09";
+
+test("isoToday is the local calendar day", () => {
+  assert.equal(isoToday(new Date(2026, 0, 5, 23, 59)), "2026-01-05");
+});
+
+test("parseRegistrations keeps well-formed rows once per slug and survives junk", () => {
+  assert.deepEqual(parseRegistrations("not json"), []);
+  assert.deepEqual(parseRegistrations({}), []);
+  const rows = parseRegistrations([{ slug: "a", registeredAt: "x" }, { slug: "a", registeredAt: "y" }, null, { slug: 3 }, { slug: "b" }]);
+  assert.deepEqual(rows.map((r) => r.slug), ["a", "b"]);
+  assert.equal(rows[0].registeredAt, "x");
+});
+
+test("addRegistration appends, and dedupes by slug", () => {
+  let l = addRegistration([], "a", "t1");
+  l = addRegistration(l, "b", "t2");
+  l = addRegistration(l, "a", "t3");
+  assert.deepEqual(l, [{ slug: "a", registeredAt: "t1" }, { slug: "b", registeredAt: "t2" }]);
+  assert.deepEqual(addRegistration(l, ""), l);
+});
+
+test("splitRegistrations: upcoming until the last day is over; unknown slugs dropped; sorted", () => {
+  const confs = [
+    { slug: "now", name: "Now", startDate: "2026-11-09", endDate: "2026-11-09" },
+    { slug: "multi", name: "Multi", startDate: "2026-11-08", endDate: "2026-11-09" },
+    { slug: "gone", name: "Gone", startDate: "2026-11-07", endDate: "2026-11-08" },
+    { slug: "old", name: "Old", startDate: "2025-01-01", endDate: "2025-01-02" },
+    { slug: "later", name: "Later", startDate: "2027-01-01" },
+  ];
+  const regs = ["later", "old", "now", "ghost", "gone", "multi"].map((slug) => ({ slug, registeredAt: "t" }));
+  const { upcoming, past } = splitRegistrations(regs, confs, TODAY);
+  assert.deepEqual(upcoming.map((r) => r.conference.slug), ["multi", "now", "later"]);
+  assert.deepEqual(past.map((r) => r.conference.slug), ["gone", "old"]);
+});
+
+test("sampleRegistrations: one upcoming, two past (dates moved back when the catalogue has none), all flagged", () => {
+  const rows = sampleRegistrations(CONFS, TODAY, "t");
+  assert.equal(rows.length, 3);
+  assert.ok(rows.every((r) => r.sample === true));
+  const { upcoming, past } = splitRegistrations(rows, CONFS, TODAY);
+  assert.equal(upcoming.length, 1);
+  assert.equal(past.length, 2);
+  assert.ok(past.every((r) => r.conference.endDate < TODAY));
+  assert.ok(past.every((r) => r.sample));
+});
+
+test("sample rows merge without duplicating and clear without touching real rows", () => {
+  const real = [{ slug: CONFS[0].slug, registeredAt: "t" }];
+  const merged = mergeSamples(real, sampleRegistrations(CONFS, TODAY));
+  assert.equal(merged.length, 3);
+  assert.equal(merged[0].sample, undefined);
+  assert.deepEqual(withoutSamples(merged), real);
+});
+
+test("inviteUrl is the absolute conference page next to the current page", () => {
+  assert.equal(inviteUrl("http://127.0.0.1:5187/site/profile.html?x=1#y", "my slug"), "http://127.0.0.1:5187/site/conference.html?c=my+slug");
+  assert.equal(inviteUrl("https://example.org/profile.html", "a-b"), "https://example.org/conference.html?c=a-b");
+});
+
+test("inviteMailto has a subject and body and no address", () => {
+  const url = "https://example.org/conference.html?c=a";
+  const m = inviteMailto({ name: "A & B", city: "Oslo", startDate: "2026-12-02", endDate: "2026-12-03" }, url);
+  assert.ok(m.startsWith("mailto:?subject="));
+  const q = new URLSearchParams(m.slice("mailto:?".length));
+  assert.equal(q.get("subject"), "Join me at A & B");
+  assert.match(q.get("body"), /Oslo, 2–3 Dec 2026/);
+  assert.ok(q.get("body").includes(url));
+});
+
+test("formatRange", () => {
+  assert.equal(formatRange("2026-11-09", "2026-11-09"), "9 Nov 2026");
+  assert.equal(formatRange("2026-12-30", "2027-01-02"), "30 Dec 2026 – 2 Jan 2027");
+});
+
+test("share counts", () => {
+  let c = bumpShare(undefined, "a");
+  c = bumpShare(c, "a");
+  c = bumpShare(c, "b");
+  assert.deepEqual(c, { a: 2, b: 1 });
+  assert.equal(shareLabel(1), "Shared 1 time");
+  assert.equal(shareLabel(2), "Shared 2 times");
+  assert.deepEqual(bumpShare({ a: "x" }, "a"), { a: 1 });
+});
+
+test("wifiQrPayload follows the WIFI: format and escapes \\ ; , : \"", () => {
+  assert.equal(wifiQrPayload({ ssid: "Net", security: "WPA", password: "pw" }), "WIFI:T:WPA;S:Net;P:pw;;");
+  assert.equal(escapeWifi('a\\b;c,d:e"f'), 'a\\\\b\\;c\\,d\\:e\\"f');
+  assert.equal(wifiQrPayload({ ssid: "My;Net", password: 'p:"w,' }), 'WIFI:T:WPA;S:My\\;Net;P:p\\:\\"w\\,;;');
+  assert.equal(wifiQrPayload({ ssid: "Open", security: "nopass" }), "WIFI:T:nopass;S:Open;;");
+});
+
+test("every catalogue conference carries an assumed Wi-Fi network", () => {
+  for (const c of CONFS) {
+    assert.ok(hasWifi(c), c.slug);
+    assert.equal(c.wifi.assumed, true);
+    assert.equal(c.wifi.security, "WPA");
+    assert.ok(c.wifi.password.length >= 8);
+  }
+  assert.equal(hasWifi({}), false);
+});
+
+test("the page and register ticket are wired", () => {
+  const html = fs.readFileSync(new URL("../profile.html", import.meta.url), "utf8");
+  assert.match(html, /data-venue-shot="lounge"/);
+  assert.match(html, /js\/profile\.js/);
+  const reg = fs.readFileSync(new URL("../js/register.js", import.meta.url), "utf8");
+  assert.match(reg, /cc\.registrations|REGISTRATIONS_KEY/);
+});
+
+test("appTicketUrl encodes every value, caps name/role at 80 and interests at 12, omits empty params", () => {
+  assert.equal(
+    appTicketUrl({ slug: "a-b", name: "Mia O'Neil & Co", role: "Dev/Ops", interests: ["ai sre", "c,d", "k8s"] }),
+    "confcompanion://ticket?c=a-b&name=Mia%20O'Neil%20%26%20Co&role=Dev%2FOps&interests=ai%20sre,c%2Cd,k8s",
+  );
+  assert.equal(appTicketUrl({ slug: "x" }), "confcompanion://ticket?c=x");
+  assert.equal(appTicketUrl({ slug: "x", name: "  ", role: "", interests: [] }), "confcompanion://ticket?c=x");
+  const long = appTicketUrl({ slug: "x", name: "n".repeat(120), role: "r".repeat(81), interests: Array.from({ length: 20 }, (_, i) => `t${i}`) });
+  const q = new URLSearchParams(long.split("?")[1]);
+  assert.equal(q.get("name").length, 80);
+  assert.equal(q.get("role").length, 80);
+  assert.equal(q.get("interests").split(",").length, 12);
+  assert.equal(q.get("interests").split(",")[11], "t11");
+});

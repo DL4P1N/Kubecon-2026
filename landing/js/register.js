@@ -4,6 +4,9 @@
 // It never writes into the log and never touches chat.js. Everything here is text via textContent.
 
 import { drawQr } from "./qr.js";
+import { addRegistration, appTicketUrl, REGISTRATIONS_KEY, KEPT_PROFILE_KEY } from "./profile.js";
+import { loadConferences, getConference } from "./conferences.js";
+import { renderWifi, hasWifi } from "./wifi.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -91,10 +94,58 @@ if (section) {
     } catch { /* keep the first drawing */ }
   }
 
+  // ---------------------------------------------------------------- the venue Wi-Fi: replaces the door QR in place, and back (a ticket exists, so the visitor is registered)
+  async function addWifi() {
+    const next = $(".reg__next", ticketEl);
+    if (!next || $("[data-wifi-open]", ticketEl)) return;
+    try { await loadConferences(); } catch { /* the inlined catalogue answers */ }
+    const c = getConference(slug);
+    if (!hasWifi(c)) return;
+    const open = document.createElement("button");
+    open.type = "button"; open.className = "btn btn--secondary"; open.textContent = "Join venue Wi-Fi";
+    open.setAttribute("data-wifi-open", ""); open.setAttribute("aria-expanded", "false");
+    const panel = document.createElement("div");
+    panel.className = "reg__wifi"; panel.hidden = true;
+    const box = document.createElement("div");
+    box.className = "wifi";
+    renderWifi(box, c.wifi, { scale: 4 });
+    const back = document.createElement("button");
+    back.type = "button"; back.className = "btn btn--secondary"; back.textContent = "Show door ticket";
+    $(".wifi__row", box)?.append(back);
+    panel.append(box);
+    ticketEl.insertBefore(panel, next);
+    const show = (on) => {
+      panel.hidden = !on;
+      ticketEl.classList.toggle("is-wifi", on);
+      open.setAttribute("aria-expanded", String(on));
+      (on ? back : open).focus({ preventScroll: true });
+    };
+    open.addEventListener("click", () => show(true));
+    back.addEventListener("click", () => show(false));
+    next.prepend(open);
+  }
+
+  // "Open in the app": a plain link to the iPhone app (confcompanion://), built from the kept profile; nothing happens where the app is missing
+  function addAppLink() {
+    const next = $(".reg__next", ticketEl);
+    if (!next || $("[data-app-open]", ticketEl)) return;
+    let kept = null;
+    try { kept = JSON.parse(localStorage.getItem(KEPT_PROFILE_KEY) || "null"); } catch { /* storage unavailable */ }
+    const p = kept && typeof kept === "object" ? kept : lastDetail?.profile ?? {};
+    const a = document.createElement("a");
+    a.className = "link";
+    a.textContent = "Open in the app";
+    a.setAttribute("data-app-open", "");
+    a.href = appTicketUrl({ slug, name: p.name, role: p.role, interests: p.interests });
+    next.insertBefore(a, $(".reg__again", next));
+  }
+
   function onDone(detail) {
     lastDetail = detail ?? lastDetail;
     enhanceTicket(lastDetail);
     fitQr(lastDetail);
+    addWifi();
+    addAppLink();
     if (verb) verb.textContent = "Your ticket for";
     // the camera leaves the host desk for the schedule (scene/venue.js reads the attribute; goTo is the explicit call)
     section.setAttribute("data-venue-shot", "schedule");
@@ -104,7 +155,15 @@ if (section) {
       try { ticketEl.focus({ preventScroll: true }); } catch { /* ignore */ }
     }
   }
-  section.addEventListener("chat:done", (e) => onDone(e.detail));
+  section.addEventListener("chat:done", (e) => {
+    // remember this registration in this browser (profile.html lists it); one row per conference
+    try {
+      const rows = JSON.parse(localStorage.getItem(REGISTRATIONS_KEY) || "[]");
+      const kept = Array.isArray(rows) ? rows.filter((r) => !(r && r.slug === slug && r.sample === true)) : [];
+      localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(addRegistration(kept, slug)));
+    } catch { /* storage unavailable */ }
+    onDone(e.detail);
+  });
 
   // ---------------------------------------------------------------- one observer for state and mode
   let focused = false;

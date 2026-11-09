@@ -23,7 +23,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const width of [375, 1280]) {
-  for (const path of ["onboarding", "schedule", "search", "kiosk", "clusters"]) {
+  for (const path of ["onboarding", "schedule", "search", "kiosk", "clusters", "navigate"]) {
     test(`${path} at ${width}px has no serious or critical accessibility violations`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       // The schedule is personal: give the page a (synthetic) registered session, as sign-up would.
@@ -32,6 +32,7 @@ for (const width of [375, 1280]) {
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       if (path === "onboarding") await expect(page.getByLabel("kubernetes", { exact: true })).toBeVisible();
       if (path === "clusters") await expect(page.getByText("Kubernetes + Helm")).toBeVisible();
+      if (path === "navigate") await expect(page.getByText("Simulated signals")).toBeVisible();
       if (path === "schedule") {
         await expect(page.getByText(talk.title)).toBeVisible();
         await page.getByRole("button", { name: "Show room QR" }).click();

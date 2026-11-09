@@ -262,6 +262,48 @@ export class Crowd {
     this.agents.push(a);
     return a;
   }
+  // Guided navigation: one highlighted person walks from the entrance to a room along the nav grid.
+  guide(to, label, instant) {
+    const dest = this.L.guideDest[to];
+    if (!dest) return null;
+    this.clearGuide();
+    const st = this.L.guideStart;
+    const route = this.nav.path(st.x, st.z, dest.x, dest.z) || [st, dest];
+    const a = this._agent('guide', OTHER);
+    a.id = this.agents.length;
+    Object.assign(a, { label, labelUntil: Infinity, badge: true, x: st.x, z: st.z, yaw: PI, area: 'guide', route, arrived: false, instant: !!instant });
+    a.look.shirt = 6; a.look.glasses = false;
+    const arrive = (b) => { b.arrived = true; b.yaw = 0; this.bubble(b, G.EXCL, 2.5); };
+    if (instant) {
+      a.x = dest.x; a.z = dest.z;
+      const p = route[route.length - 2] || st;
+      a.yaw = snapYaw(dest.x - p.x, dest.z - p.z);
+      a.arrived = true; this.bubble(a, G.EXCL, 1e9);
+      a.plan = [{ k: 'wait', t: 1e9 }];
+    } else {
+      a.plan = [{ k: 'go', x: dest.x, z: dest.z, path: route.map((p) => ({ x: p.x, z: p.z })), i: 1 }, this._fnStep(arrive), { k: 'wait', t: 1e9 }];
+    }
+    this.agents.push(a);
+    this.guideAgent = a;
+    return a;
+  }
+  clearGuide() {
+    const a = this.guideAgent;
+    if (!a) return;
+    a.disabled = true; a.hidden = true; a.plan = []; a.cur = null;
+    this.bubbles = this.bubbles.filter((b) => b.a !== a);
+    this.guideAgent = null;
+  }
+  // the part of the route still ahead (the whole route when placed without walking)
+  guideRoute() {
+    const a = this.guideAgent;
+    if (!a) return null;
+    if (a.instant) return a.route;
+    if (a.arrived) return [];
+    const c = a.cur;
+    if (!c || c.k !== 'go' || !c.path) return a.route;
+    return [{ x: a.x, z: a.z }, ...c.path.slice(c.i)];
+  }
   // a few people standing about wrap up soon, so the new shot's activity starts to fill quickly
   _nudge(n) {
     const R = this.rnd;
@@ -509,7 +551,7 @@ export class Crowd {
     this.bubbles = this.bubbles.filter((b) => t - b.t0 < b.dur && !b.a.hidden);
     for (const a of this.agents) {
       if (a.disabled) continue;
-      if (a.kind === 'guest') this._stepGuest(a, dt);
+      if (a.kind === 'guest' || a.kind === 'guide') this._stepGuest(a, dt);
     }
     this._stepStaff(dt);
     if (this.mode === 'clusters') {

@@ -17,6 +17,7 @@ export const FALLBACK_CONFERENCES = [
     summary: "One-day hackathon with talks and builds on search, observability, Kubernetes, AI SRE and code review.",
     capacity: 200,
     assumed: false,
+    wifi: { ssid: "CloudNativeHack-Guest", security: "WPA", password: "shipit-slc-2026", assumed: true },
   },
   {
     slug: "harborline-platform-days-2026",
@@ -30,6 +31,7 @@ export const FALLBACK_CONFERENCES = [
     summary: "Two days on internal platforms, paved roads and keeping developers productive at scale.",
     capacity: 900,
     assumed: true,
+    wifi: { ssid: "Harborline-Guest", security: "WPA", password: "paved-roads-26", assumed: true },
   },
   {
     slug: "ember-ml-systems-2027",
@@ -43,6 +45,7 @@ export const FALLBACK_CONFERENCES = [
     summary: "Practitioner talks on serving models, feeding them clean data and running them reliably.",
     capacity: 1200,
     assumed: true,
+    wifi: { ssid: "EmberML-Guest", security: "WPA", password: "warm-models-27", assumed: true },
   },
   {
     slug: "quillstack-web-2027",
@@ -56,6 +59,7 @@ export const FALLBACK_CONFERENCES = [
     summary: "Fast, accessible, well-typed web interfaces, from component libraries to the last millisecond.",
     capacity: 1500,
     assumed: true,
+    wifi: { ssid: "Quillstack-Guest", security: "WPA", password: "fast-pages-27", assumed: true },
   },
   {
     slug: "lowtide-security-congress-2027",
@@ -69,6 +73,7 @@ export const FALLBACK_CONFERENCES = [
     summary: "Three days on defending software supply chains and responding well when something breaks.",
     capacity: 1100,
     assumed: true,
+    wifi: { ssid: "Lowtide-Guest", security: "WPA", password: "low-tide-sec-27", assumed: true },
   },
   {
     slug: "sparrowfield-data-days-2027",
@@ -82,6 +87,7 @@ export const FALLBACK_CONFERENCES = [
     summary: "Pipelines, streams, indexes and the databases underneath them, told by the people who run them.",
     capacity: 700,
     assumed: true,
+    wifi: { ssid: "Sparrowfield-Guest", security: "WPA", password: "stream-me-27", assumed: true },
   },
   {
     slug: "tidepool-edge-summit-2027",
@@ -95,6 +101,7 @@ export const FALLBACK_CONFERENCES = [
     summary: "Running and observing software on small, far-away devices with unreliable connections.",
     capacity: 800,
     assumed: true,
+    wifi: { ssid: "Tidepool-Guest", security: "WPA", password: "edge-of-lake-27", assumed: true },
   },
   {
     slug: "brightwater-open-source-weekend-2027",
@@ -108,6 +115,7 @@ export const FALLBACK_CONFERENCES = [
     summary: "A weekend for maintainers and contributors: sustainable projects, healthy communities, shared tools.",
     capacity: 600,
     assumed: true,
+    wifi: { ssid: "Brightwater-Guest", security: "WPA", password: "share-alike-27", assumed: true },
   },
 ];
 

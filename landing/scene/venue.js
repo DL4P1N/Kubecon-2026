@@ -2,7 +2,9 @@
 // a background host wins), follows [data-venue-shot] elements on scroll, wires [data-venue-control] buttons.
 // No static imports: the WebGL engine is loaded lazily, so any failure leaves <img data-venue-still> in place.
 const BASE = new URL('.', import.meta.url);
-const NAMES = ['overview', 'arrive', 'host', 'schedule', 'scan', 'stage', 'lounge', 'clusters'];
+const NAMES = ['overview', 'arrive', 'host', 'schedule', 'scan', 'stage', 'lounge', 'clusters', 'navigate'];
+// guided navigation: accepted `to` names -> rooms
+const GUIDE = { keynote: 'keynote', stage: 'keynote', 'room-a': 'room-a', 'room-b': 'room-b', 'room-c': 'room-c', 'room-d': 'room-d', scan: 'room-b', lounge: 'lounge' };
 const STILLS = { overview: 'still-overview.png', arrive: 'still-arrive.png', host: 'still-host.png', clusters: 'still-clusters.png' };
 const SIDES = ['left', 'right', 'center', 'top'];
 const STORE = 'venue-motion-v1';
@@ -39,6 +41,8 @@ function setState(patch) {
   controllers.forEach((c) => c.sync());
 }
 document.addEventListener('click', (e) => {
+  const g = e.target && e.target.closest ? e.target.closest('[data-venue-guide]') : null;
+  if (g) controllers.forEach((c) => c.guide({ to: g.getAttribute('data-venue-guide'), label: g.getAttribute('data-venue-guide-label') || undefined }));
   const b = e.target && e.target.closest ? e.target.closest('[data-venue-control]') : null;
   if (!b) return;
   const kind = b.getAttribute('data-venue-control');
@@ -76,7 +80,7 @@ class Controller {
     this.perf = { frames: 0, sum: 0, worst: 0, renders: 0, renderMs: 0, slow: 0, window: [] };
     this.reduced = !!(reducedMQ && reducedMQ.matches);
     this.ready = new Promise((r) => { this._resolve = r; });
-    this._onScroll = () => { if (this.engine && !this.failed && !state.static) this.kick(); else this.follow(); };
+    this._onScroll = () => { if (this.engine && !this.failed && !this.isStatic()) this.kick(); else this.follow(); };
     this._onResize = () => { this.needMeasure = true; this.needSize = true; this.kick(); };
     this._onVis = () => { if (!document.hidden) { this.last = 0; this.kick(); } };
     this._onRM = () => { this.reduced = !!reducedMQ.matches; this.composed = null; this.dirty = true; this.kick(); };
@@ -98,7 +102,7 @@ class Controller {
         for (const r of recs) {
           if (r.type === 'attributes' || [...r.addedNodes, ...r.removedNodes].some((n) => n.nodeType === 1 && (n.hasAttribute('data-venue-shot') || (n.querySelector && n.querySelector('[data-venue-shot]'))))) {
             this.needMeasure = true; this.dirty = true;
-            if (this.engine && !this.failed && !state.static) this.kick(); else this.follow();
+            if (this.engine && !this.failed && !this.isStatic()) this.kick(); else this.follow();
             return;
           }
         }
@@ -118,6 +122,8 @@ class Controller {
       setStatic: (v) => setState({ static: !!v }),
       goTo: (name) => this.goTo(name),
       spawn: (o) => this.spawn(o),
+      guide: (o) => this.guide(o),
+      clearGuide: () => this.clearGuide(),
       ready: this.ready,
       destroy: () => this.destroy(),
       stats: () => this.stats(),
@@ -129,7 +135,7 @@ class Controller {
   // ---------------------------------------------------------------- lifecycle
   sync() {
     if (this.destroyed) return;
-    if (state.static || this.failed) {
+    if (this.isStatic() || this.failed) {
       this.el.removeAttribute('data-venue-live');
       this.stop();
       this.updateStill();
@@ -170,13 +176,14 @@ class Controller {
       let count = this.opts.count || parseInt(this.el.getAttribute('data-venue-count'), 10) || TIERS[this.tier].count;
       if (data && isFinite(+data.attendeeCount) && !this.opts.count) count = Math.min(count, Math.max(60, Math.min(100, Math.round(+data.attendeeCount))));
       this.engine = mod.createEngine({ host: this.el, canvas, gl, count, seed: this.opts.seed, data });
+      if (this.guideInfo) this.startGuide();
       if (this.pending) { const p = this.pending; this.pending = null; p.forEach((l) => this.spawn({ label: l })); }
       this.STEP = mod.STEP || STEP;
       this.needSize = true;
       this.needMeasure = true;
       this.frame(performance.now(), true);
       if (this.failed) return;
-      if (!state.static) this.el.setAttribute('data-venue-live', '');
+      if (!this.isStatic()) this.el.setAttribute('data-venue-live', '');
       this._resolve({ live: true });
       this.kick();
     } catch (e) {
@@ -184,6 +191,51 @@ class Controller {
     } finally {
       this.starting = false;
     }
+  }
+  // the static view shows the still, except while a guide is showing its route
+  isStatic() { return state.static && !this.guideShow; }
+  // guided navigation: a highlighted person walks from the entrance to a room; the camera holds the "navigate" shot
+  guide(o) {
+    const to = String((o && o.to) || '').trim();
+    if (!GUIDE[to] || this.destroyed || this.failed) return false;
+    const label = String((o && o.label) || '').replace(/[^A-Za-z0-9 ]/g, '').replace(/\s+/g, ' ').trim().slice(0, 12) || 'You';
+    this.clearGuide(true);
+    this.guideInfo = { to, label, room: GUIDE[to], arrived: false, started: false };
+    try { document.dispatchEvent(new CustomEvent('venue:guide', { detail: { to, label } })); } catch (e) { /* ignore */ }
+    if (state.static) { this.guideShow = true; this.sync(); }
+    if (this.engine) this.startGuide();
+    return true;
+  }
+  startGuide() {
+    const g = this.guideInfo;
+    if (!g || g.started || !this.engine) return;
+    g.started = true;
+    // reduced motion, static view or paused motion: draw the whole route and place the person at the destination
+    this.engine.guide(g.room, g.label, this.reduced || state.static || state.paused);
+    this.goTo('navigate');
+    this.dirty = true;
+    this.kick();
+  }
+  clearGuide(quiet) {
+    clearTimeout(this.guideTimer);
+    if (this.destroyed) return false;
+    const had = !!this.guideInfo;
+    this.guideInfo = null;
+    if (this.engine) this.engine.clearGuide();
+    if (this.override && this.override.name === 'navigate') { this.override = null; this.needMeasure = true; }
+    if (this.guideShow) { this.guideShow = false; if (!quiet) this.sync(); }
+    this.dirty = true;
+    this.kick();
+    return had;
+  }
+  checkGuide() {
+    const g = this.guideInfo;
+    if (!g || !g.started || g.arrived || !this.engine) return;
+    const st = this.engine.guideStatus();
+    if (!st || !st.arrived) return;
+    g.arrived = true;
+    try { document.dispatchEvent(new CustomEvent('venue:arrived', { detail: { to: g.to, label: g.label } })); } catch (e) { /* ignore */ }
+    this.guideTimer = setTimeout(() => { if (this.guideInfo === g) this.clearGuide(); }, 6000);
   }
   // optional aggregates: <div data-venue data-venue-data="data/demo-aggregates.json">; any failure means built-in defaults
   async loadData() {
@@ -222,6 +274,7 @@ class Controller {
   }
   destroy() {
     if (this.destroyed) return;
+    clearTimeout(this.guideTimer);
     this.destroyed = true;
     this.stop();
     window.removeEventListener('scroll', this._onScroll);
@@ -254,7 +307,7 @@ class Controller {
     });
   }
   kick() {
-    if (this.raf || this.destroyed || !this.engine || this.failed || state.static) return;
+    if (this.raf || this.destroyed || !this.engine || this.failed || this.isStatic()) return;
     this.raf = requestAnimationFrame((t) => this.frame(t));
   }
   stop() { if (this.raf) cancelAnimationFrame(this.raf); this.raf = 0; if (this.followRaf) cancelAnimationFrame(this.followRaf); this.followRaf = 0; }
@@ -343,7 +396,7 @@ class Controller {
     // no element carries it: hold it in place until the visitor really scrolls
     this.override = { sy: window.scrollY || 0, name };
     this.dirty = true;
-    if (this.engine && !this.failed && !state.static) this.kick(); else this.follow();
+    if (this.engine && !this.failed && !this.isStatic()) this.kick(); else this.follow();
   }
   setCurrent(s) {
     const c = this.current;
@@ -358,7 +411,7 @@ class Controller {
     } catch (e) { /* ignore */ }
   }
   updateStill() {
-    if (!this.img || !(state.static || this.failed)) return;
+    if (!this.img || !(this.isStatic() || this.failed)) return;
     if (!/still-(overview|ambient|arrive|host|clusters)\.png/.test(this.imgSrc0)) return;
     const name = this.current ? this.current.name : 'overview';
     const file = STILLS[name] || STILLS.overview;
@@ -369,7 +422,7 @@ class Controller {
   // ---------------------------------------------------------------- loop
   frame(now, force) {
     this.raf = 0;
-    if (this.destroyed || !this.engine || this.failed || state.static) return;
+    if (this.destroyed || !this.engine || this.failed || this.isStatic()) return;
     if (document.hidden || this.onscreen === false) return;
     const E = this.engine;
     const dt = this.last ? Math.min(0.1, (now - this.last) / 1000) : 0;
@@ -423,6 +476,7 @@ class Controller {
         simmed = n > 0;
       }
     }
+    this.checkGuide();
     const fps = TIERS[Math.min(this.tier, TIERS.length - 1)].fps;
     const want = force || this.dirty || simmed;
     if (want && (force || now - this.lastRender >= 1000 / fps - 3)) {

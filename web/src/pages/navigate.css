@@ -1,0 +1,40 @@
+/* Find my room: floor plan beside the controls. App tokens only; sharp corners, hairlines, no gradients. */
+.nav-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: var(--s-5); align-items: start; margin-top: var(--s-5); }
+@media (max-width: 900px) { .nav-layout { grid-template-columns: minmax(0, 1fr); } }
+
+.nav-plan { margin: 0; padding: var(--s-3); background: var(--surface); border: 1px solid var(--line); }
+.nav-plan svg { display: block; width: 100%; height: auto; }
+.nav-room rect { fill: var(--bg); stroke: var(--line-strong); stroke-width: 0.12; }
+.nav-room.is-dest rect { fill: var(--surface-2); stroke: var(--accent); stroke-width: 0.25; }
+.nav-room text { fill: var(--muted); font: 500 1.15px var(--font-text); }
+.nav-room.is-dest text { fill: var(--accent); }
+.nav-route { fill: none; stroke: var(--accent); stroke-width: 0.3; stroke-dasharray: 0.9 0.6; stroke-linejoin: miter; }
+.nav-rx rect { fill: var(--chart-1); }
+.nav-rx text { fill: var(--chart-1); font: 500 0.95px var(--font-mono); }
+.nav-ring { fill: var(--accent); fill-opacity: 0.16; stroke: var(--accent); stroke-width: 0.1; stroke-dasharray: 0.4 0.3; }
+.nav-me { fill: var(--accent); stroke: var(--bg); stroke-width: 0.2; }
+@media (prefers-reduced-motion: no-preference) { .nav-dot { transition: transform 700ms linear; } }
+
+.nav-legend { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin-top: var(--s-3); color: var(--muted); font-size: var(--t-small); }
+.nav-legend .key { display: inline-block; width: 12px; height: 12px; margin-right: var(--s-2); vertical-align: -1px; }
+.key-me { background: var(--accent); border-radius: 50%; }
+.key-rx { background: var(--chart-1); }
+.key-route { height: 0 !important; width: 20px !important; border-top: 3px dashed var(--accent); vertical-align: 3px !important; }
+
+.nav-side { display: grid; gap: var(--s-4); min-width: 0; }
+.nav-card { padding: var(--s-4) var(--s-5) var(--s-5); background: var(--surface); border: 1px solid var(--line); }
+.nav-card label { margin-top: 0; }
+.nav-card h2 { margin: 0; font-size: var(--t-h3); }
+.nav-here { margin: var(--s-4) 0 var(--s-1); font-size: var(--t-lead); }
+.nav-meta { margin: 0 0 var(--s-2); color: var(--muted); font-size: var(--t-small); }
+.nav-meta strong { color: var(--ink); }
+.nav-arrived { margin: var(--s-3) 0 0; color: var(--accent); }
+.nav-steps { margin: var(--s-3) 0 0; padding-left: var(--s-5); }
+.nav-steps li { margin-bottom: var(--s-2); }
+.nav-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2) var(--s-3); margin-bottom: var(--s-3); }
+.nav-tag { padding: 2px var(--s-2); border: 1px solid var(--state-warn); color: var(--state-warn); font: 500 var(--t-label)/1.4 var(--font-mono); }
+.nav-readings { list-style: none; margin: 0 0 var(--s-3); padding: 0; font-size: var(--t-small); }
+.nav-readings li { display: flex; gap: var(--s-2); padding: var(--s-2) 0; border-bottom: 1px solid var(--line); }
+.nav-dbm { font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-left: auto; }
+.nav-controls { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.nav-controls button { flex: 1 1 0; min-width: 88px; padding: 0 var(--s-4); }

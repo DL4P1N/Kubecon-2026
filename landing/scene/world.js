@@ -221,6 +221,10 @@ export class Fx {
       ];
       return { ...m, parts };
     });
+    // guided navigation: a pool of floor dots for the route, and a ring (4 thin boxes) per Bluetooth receiver
+    this.dots = [];
+    for (let i = 0; i < 140; i++) { const d = add(0, 0, 0, 0, 0, 0, 'dot'); d.show = false; this.dots.push(d); }
+    this.rings = (layout.receivers || []).map((b) => ({ b, parts: [0, 1, 2, 3].map(() => { const r = add(0, 0, 0, 0, 0, 0, 'ring'); r.show = false; return r; }) }));
     const mc = layout.fx.machine;
     this.machine = add(mc.x - 0.12, mc.y - 0.06, mc.z - 0.03, mc.x + 0.12, mc.y + 0.06, mc.z, 'lamp');
     const geo = new THREE.BoxGeometry(1, 1, 1);
@@ -235,6 +239,11 @@ export class Fx {
   }
   set(it, color, show = true) {
     if (it.color !== color || it.show !== show) { it.color = color; it.show = show; this.dirty = true; }
+  }
+  place(it, x0, y0, z0, x1, y1, z1, color, show = true) {
+    if (it.show === show && it.color === color && it.x0 === x0 && it.z0 === z0 && it.x1 === x1 && it.z1 === z1 && it.y0 === y0 && it.y1 === y1) return;
+    Object.assign(it, { x0, y0, z0, x1, y1, z1, color, show });
+    this.dirty = true;
   }
   flush() {
     if (!this.dirty) return false;

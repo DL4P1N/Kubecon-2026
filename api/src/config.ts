@@ -23,6 +23,8 @@ export interface Config {
   chatMode: "auto" | "scripted";
   /** Path to the Claude Code CLI (CLAUDE_BIN); unset means look for `claude` on PATH. */
   claudeBin: string | undefined;
+  /** ROOM_CAPACITIES: JSON map of room name to seats. Rooms not listed have unknown capacity (never guessed). */
+  roomCapacities: Record<string, number>;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -46,6 +48,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   const chatMode = env.CHAT_MODE ?? "auto";
   if (chatMode !== "auto" && chatMode !== "scripted") throw new Error(`Invalid CHAT_MODE: ${chatMode} (use auto or scripted)`);
+  const roomCapacities = parseRoomCapacities(env.ROOM_CAPACITIES);
   return {
     port,
     host: env.HOST ?? "0.0.0.0",
@@ -61,7 +64,30 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     apiTlsKeyFile: env.API_TLS_KEY_FILE || undefined,
     chatMode,
     claudeBin: env.CLAUDE_BIN || undefined,
+    roomCapacities,
   };
+}
+
+/** Parses ROOM_CAPACITIES, e.g. {"Hall A": 400, "Room 2": 80}. Unset or blank means no capacities are known. */
+export function parseRoomCapacities(raw: string | undefined): Record<string, number> {
+  if (raw === undefined || raw.trim() === "") return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Invalid ROOM_CAPACITIES: not valid JSON");
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("Invalid ROOM_CAPACITIES: expected a JSON object of room name to seat count");
+  }
+  const out: Record<string, number> = {};
+  for (const [room, seats] of Object.entries(parsed)) {
+    if (room.trim() === "" || typeof seats !== "number" || !Number.isInteger(seats) || seats < 1) {
+      throw new Error("Invalid ROOM_CAPACITIES: every room needs a positive whole number of seats");
+    }
+    out[room] = seats;
+  }
+  return out;
 }
 
 function positiveInt(raw: string | undefined, fallback: number, name: string): number {

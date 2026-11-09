@@ -9,7 +9,7 @@ import { Crowd, G } from './crowd.js';
 import { People } from './people.js';
 import { Bubbles } from './bubbles.js';
 import { Labels } from './labels.js';
-import { frameShot, blendFrames, SHOTS } from './shots.js';
+import { frameShot, blendFrames, SHOTS, setNavigateBox } from './shots.js';
 
 export const STEP = 1 / 30;
 const SEED = 9112026;
@@ -89,8 +89,43 @@ export function createEngine({ host, canvas, gl, count = 80, seed = SEED, data =
     pxDim: mix(theme.accent, theme.k.screen, 0.55),
     pxBright: theme.accent,
     machineOff: mix(theme.accent, theme.dark, 0.6),
+    ring: mix(theme.accent, theme.floor, 0.55),
+    ringFaint: mix(theme.accent, theme.floor, 0.78),
   };
 
+  let guideShown = false;
+  let guideArgs = null;
+  // dotted lime route on the floor (what is left of it) and stepped expanding rings around the three Bluetooth receivers
+  function updateGuide() {
+    const route = crowd.guideRoute();
+    if (!route && !guideShown) return;
+    guideShown = !!route;
+    let n = 0;
+    if (route && route.length > 1) {
+      let carry = 0.3;
+      for (let i = 1; i < route.length && n < fx.dots.length; i++) {
+        const p = route[i - 1], q = route[i];
+        const L = Math.hypot(q.x - p.x, q.z - p.z);
+        let d = carry;
+        for (; d < L && n < fx.dots.length; d += 0.62) {
+          const x = p.x + (q.x - p.x) * d / L, z = p.z + (q.z - p.z) * d / L;
+          fx.place(fx.dots[n++], x - 0.13, 0.014, z - 0.13, x + 0.13, 0.03, z + 0.13, theme.accent, true);
+        }
+        carry = d - L;
+      }
+    }
+    for (let i = n; i < fx.dots.length; i++) if (fx.dots[i].show) fx.place(fx.dots[i], 0, 0, 0, 0, 0, 0, null, false);
+    const step = Math.floor(crowd.t * 2.5) % 4;
+    const r = 0.45 + step * 0.42;
+    for (const g of fx.rings) {
+      const { x, z } = g.b, t = 0.07, on = !!route;
+      const c = step === 3 ? C.ringFaint : C.ring;
+      fx.place(g.parts[0], x - r, 0.016, z - r, x + r, 0.03, z - r + t, c, on);
+      fx.place(g.parts[1], x - r, 0.016, z + r - t, x + r, 0.03, z + r, c, on);
+      fx.place(g.parts[2], x - r, 0.016, z - r, x - r + t, 0.03, z + r, c, on);
+      fx.place(g.parts[3], x + r - t, 0.016, z - r, x + r, 0.03, z + r, c, on);
+    }
+  }
   let W = 1, H = 1, aspect = 1;
   let frame = null;
   let slide = -1;
@@ -116,6 +151,7 @@ export function createEngine({ host, canvas, gl, count = 80, seed = SEED, data =
       });
     }
     fx.set(fx.machine, crowd.t < crowd.barista.armUntil ? theme.accent : C.machineOff);
+    updateGuide();
     fx.flush();
   }
 
@@ -182,6 +218,7 @@ export function createEngine({ host, canvas, gl, count = 80, seed = SEED, data =
         clusters: (c) => c.t - c.modeT > 18 && (c.t - c.modeT) % 12 > 7.4,
       };
       warm(40, preds[name] || preds.overview);
+      if (guideArgs) crowd.guide(guideArgs[0], guideArgs[1], true); // a composed still keeps the guide (placed, full route)
     },
     render() {
       if (!frame) return 0;
@@ -203,6 +240,17 @@ export function createEngine({ host, canvas, gl, count = 80, seed = SEED, data =
       return { calls: i.render.calls, triangles: i.render.triangles, w: W, h: H, gpu, people: crowd.guests().length };
     },
     setActive(n) { crowd.setActive(n); },
+    // guided navigation; returns false for an unknown room. The "navigate" shot frames entrance and destination.
+    guide(to, label, instant) {
+      const a = crowd.guide(to, label, instant);
+      if (!a) return false;
+      guideArgs = [to, label];
+      const xs = a.route.map((p) => p.x), zs = a.route.map((p) => p.z);
+      setNavigateBox([Math.min(...xs) - 2.5, Math.min(...zs) - 2.5, Math.max(...xs) + 2.5, Math.max(...zs) + 2.5]);
+      return true;
+    },
+    clearGuide() { crowd.clearGuide(); guideArgs = null; },
+    guideStatus() { const a = crowd.guideAgent; return a ? { arrived: a.arrived } : null; },
     // a live arrival; with reduced motion the crowd jumps ahead until the newcomer has a badge (no walking shown)
     spawn(label, instant) {
       const a = crowd.spawn(label);

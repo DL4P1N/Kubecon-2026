@@ -333,6 +333,48 @@ export async function getLiveAggregates() {
   }
 }
 
+// ---- pure mappings for the organiser overlay (js/demo.js keeps the DOM thin; tested in test/live-overlay.test.mjs)
+
+/** The three coarse levels of GET /api/rooms/occupancy (shared/src/contract.ts RoomActivity) -> bar step (of 3) and short text. */
+export const ROOM_LEVELS = Object.freeze({
+  "quiet": { step: 1, text: "Quiet" },
+  "some recent check-ins": { step: 2, text: "Some" },
+  "many recent check-ins": { step: 3, text: "Many" },
+});
+export const ROOM_LEVEL_STEPS = 3;
+
+/** 1..3 for a known level, 0 for anything else (the route may grow levels; unknown ones are never drawn). */
+export function levelStep(level) {
+  return typeof level === "string" && Object.hasOwn(ROOM_LEVELS, level) ? ROOM_LEVELS[level].step : 0;
+}
+
+/** getLiveAggregates().roomLevels -> [{room, name, level, step, text}] in API order; unknown levels dropped. `names` maps room ids to display names. */
+export function liveRoomRows(roomLevels, names = {}) {
+  if (!Array.isArray(roomLevels)) return [];
+  const rows = [];
+  for (const r of roomLevels) {
+    const step = levelStep(r?.level);
+    if (!step || typeof r.room !== "string" || !r.room) continue;
+    rows.push({ room: r.room, name: Object.hasOwn(names, r.room) ? names[r.room] : r.room, level: r.level, step, text: ROOM_LEVELS[r.level].text });
+  }
+  return rows;
+}
+
+/**
+ * getLiveAggregates() -> what the clusters overlay draws: the `top` largest named topics (default 6), the "other"
+ * bucket separately, and the suppressed-group count. null when there is nothing to draw. No invented numbers.
+ */
+export function liveClusterRows(live, top = 6) {
+  const list = (Array.isArray(live?.clusters) ? live.clusters : [])
+    .filter((c) => c && typeof c === "object" && Number.isFinite(c.count) && c.count >= 0)
+    .map((c) => ({ id: String(c.id ?? ""), label: String(c.label ?? c.id ?? ""), count: c.count }));
+  const rows = list.filter((c) => c.id !== "other").sort((a, b) => b.count - a.count).slice(0, top);
+  const otherCount = list.filter((c) => c.id === "other").reduce((n, c) => n + c.count, 0);
+  if (!rows.length) return null;
+  const sg = Number.isFinite(live.suppressedGroups) && live.suppressedGroups > 0 ? live.suppressedGroups : 0;
+  return { rows, other: list.some((c) => c.id === "other") ? { count: otherCount } : null, suppressedGroups: sg };
+}
+
 // -------------------------------------------------------------------- chat
 
 /**

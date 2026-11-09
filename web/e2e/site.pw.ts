@@ -6,6 +6,7 @@ const pages = [
   { path: "/site/index.html", title: /Conference Companion/, heading: "h1" },
   { path: "/site/conference.html?c=cloud-native-hackathon-slc-2026", title: /./, heading: "h1" },
   { path: "/site/register.html?c=cloud-native-hackathon-slc-2026", title: /./, heading: "h1" },
+  { path: "/site/profile.html", title: /Your profile/, heading: "h1" },
 ];
 
 // The pages call /site/api/* (config, status, chat, register, events) and fall back to local behaviour when the

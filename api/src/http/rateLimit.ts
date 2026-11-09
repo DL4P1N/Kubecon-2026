@@ -25,6 +25,7 @@ export interface RateLimitPolicy {
   status: RouteLimit;
   interestsAggregate: RouteLimit;
   interestsClusters: RouteLimit;
+  roomPlacement: RouteLimit;
   me: RouteLimit;
   catalogTopics: RouteLimit;
   chat: RouteLimit;
@@ -38,6 +39,7 @@ export const DEFAULT_RATE_LIMITS: RateLimitPolicy = {
   status: { max: 600 },
   interestsAggregate: { max: 300 },
   interestsClusters: { max: 120 },
+  roomPlacement: { max: 60 },
   me: { max: 120 },
   catalogTopics: { max: 300 },
   // Each chat turn may spawn the Claude CLI (which spends usage), so the guard is tighter than for reads.

@@ -165,3 +165,26 @@
 .demo-row--inline.is-full .demo-row__v { grid-column: 3; }
 .demo-row--inline.is-full .demo-flag { grid-column: 4; grid-row: 1; }
 .demo-row--inline:not(.is-full) .demo-flag { display: none; }
+
+/* live room activity: level text + 3-step bar (quiet / some / many), and the small "Live · ..." source line */
+.demo-src { margin: -2px 0 2px; font: 500 11px/1.3 var(--font-mono, ui-monospace, monospace); color: var(--d-muted); }
+.demo-steps { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; height: 6px; }
+.demo-steps__s { display: block; background: var(--d-line); }
+.demo-steps__s.is-on { background: var(--d-accent); }
+.demo-steps[data-step="3"] .demo-steps__s.is-on { background: var(--d-ink); }
+
+/* navigate: room list above the bar, and the Find my room card inside the overlay */
+.demo-nav { display: grid; gap: 8px; padding: 12px; background: var(--d-bg); border: 1px solid var(--d-line-strong); min-width: 280px; }
+.demo-nav .demo-sec__t { margin: 0; }
+.demo-nav__rows { display: flex; flex-wrap: wrap; gap: 4px; }
+.demo-nav__b { border-color: var(--d-line-strong); }
+.demo-guide { display: grid; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--d-line); }
+.demo-guide .demo-sec__t { margin: 0; }
+.demo-guide p { margin: 0; }
+.demo-guide__to { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.demo-guide__to b { font-size: var(--t-small, 14px); font-weight: 500; }
+.demo-guide__to span { font: 500 11px/1 var(--font-mono, ui-monospace, monospace); letter-spacing: .04em; text-transform: uppercase; color: var(--d-accent); }
+.demo-guide__src { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 12px; color: var(--d-muted); }
+.demo-guide__act { display: flex; flex-wrap: wrap; gap: 4px; }
+.demo-guide__act .demo-btn { border-color: var(--d-line-strong); }
+@media (max-width: 759px) { .demo-guide { display: none; } .demo-nav { min-width: 0; } }

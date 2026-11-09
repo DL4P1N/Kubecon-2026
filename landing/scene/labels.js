@@ -86,7 +86,7 @@ export class Labels {
   }
   update(crowd, cut) {
     const now = crowd.t;
-    const want = crowd.agents.filter((a) => a.spawned && a.label && !a.disabled && now < a.labelUntil);
+    const want = crowd.agents.filter((a) => (a.spawned || a.kind === 'guide') && a.label && !a.disabled && now < a.labelUntil);
     for (const [a] of this.slotOf) if (!want.includes(a)) this.slotOf.delete(a);
     const used = new Set([...this.slotOf.values()].map((v) => v.slot));
     for (const a of want) {

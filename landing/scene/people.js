@@ -5,7 +5,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { makeVoxelMaterial } from './world.js';
 import { OTHER } from './crowd.js';
 
-const PARTS_PER = 22;
+const PARTS_PER = 24;
 const SWING = [0.5, 0, -0.5, 0];
 
 export class People {
@@ -102,6 +102,12 @@ export class People {
       if (a.badge) {
         this._part(px, py, pz, cy, sy, 0, tY, 0, 0, 0.02, -0.05, 0.155, 0.15, 0.17, 0.03, this.badgeCol);
         this._part(px, py, pz, cy, sy, 0, tY, 0, 0, 0.02, 0.15, 0.155, 0.05, 0.22, 0.02, T.accent);
+      }
+      // guided person: a lime diamond marker floating over the head
+      if (a.kind === 'guide') {
+        const mY = tY + 1.2;
+        this._part(px, py, pz, cy, sy, 0, mY, 0, 0, 0, 0, 0, 0.3, 0.3, 0.3, T.accent);
+        this._part(px, py, pz, cy, sy, 0, mY - 0.24, 0, 0, 0, 0, 0, 0.14, 0.18, 0.14, T.accent);
       }
       // head
       const hY = tY + 0.3 + 0.22;

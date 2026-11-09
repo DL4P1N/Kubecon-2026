@@ -14,6 +14,7 @@ import { registerInterestRoutes } from "./routes/interests.js";
 import { registerCatalogRoutes } from "./routes/catalog.js";
 import { registerRoutes } from "./routes/register.js";
 import { registerClusterRoutes } from "./routes/clusters.js";
+import { registerRoomPlacementRoutes } from "./routes/roomPlacement.js";
 import { talkRoutes } from "./routes/talks.js";
 import { suggestRoutes } from "./routes/suggest.js";
 import { registerStatusRoutes } from "./routes/status.js";
@@ -122,6 +123,8 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   // Module 3: POST /api/access/token + POST /api/access/scan (routes/access.ts).
   app.register(accessRoutes, { es, tokens, roomActivity });
   registerRoomRoutes(app, es, roomActivity);
+  // GET /api/rooms/placement: organizer-only room suggestions from aggregate interest counts.
+  registerRoomPlacementRoutes(app, { es, roomCapacities: config.roomCapacities, rateLimit: limits.roomPlacement, now: deps.search?.now });
 
   registerInterestRoutes(app, { es, now: deps.search?.now, rateLimit: limits.interestsAggregate });
 

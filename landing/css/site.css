@@ -306,3 +306,16 @@ main .hero__panel.panel { width: auto; max-width: 640px; }
 main > :is(section, .section, .hero) { height: auto; min-height: 100vh; min-height: 100svh; padding-top: var(--padt); padding-bottom: calc(var(--padb) + var(--bar, 0px)); }
 main > :is(section, .section, .hero) > :is(.wrap, .container) { height: auto; }
 @media (max-width: 639px) { main .panel:not(.ui-panel) { width: 100%; padding: var(--s-5); } }
+
+/* ------------------------------------------------------------ venue Wi-Fi panel (profile.html rows and the register ticket) */
+.wifi__qr { --px-line: var(--accent); --px-fill: #f4f7ee; flex: none; }
+.wifi__qr .pxframe__in { padding: var(--s-2); }
+.wifi__qr canvas[data-qr] { width: auto; height: auto; max-width: 100%; }
+.wifi__status { margin: 0; min-height: 22px; font-size: var(--t-small); line-height: 22px; color: var(--ink); }
+.wifi { display: flex; flex-wrap: wrap; gap: var(--s-5); align-items: flex-start; width: 100%; }
+.wifi__name { margin: 0; display: grid; gap: var(--s-1); width: 100%; }
+.wifi__name .t-label { color: var(--muted); }
+.wifi__name strong { font: 500 18px/24px var(--font-display); overflow-wrap: anywhere; }
+.wifi__row { display: grid; gap: var(--s-2); justify-items: start; align-content: start; }
+.wifi__row .btn { min-height: 44px; }
+

@@ -26,12 +26,12 @@
 .site-toggle { order: 4; display: none; }
 
 .site-link {
-  position: relative; display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--s-2);
-  color: var(--ink); font: 500 15px/1 var(--font-text); text-decoration: none; white-space: nowrap;
+  position: relative; display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px;
+  color: var(--ink); font: 500 14px/1 var(--font-text); text-decoration: none; white-space: nowrap;
 }
 /* the site's 2px underline: draws on hover, stays on the current page */
 .site-link::after {
-  content: ""; position: absolute; left: var(--s-2); right: var(--s-2); bottom: 8px; height: 2px; background: var(--accent);
+  content: ""; position: absolute; left: 6px; right: 6px; bottom: 8px; height: 2px; background: var(--accent);
   transform: scaleX(0); transform-origin: right; transition: transform 180ms var(--ease);
 }
 .site-link:hover::after, .site-link[aria-current="page"]::after { transform: scaleX(1); transform-origin: left; }
@@ -59,14 +59,15 @@
 .site-header .status-badge { min-height: 44px; display: inline-flex; align-items: center; }
 
 /* Collapse: the bar holds logo, status and the menu button; links and Register open below. */
-@media (max-width: 1240px) {
+/* nine links plus status and Register need about 1170px: below 1280px they sit behind the menu button */
+@media (max-width: 1279px) {
   .site-header__bar { flex-wrap: wrap; }
   .site-toggle { display: inline-flex; }
   .site-header .status-badge-wrap { margin-left: 0; }
   .site-menu { display: none; order: 5; flex: 1 0 100%; flex-direction: column; align-items: stretch; gap: var(--s-3); padding: var(--s-3) 0 var(--s-4); border-top: 1px solid var(--line); }
   .site-menu.is-open { display: flex; }
   .site-nav { flex-direction: column; align-items: stretch; gap: 0; }
-  .site-link { padding: 0 var(--s-2); border-bottom: 1px solid var(--line); min-height: 48px; }
+  .site-link { padding: 0 var(--s-2); font-size: 15px; border-bottom: 1px solid var(--line); min-height: 48px; }
   .site-link::after { left: var(--s-2); right: auto; width: 24px; bottom: 10px; }
   .site-btn { min-height: 48px; }
 }

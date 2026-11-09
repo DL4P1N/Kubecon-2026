@@ -3,6 +3,7 @@ import { offlineExpiry, offlineSession, resetOfflineSession } from "./offline.js
 import type {
   AccessTokenResponse,
   RoomOccupancyResponse,
+  RoomPlacementResponse,
   CatalogTopicsResponse,
   InterestAggregateResponse,
   InterestClustersResponse,
@@ -127,4 +128,7 @@ export const api = {
   /** Latest k-means run for organizers; `organizerKey` is sent as x-organizer-key when set. */
   clusters: (organizerKey = "") =>
     call<InterestClustersResponse>(routes.interestsClusters, { headers: organizerKey ? { "x-organizer-key": organizerKey } : {} }),
+  /** Room placement suggestions for organizers; `organizerKey` is sent as x-organizer-key when set. */
+  roomPlacement: (organizerKey = "") =>
+    call<RoomPlacementResponse>(routes.roomPlacement, { headers: organizerKey ? { "x-organizer-key": organizerKey } : {} }),
 };

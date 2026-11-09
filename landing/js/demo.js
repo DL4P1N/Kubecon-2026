@@ -3,12 +3,19 @@
 // Everything is created at runtime, fixed-position, and removed again when demo mode turns off.
 // No dependencies. Every fetch / stream / channel fails silently.
 
+import { getLiveAggregates, liveRoomRows, liveClusterRows, ROOM_LEVEL_STEPS, applyAppLinks } from "./companion-api.js";
+
 const STORE_KEY = "cc.demo";
 const CHANNEL = "cc-demo";
 const DATA_URL = new URL("../data/demo-aggregates.json", import.meta.url);
 const EVENTS_URL = "/api/events"; // absolute same-origin: the real API under /site/, landing/server.mjs on the preview
 const WALKIN_NAMES = ["Ana", "Ravi", "Mei", "Jonas", "Priya", "Kofi", "Lena", "Omar", "Yuki", "Tess"];
 const DEDUPE_MS = 3000;
+// rooms the scene's guide() knows (scene/README.md: keynote is the main stage; room-a..room-d, lounge); guide() returns false for unknown ones
+const NAV_ROOMS = [["stage", "Main stage"], ["lounge", "Lounge"], ["room-a", "Room A"], ["room-b", "Room B"], ["room-c", "Room C"], ["room-d", "Room D"]];
+const LIVE_POLL_MS = 15_000; // real aggregates (getLiveAggregates), re-read this often while demo mode is on
+const TAG_SYNTH = "Synthetic demo data";
+const TAG_LIVE = "Live data";
 const TOAST_MS = 4000;
 const ROOM_LABELS = { keynote: "Keynote", "room-a": "Room A", "room-b": "Room B", "room-c": "Room C", "room-d": "Room D", lounge: "Lounge" };
 const VIA_LABELS = { qr: "QR code", github: "GitHub", google: "Google", linkedin: "LinkedIn" };
@@ -109,7 +116,19 @@ function bigStat(label, value, sub) {
 }
 const section = (title, ...kids) => h("div", { class: "demo-sec" }, title ? h("p", { class: "demo-sec__t", text: title }) : null, ...kids);
 
-function viewClusters(d) {
+// live clusters: the API's own topic counts (top 6, "other" bucket, folded line when the API reports suppressed groups)
+function viewClustersLive(live) {
+  const c = liveClusterRows(live);
+  if (!c) return null;
+  const max = Math.max(...c.rows.map((r) => r.count), c.other ? c.other.count : 0, 1);
+  const node = section("Interest clusters", h("p", { class: "demo-src", text: "Live · opted-in attendees" }));
+  for (const r of c.rows) node.append(barRow(r.label, r.count, max));
+  if (c.other) node.append(barRow("Other (groups under 5)", c.other.count, max, { muted: true }));
+  if (c.suppressedGroups > 0) node.append(h("p", { class: "demo-note", text: `${fmt(c.suppressedGroups)} ${c.suppressedGroups === 1 ? "group" : "groups"} under 5 folded into other` }));
+  return { sum: `${c.rows.length} topics${c.other ? `, ${fmt(c.other.count)} in other` : ""}`, node, live: true };
+}
+function viewClusters(d, st) {
+  if (st && st.agg) { const v = viewClustersLive(st.agg); if (v) return v; }
   const list = (Array.isArray(d.clusters) ? d.clusters : [])
     .map((c) => (c && typeof c === "object" && num(c.count) != null ? { id: String(c.id || ""), label: String(c.label || c.id || ""), count: num(c.count), tags: c.topTags } : null))
     .filter(Boolean);
@@ -152,7 +171,24 @@ function slotsOf(d) {
   for (const r of rows) if (!slots.includes(String(r.slot))) slots.push(String(r.slot));
   return { rows, slots };
 }
+// live rooms: one coarse level per room from the door-scan route, drawn as text plus a 3-step bar. No counts exist.
+function viewRoomsLive(live) {
+  const rows = liveRoomRows(live.roomLevels, ROOM_LABELS);
+  if (!rows.length) return null;
+  const node = section("Room activity", h("p", { class: "demo-src", text: "Live · door scans, last 10 min" }));
+  for (const r of rows) {
+    const bar = h("span", { class: "demo-steps", role: "img", "aria-label": r.level, "data-step": String(r.step) });
+    for (let i = 1; i <= ROOM_LEVEL_STEPS; i++) bar.append(h("span", { class: "demo-steps__s" + (i <= r.step ? " is-on" : "") }));
+    node.append(h("div", { class: "demo-row demo-row--level", title: `${r.name}: ${r.level}` },
+      h("span", { class: "demo-row__l", text: r.name }),
+      h("span", { class: "demo-row__v", text: r.text }),
+      bar));
+  }
+  const many = rows.filter((r) => r.step === ROOM_LEVEL_STEPS).length;
+  return { sum: `${rows.length} ${rows.length === 1 ? "room" : "rooms"}${many ? `, ${many} with many recent check-ins` : ""}`, node, live: true };
+}
 function viewRooms(d, st) {
+  if (st.agg) { const v = viewRoomsLive(st.agg); if (v) return v; }
   const { rows, slots } = slotsOf(d);
   if (!slots.length) return null;
   if (st.slot == null || !slots.includes(st.slot)) {
@@ -229,7 +265,7 @@ function viewOverview(d) {
 
 function viewFor(shot, d, st) {
   const data = d || {};
-  if (shot === "clusters") return viewClusters(data);
+  if (shot === "clusters") return viewClusters(data, st);
   if (shot === "scan") return viewScan(data);
   if (shot === "schedule" || shot === "stage") return viewRooms(data, st);
   if (shot === "arrive" || shot === "host") return viewRegs(data, st);
@@ -241,9 +277,9 @@ function enable() {
   if (reg.demo) return;
   const cleanups = [];
   const on = (target, type, fn, opts) => { target.addEventListener(type, fn, opts); cleanups.push(() => target.removeEventListener(type, fn, opts)); };
-  const st = { slot: null, live: 0, current: 0, pin: null, data: null, dataDone: false, stream: false };
+  const st = { guide: null, slot: null, live: 0, current: 0, pin: null, data: null, dataDone: false, stream: false, agg: null, aggVer: 0 };
   const recent = new Map();
-  let toastTimer = 0, settleTimer = 0, raf = 0, es = null, bc = null, esErrors = 0, mo = null;
+  let toastTimer = 0, settleTimer = 0, raf = 0, es = null, bc = null, esErrors = 0, mo = null, aggTimer = 0, aggBusy = false;
 
   const page = /register\.html$/.test(location.pathname) ? "register" : /conference\.html$/.test(location.pathname) ? "conference" : "index";
   const dockTop = page === "register";
@@ -285,6 +321,7 @@ function enable() {
   });
   const pauseBtn = h("button", { type: "button", class: "demo-btn", "data-act": "pause", text: "Pause" });
   const walkBtn = h("button", { type: "button", class: "demo-btn", "data-act": "walk", title: "Send a pixel person in (W)", text: "Walk-in" });
+  const navBtn = h("button", { type: "button", class: "demo-btn", "data-act": "nav", hidden: true, "aria-expanded": "false", "aria-controls": "demo-nav", title: "Guide a person to a room (N)", text: "Navigate" });
   const keysBtn = h("button", { type: "button", class: "demo-btn", "data-act": "keys", "aria-expanded": "false", "aria-controls": "demo-legend", title: "Keyboard shortcuts (?)", text: "Keys" });
   const offBtn = h("button", { type: "button", class: "demo-btn", "data-act": "off", title: "Turn demo mode off (D)", text: "Off" });
   const mkLink = (file, text) => h("a", { class: "demo-btn demo-btn--link", href: linkFor(file), "aria-current": page === file.replace(/\.html$/, "") || (file === "index.html" && page === "index") ? "page" : null, text });
@@ -293,25 +330,30 @@ function enable() {
   const bar = h("div", { class: "demo-bar", role: "toolbar", "aria-label": "Demo presenter controls" },
     sections.length ? h("div", { class: "demo-grp demo-grp--shots" }, ...shotBtns) : null,
     h("div", { class: "demo-grp demo-grp--id" }, lamp, h("span", { class: "demo-id", text: "DEMO" }), modeTxt, counter),
-    h("div", { class: "demo-grp" }, pauseBtn, walkBtn, keysBtn),
+    h("div", { class: "demo-grp" }, pauseBtn, walkBtn, navBtn, keysBtn),
     h("div", { class: "demo-grp" }, ...links, offBtn));
 
   const legendRows = [
     ["1 – 9, 0", "Jump to shot 1 – 10"], ["←  →", "Previous / next shot (also PgUp / PgDn)"],
-    ["P", "Pause / play the venue"], ["W", "Walk-in"], ["[  ]", "Previous / next time slot"],
+    ["P", "Pause / play the venue"], ["W", "Walk-in"], ["N", "Navigate: guide a person to a room"], ["[  ]", "Previous / next time slot"],
     ["?", "This list"], ["D", "Demo mode off"],
   ];
   const legend = h("div", { class: "demo-legend", id: "demo-legend", hidden: true, role: "group", "aria-label": "Keyboard shortcuts" },
     ...legendRows.map(([k, t]) => h("p", null, h("kbd", { text: k }), h("span", { text: t }))));
+  const navList = h("div", { class: "demo-nav", id: "demo-nav", hidden: true, role: "group", "aria-label": "Guide a person to a room" },
+    h("p", { class: "demo-sec__t", text: "Navigate to" }),
+    h("div", { class: "demo-nav__rows" }, ...NAV_ROOMS.map(([to, name]) => h("button", { type: "button", class: "demo-btn demo-nav__b", "data-nav-to": to, text: name }))));
   const toast = h("div", { class: "demo-toast", role: "status", "aria-live": "polite", "aria-atomic": "true" });
-  const dock = h("div", { class: "demo-dock" }, toast, legend, bar);
+  const dock = h("div", { class: "demo-dock" }, toast, navList, legend, bar);
 
   const hudMode = h("span", { class: "demo-hud__mode", text: "Organiser view" });
   const hudSum = h("p", { class: "demo-hud__sum" });
   const hudBody = h("div", { class: "demo-hud__body" });
-  const hud = h("aside", { class: "demo-hud", "aria-label": "Organiser overlay (synthetic demo data)", hidden: true },
-    h("div", { class: "demo-hud__head" }, h("span", { class: "demo-lamp", "aria-hidden": "true" }), hudMode, h("span", { class: "demo-tag", text: "Synthetic demo data" })),
-    hudSum, hudBody);
+  const guideCard = h("div", { class: "demo-guide", hidden: true });
+  const hudTag = h("span", { class: "demo-tag", text: TAG_SYNTH });
+  const hud = h("aside", { class: "demo-hud", "aria-label": `Organiser overlay (${TAG_SYNTH.toLowerCase()})`, hidden: true },
+    h("div", { class: "demo-hud__head" }, h("span", { class: "demo-lamp", "aria-hidden": "true" }), hudMode, hudTag),
+    hudSum, guideCard, hudBody);
 
   const rootEl = h("div", { class: "demo" + (dockTop ? " demo--top" : "") + (document.querySelector(".hud-rail") ? " demo--rail" : ""), "data-demo-ui": "" }, hud, dock);
   document.body.append(rootEl);
@@ -337,6 +379,7 @@ function enable() {
     const i = currentIndex();
     shotBtns.forEach((b, k) => { if (k === i) b.setAttribute("aria-current", "true"); else b.removeAttribute("aria-current"); });
     counter.textContent = sections.length ? `${pad2(i + 1)} / ${pad2(sections.length)}` : "";
+    syncNav();
     renderHud();
   }
   const schedule = () => { if (!raf) raf = requestAnimationFrame(refresh); };
@@ -367,17 +410,80 @@ function enable() {
   function renderHud() {
     const i = currentIndex();
     const shot = sections.length ? shotOf(sections[i]) : "overview";
-    const key = [shot, st.slot, st.live, st.dataDone ? 1 : 0].join("|");
+    const key = [shot, st.slot, st.live, st.dataDone ? 1 : 0, st.aggVer].join("|");
     if (key === lastKey) return;
     lastKey = key;
     let v = null;
-    if (st.dataDone || shot === "arrive" || shot === "host") v = safe(() => viewFor(shot, st.data, st), null);
+    if (st.dataDone || st.agg || shot === "arrive" || shot === "host") v = safe(() => viewFor(shot, st.data, st), null);
+    const tag = v && v.live ? TAG_LIVE : TAG_SYNTH;
+    hudTag.textContent = tag;
+    hud.setAttribute("aria-label", `Organiser overlay (${tag.toLowerCase()})`);
     hudMode.textContent = "Organiser view";
-    if (!v) { hud.hidden = true; hudBody.replaceChildren(); hudSum.textContent = ""; return; }
+    renderGuide();
+    const g = st.guide;
+    if (!v) { hudBody.replaceChildren(); hudSum.textContent = g ? guideSummary() : ""; hud.hidden = !g; return; }
     hudBody.replaceChildren(v.node);
-    hudSum.textContent = v.sum;
+    hudSum.textContent = g ? guideSummary() : v.sum;
     hud.hidden = false;
   }
+  // ---- navigate: scene guide(), the "Find my room" card
+  const roomName = (to) => (NAV_ROOMS.find((r) => r[0] === to) || [])[1] || cap(pretty(to));
+  const guideSummary = () => (st.guide.arrived ? `Arrived at ${st.guide.room}` : `Find my room: ${st.guide.room}`) + " (simulated signals)";
+  function renderGuide() {
+    const g = st.guide;
+    if (!g) { guideCard.hidden = true; guideCard.replaceChildren(); return; }
+    const to = g.to;
+    const open = h("a", { class: "demo-btn demo-btn--link", href: "/navigate?to=" + encodeURIComponent(to), "data-app-link": "/navigate?to=" + encodeURIComponent(to), target: "_blank", rel: "noopener", text: "Open Find my room" });
+    guideCard.replaceChildren(
+      h("p", { class: "demo-sec__t", text: "Find my room" }),
+      h("p", { class: "demo-guide__to" }, h("b", { text: g.room }), h("span", { text: g.arrived ? "Arrived" : "Walking there" })),
+      h("p", { class: "demo-guide__src" }, h("span", { text: "Position from the venue's Bluetooth receivers" }), h("span", { class: "demo-tag", text: "Simulated signals" })),
+      h("div", { class: "demo-guide__act" }, open, h("button", { type: "button", class: "demo-btn", "data-guide-clear": "", text: "Clear route" })));
+    guideCard.hidden = false;
+    safe(() => applyAppLinks(guideCard).catch(() => {}));
+  }
+  function setGuide(to, arrived) {
+    if (typeof to !== "string" || !/^[\w-]{1,32}$/.test(to)) return;
+    st.guide = { to, room: roomName(to), arrived: !!arrived };
+    lastKey = ""; renderHud();
+  }
+  function clearGuideState() { if (st.guide) { st.guide = null; lastKey = ""; renderHud(); } }
+  on(document, "venue:guide", (e) => { const d = e && e.detail; if (d) { setGuide(d.to, false); setNav(false); } });
+  on(document, "venue:arrived", (e) => {
+    const d = e && e.detail;
+    if (!d || typeof d.to !== "string") return;
+    setGuide(d.to, true);
+    showToast(`Arrived at ${st.guide ? st.guide.room : roomName(d.to)}`);
+  });
+  on(guideCard, "click", (e) => {
+    if (!e.target.closest("[data-guide-clear]")) return;
+    safe(() => { const v = venueApi(); v && typeof v.clearGuide === "function" && v.clearGuide(); });
+    clearGuideState();
+  });
+  cleanups.push(() => { if (st.guide) safe(() => { const v = venueApi(); v && typeof v.clearGuide === "function" && v.clearGuide(); }); });
+  const canGuide = () => { const v = venueApi(); return !!v && typeof v.guide === "function"; };
+  function syncNav() {
+    const ok = canGuide();
+    navBtn.hidden = !ok;
+    if (!ok) setNav(false);
+    if (!st.readyHooked) { const v = venueApi(); if (v && v.ready && typeof v.ready.then === "function") { st.readyHooked = true; v.ready.then(() => { if (reg.demo) syncNav(); }, () => {}); } }
+  }
+  function setNav(open) {
+    if (open && !canGuide()) open = false;
+    navList.hidden = !open;
+    navBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  async function guideTo(to) {
+    const v = venueApi();
+    let ok = false;
+    try { ok = !!(v && typeof v.guide === "function" && await v.guide({ to, label: "You" })); } catch { ok = false; }
+    if (!reg.demo) return;
+    if (!ok) { showToast(`${roomName(to)} is not in the scene`); return; }
+    setNav(false);
+    if (!st.guide || st.guide.to !== to || st.guide.arrived) setGuide(to, false); // venue:guide normally did this already
+  }
+  on(navList, "click", (e) => { const b = e.target.closest("[data-nav-to]"); if (b) guideTo(b.getAttribute("data-nav-to")); });
+
   on(hud, "click", (e) => {
     const b = e.target.closest("[data-slot-step]");
     if (!b) return;
@@ -394,6 +500,21 @@ function enable() {
     if (refocus) { const f = hud.querySelector("[data-slot-step='" + dir + "']"); if (f) f.focus(); }
   }
   loadData().then((d) => { st.data = d; st.dataDone = true; lastKey = ""; if (reg.demo) renderHud(); });
+
+  // ---- real aggregates: on start and every 15 s; null (API down, not on the site, too few opted in) means synthetic
+  const sameAgg = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  async function pollAggregates() {
+    if (aggBusy) return;
+    aggBusy = true;
+    let next = null;
+    try { next = await getLiveAggregates(); } catch { next = null; }
+    aggBusy = false;
+    if (!reg.demo || reg.demo.pollGen !== gen) return; // demo mode was turned off (or restarted) meanwhile
+    if (!sameAgg(next, st.agg)) { st.agg = next; st.aggVer += 1; lastKey = ""; renderHud(); }
+  }
+  const gen = {};
+  aggTimer = setInterval(pollAggregates, LIVE_POLL_MS);
+  cleanups.push(() => clearInterval(aggTimer));
 
   // ---- scene controls
   const venueApi = () => { const host = document.querySelector("[data-venue]"); return host && host.venue ? host.venue : null; };
@@ -448,7 +569,8 @@ function enable() {
     lastKey = "";
     renderHud();
   }
-  reg.demo = { registered, stepSlot };
+  reg.demo = { registered, stepSlot, pollGen: gen };
+  pollAggregates();
 
   // ---- live sources
   function openStream() {
@@ -497,6 +619,7 @@ function enable() {
     const act = b.getAttribute("data-act");
     if (act === "pause") togglePause();
     else if (act === "walk") walkIn();
+    else if (act === "nav") setNav(navList.hidden);
     else if (act === "keys") setLegend(legend.hidden);
     else if (act === "off") setDemo(false);
   });
@@ -517,8 +640,9 @@ function enable() {
     if (k === "w" || k === "W") { walkIn(); return; }
     if (k === "[") { stepSlot(-1); return; }
     if (k === "]") { stepSlot(1); return; }
+    if (k === "n" || k === "N") { syncNav(); setNav(navList.hidden); return; }
     if (k === "?") { setLegend(legend.hidden); return; }
-    if (k === "Escape" && !legend.hidden) { setLegend(false); }
+    if (k === "Escape") { if (!legend.hidden) setLegend(false); if (!navList.hidden) setNav(false); }
   });
 
   setMode();

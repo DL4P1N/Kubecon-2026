@@ -108,3 +108,6 @@ form[role=search] > label:first-child { margin-top: 0; }
 .organizer > section { margin-top: var(--s-7); padding-top: var(--s-2); border-top: 1px solid var(--line); }
 .organizer > section h2 { margin-top: var(--s-4); }
 .organizer ul { max-width: 70ch; }
+.placement-table td, .placement-table th { vertical-align: top; }
+.placement-flag { display: block; font: 500 var(--t-label)/1.5 var(--font-mono); color: var(--muted); }
+strong.placement-flag { color: var(--ink); }

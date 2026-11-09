@@ -315,6 +315,48 @@ export interface InterestClustersResponse {
   minClusterSize: number;
 }
 
+// ---------------------------------------------------------------- room placement (organizers)
+
+/** One talk in a time slot with its estimated demand and a room suggestion. No attendee data. */
+export interface RoomPlacementTalk {
+  talkId: string;
+  title: string;
+  /** Sum of the aggregate counts of this talk's tags that appear in the k-anonymised aggregate. A relative score, not a headcount. */
+  demand: number;
+  /** 1 = highest demand in the slot (ties are ordered by current room capacity, then talk id). */
+  demandRank: number;
+  currentRoom: string;
+  /** Capacity configured for the current room; null when none is configured. */
+  currentCapacity: number | null;
+  /** False when the current room has no configured capacity: no room suggestion is made for this talk. */
+  capacityKnown: boolean;
+  /** Null when capacity is unknown, so only `demandRank` is meaningful. */
+  suggestedRoom: string | null;
+  /** The suggestion differs from the current room. */
+  moved: boolean;
+  /** Demand exceeds the current room's configured capacity (never true when capacity is unknown). */
+  overCapacity: boolean;
+}
+
+export interface RoomPlacementSlot {
+  start: string; // ISO 8601
+  end: string; // ISO 8601
+  /** Highest demand first. */
+  talks: RoomPlacementTalk[];
+}
+
+/** GET /api/rooms/placement (organizer key). Aggregates only; no attendee IDs. */
+export interface RoomPlacementResponse {
+  generatedAt: string; // ISO 8601
+  /** Topics under this many attendees never appear in the aggregate, so they add nothing to demand. */
+  suppressedBelow: number;
+  /** True when at least one room capacity is configured (ROOM_CAPACITIES). */
+  capacitiesConfigured: boolean;
+  slots: RoomPlacementSlot[];
+  /** Talks left out because their start or end time could not be read. */
+  skippedTalks: number;
+}
+
 // ---------------------------------------------------------------- registration chat + live demo stream
 
 export type ChatAsk = "topics" | "goal" | "confirm";
@@ -369,6 +411,7 @@ export interface RegisteredEvent {
 
 export const routes = {
   roomOccupancy: { method: "GET", path: "/api/rooms/occupancy" },
+  roomPlacement: { method: "GET", path: "/api/rooms/placement" },
   catalogTopics: { method: "GET", path: "/api/catalog/topics" },
   health: { method: "GET", path: "/healthz" },
   status: { method: "GET", path: "/api/status" },

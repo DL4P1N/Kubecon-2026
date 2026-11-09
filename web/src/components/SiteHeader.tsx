@@ -6,6 +6,7 @@ import "./site-shell.css";
 const LINKS = [
   { to: "/schedule", label: "Schedule" },
   { to: "/search", label: "Search" },
+  { to: "/navigate", label: "Navigate" },
   { to: "/onboarding", label: "Onboarding" },
   { to: "/kiosk", label: "Kiosk" },
   { to: "/map", label: "Interest map" },
@@ -58,6 +59,7 @@ export function SiteHeader() {
         <div id="site-menu" className={open ? "site-menu is-open" : "site-menu"}>
           <nav aria-label="Main" className="site-nav">
             {LINKS.map((link) => <NavLink key={link.to} to={link.to} className="site-link">{link.label}</NavLink>)}
+            <a className="site-link" href="/site/profile.html">Profile</a>
           </nav>
           <a className="site-btn" href="/site/register.html">Register</a>
         </div>

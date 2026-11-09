@@ -177,6 +177,14 @@ main > section.hero.reg > .wrap { height: 100%; display: block; }
 .reg [data-chat-ticket] .pxframe { grid-area: qr; --px-line: var(--accent); --px-fill: #f4f7ee; align-self: start; }
 .reg [data-chat-ticket] .pxframe__in { padding: var(--s-3); }
 .reg [data-chat-ticket] canvas[data-qr] { --qr-ink: #0f1f10; --qr-paper: #f4f7ee; }
+.reg .reg__wifi { grid-column: 1 / -1; grid-row: 1; min-width: 0; }
+.reg .reg__wifi[hidden] { display: none; }
+.reg [data-chat-ticket].is-wifi > :is(.pxframe, [data-ticket-fields]) { display: none; }
+.reg .reg__wifi .wifi { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr; gap: var(--s-2) var(--s-6); align-items: start; }
+.reg .reg__wifi .wifi__qr { grid-column: 1; grid-row: 1 / span 2; }
+.reg .reg__wifi .wifi__name { grid-column: 2; grid-row: 1; width: auto; }
+.reg .reg__wifi .wifi__row { grid-column: 2; grid-row: 2; }
+@media (max-width: 759px) { .reg .reg__wifi .wifi { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; } .reg .reg__wifi .wifi > * { grid-column: 1; grid-row: auto; } }
 .reg [data-ticket-fields] { grid-area: fields; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-5); margin: 0; align-content: start; font-size: var(--t-body); }
 .reg [data-ticket-fields] > div { display: grid; gap: 2px; align-content: start; min-width: 0; }
 .reg [data-ticket-fields] > div:is([data-field="name"], [data-field="interests"]) { grid-column: 1 / -1; }
@@ -196,6 +204,13 @@ html:has(.reg) footer.reg-foot { height: var(--foot); background: var(--bg); bor
 .reg-foot__bar { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
 .reg-foot__legal { font-size: var(--t-small); color: var(--ink); }
 .reg-foot .scene-ctl { position: static; transform: none; left: auto; bottom: auto; }
+
+/* short laptop screens (1512x688): the ticket, its Wi-Fi and app links must fit without scrolling */
+@media (min-width: 760px) and (max-height: 760px) {
+  .reg [data-chat-ticket]:not([hidden]) { row-gap: var(--s-3); padding-top: var(--s-2); }
+  .reg [data-ticket-fields] { row-gap: var(--s-3); }
+  .reg .reg__next { row-gap: 0; }
+}
 
 /* ------------------------------------------------------------ narrow: the panel is the whole screen under the nav */
 @media (max-width: 759px) {

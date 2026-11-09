@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const width of [375, 768]) {
-  for (const path of ["onboarding", "schedule", "search", "map", "status", "kiosk"]) {
+  for (const path of ["onboarding", "schedule", "search", "map", "status", "kiosk", "navigate"]) {
     test(`mobile ${path} at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: width === 375 ? 812 : 1024 });
       await page.goto(`/${path}`);
@@ -54,6 +54,7 @@ for (const width of [375, 768]) {
           expect(hybrid!.y).toBeGreaterThan(keyword!.y + keyword!.height - 1);
         }
       }
+      if (path === "navigate") await expect(page.getByText("Simulated signals")).toBeVisible();
       if (path === "map") await expect(page.getByRole("table")).toBeVisible();
       if (path === "status") await expect(page.getByRole("table")).toBeVisible();
       if (capture) {

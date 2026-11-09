@@ -22,7 +22,7 @@ test("data file: first entry is the one real event, the rest are flagged assumed
 });
 
 test("data file: fields, summary length, unique slugs, 2026-2027, no street/phone/postcode-like content", () => {
-  const keys = ["slug", "name", "startDate", "endDate", "city", "district", "venue", "topics", "summary", "capacity", "assumed"];
+  const keys = ["slug", "name", "startDate", "endDate", "city", "district", "venue", "topics", "summary", "capacity", "assumed", "wifi"];
   const seen = new Set();
   for (const c of data) {
     assert.deepEqual(Object.keys(c).sort(), [...keys].sort(), c.slug);

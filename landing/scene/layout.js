@@ -273,5 +273,13 @@ export function buildLayout() {
     { x: 10.6, z: 15.6 }, { x: 16.7, z: 15.9 }, // small groups that fold into "other"
   ];
 
-  return { boxes, walls, navBlocks, rooms, doors, doorById, seats, stands, desk, deskQ, host, barista, speaker, fx, clusterSpots };
+  // guided navigation: where a guided person ends up in each room, where they start, and three Bluetooth receivers installed at the venue
+  const guideDest = {
+    keynote: { x: 8.0, z: 5.0 }, 'room-a': { x: doorById['room-a'].cx, z: 7.2 }, 'room-b': { x: doorById['room-b'].cx, z: 7.2 },
+    'room-c': { x: doorById['room-c'].cx, z: 7.2 }, 'room-d': { x: 30.0, z: 21.6 }, lounge: { x: 17.6, z: 18.9 },
+  };
+  const guideStart = { x: 7.0, z: 22.8 };
+  const receivers = [{ x: 0.62, y: 1.7, z: 16.5 }, { x: 12.3, y: 1.15, z: 9.2 }, { x: 26.2, y: 1.15, z: 20.6 }];
+  for (const b of receivers) B(b.x - 0.16, b.z - 0.16, b.x + 0.16, b.z + 0.16, b.y - 0.1, b.y + 0.04, 'paper', false);
+  return { guideDest, guideStart, receivers, boxes, walls, navBlocks, rooms, doors, doorById, seats, stands, desk, deskQ, host, barista, speaker, fx, clusterSpots };
 }
