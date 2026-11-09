@@ -6,7 +6,8 @@ const talk = { id: "synthetic", title: "Kubernetes security", speaker: "Demo", a
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
-    const response = path === "/api/search" ? { q: "", mode: "hybrid", tookMs: 1, hits: [{ talk, score: 1 }] }
+    const response = path === "/api/catalog/topics" ? { topics: ["kubernetes"] }
+      : path === "/api/search" ? { q: "", mode: "hybrid", tookMs: 1, hits: [{ talk, score: 1 }] }
       : path === "/api/schedule" ? { items: [{ talk, reason: "Matches your interests" }], updatedAt: "" }
       : path === "/api/register" ? { token: "synthetic-token", attendeeId: "synthetic", expiresAt: "" }
       : path === "/api/onboarding" ? { query: { text: "kubernetes", topics: [], mode: "hybrid" } }
@@ -87,4 +88,23 @@ test("keyboard-only registration follows labels and keeps optional consent off",
     interests: ["kubernetes"], consent: { clusterMap: false, qrCheckin: false },
   });
   await expect(page.getByRole("heading", { name: "Onboarding", exact: true })).toBeVisible();
+  await expect(page.getByRole("main")).toBeFocused();
+  // Topic options load asynchronously; wait for them before checking tab order.
+  await expect(page.getByLabel("kubernetes", { exact: true })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("kubernetes", { exact: true })).toBeFocused();
+});
+
+test("typing on the same page does not move focus", async ({ page }) => {
+  await page.goto("/register");
+  await page.getByLabel("Name", { exact: true }).focus();
+  await page.keyboard.type("Demo");
+  await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
+});
+
+test("initial root redirect preserves skip-link-first tab order", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/register$/);
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
 });
