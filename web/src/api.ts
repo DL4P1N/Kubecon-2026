@@ -12,9 +12,11 @@ import type {
   ScanResponse,
   ScheduleResponse,
   SearchMode,
+  SearchFilterParams,
   SearchResponse,
   StatusResponse,
 } from "@cc/shared";
+import { searchFilterQuery } from "./searchFilters.js";
 
 const TOKEN_KEY = "cc.token";
 let memoryToken: string | null = null;
@@ -45,9 +47,11 @@ export class ApiError extends Error {
 
 async function call<T>(
   route: RouteDef,
-  opts: { body?: unknown; query?: Record<string, string>; headers?: Record<string, string> } = {},
+  opts: { body?: unknown; query?: Record<string, string | string[]>; headers?: Record<string, string> } = {},
 ): Promise<T> {
-  const qs = opts.query ? `?${new URLSearchParams(opts.query).toString()}` : "";
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(opts.query ?? {})) for (const item of Array.isArray(v) ? v : [v]) params.append(k, item);
+  const qs = opts.query ? `?${params.toString()}` : "";
   const headers: Record<string, string> = { ...opts.headers };
   if (opts.body !== undefined) headers["content-type"] = "application/json";
   const token = getToken();
@@ -83,9 +87,10 @@ export const api = {
   status: () => call<StatusResponse>(routes.status),
   register: (body: RegisterRequest) => call<RegisterResponse>(routes.register, { body }),
   onboarding: (body: OnboardingRequest) => call<OnboardingResponse>(routes.onboarding, { body }),
-  search: (q: string, mode: SearchMode, debug = false) => call<SearchResponse & { debug?: unknown }>(routes.search, {
-    query: { q, mode, ...(debug ? { debug: "1" } : {}) },
-  }),
+  search: (q: string, mode: SearchMode, debug = false, filters: SearchFilterParams = {}) =>
+    call<SearchResponse & { debug?: unknown }>(routes.search, {
+      query: { q, mode, ...(debug ? { debug: "1" } : {}), ...searchFilterQuery(filters) },
+    }),
   getSchedule: () => call<ScheduleResponse>(routes.getSchedule),
   saveSchedule: (body: SaveScheduleRequest) => call<ScheduleResponse>(routes.saveSchedule, { body }),
   accessToken: () => call<AccessTokenResponse>(routes.accessToken, { body: {} }),
