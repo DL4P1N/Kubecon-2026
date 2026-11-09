@@ -1,0 +1,9 @@
+.kiosk input { width: 100%; box-sizing: border-box; }
+.kiosk form button { margin-top: 0.75rem; }
+.kiosk-result-region { margin-top: 1.5rem; }
+.kiosk-result { text-align: center; padding: 1.5rem; border: 6px solid; border-radius: 1rem; }
+.kiosk-icon { display: block; font-size: 6rem; line-height: 1; font-weight: 700; }
+.kiosk-decision { font-size: 2.5rem; font-weight: 700; margin: 0.5rem 0; }
+.kiosk-allow { color: #0b5e1f; border-color: #0b5e1f; background: #e6f4ea; border-style: solid; }
+/* Dashed border and a different icon keep deny distinguishable without colour. */
+.kiosk-deny { color: #8c1d18; border-color: #8c1d18; background: #fce8e6; border-style: dashed; }

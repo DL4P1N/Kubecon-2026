@@ -2,23 +2,29 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import QRCode from "qrcode";
 import type { AccessTokenResponse, ScheduleResponse } from "@cc/shared";
-import { api } from "../api.js";
+import { api, getToken } from "../api.js";
 import "./discovery.css";
 
 export function Schedule() {
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
   const [error, setError] = useState("");
+  // Schedules are personal: without a session token from /register there is nothing to load.
+  const [needsRegistration, setNeedsRegistration] = useState(() => !getToken());
   const [qrError, setQrError] = useState("");
   const [pending, setPending] = useState(false);
   const [access, setAccess] = useState<(AccessTokenResponse & { image: string }) | null>(null);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
+    if (needsRegistration) return;
     let active = true;
-    api.getSchedule().then((result) => { if (active) setSchedule(result); }, () => {
-      if (active) setError("Your schedule could not be loaded. Please reload or register again if your session expired.");
+    api.getSchedule().then((result) => { if (active) setSchedule(result); }, (err: unknown) => {
+      if (!active) return;
+      // api.ts reports the HTTP status at the end of the message; 401 means a missing or expired session.
+      if (err instanceof Error && / 401$/.test(err.message)) setNeedsRegistration(true);
+      else setError("Your schedule could not be loaded. Please reload or register again if your session expired.");
     });
     return () => { active = false; };
-  }, []);
+  }, [needsRegistration]);
   useEffect(() => {
     if (!access) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -44,8 +50,9 @@ export function Schedule() {
   return <section className="discovery">
     <h1>My schedule</h1>
     <p>All session times use your device’s local time zone.</p>
+    {needsRegistration && <p role="status">Register to build your personal schedule. <Link to="/register">Register now</Link>.</p>}
     {error && <p role="alert">{error}</p>}
-    {!schedule && !error && <p role="status">Loading your schedule…</p>}
+    {!schedule && !error && !needsRegistration && <p role="status">Loading your schedule…</p>}
     {schedule && schedule.items.length === 0 && <p>No talks scheduled yet. <Link to="/onboarding">Find your talks</Link>.</p>}
     <ol className="schedule-timeline">{[...(schedule?.items ?? [])].sort((a, b) => Date.parse(a.talk.start) - Date.parse(b.talk.start)).map(({ talk, reason }) =>
       <li key={talk.id}>

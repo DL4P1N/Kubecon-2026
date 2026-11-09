@@ -54,6 +54,9 @@ spec:
           env:
             - {name: discovery.type, value: single-node}
             - {name: ES_JAVA_OPTS, value: "-Xms1g -Xmx1g"}
+            # Default 30% of the 4Gi limit (1.2Gi) is below what E5-small needs
+            # (~1.27Gi: 470MB deployment + 558MB allocation + native overhead).
+            - {name: xpack.ml.max_machine_memory_percent, value: "50"}
             - name: ELASTIC_PASSWORD
               valueFrom:
                 secretKeyRef: {name: elasticsearch-admin, key: password}

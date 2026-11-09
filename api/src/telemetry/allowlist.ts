@@ -33,6 +33,10 @@ export const SPAN_ATTRIBUTE_ALLOWLIST = [
   "search.hits",
   "error.type",
   "retention.deleted",
+  "clusters.attendees",
+  "clusters.k",
+  "clusters.shown",
+  "clusters.suppressed",
 ] as const;
 
 export const LOG_ATTRIBUTE_ALLOWLIST = [
