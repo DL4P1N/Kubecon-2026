@@ -44,6 +44,10 @@ boundaries in the Design Doc.
 
 ## Gitar findings acted on
 
+Board task #62 adds four focused privacy/protection checks alongside the
+original project check. Evaluation evidence is pending its PR dashboard;
+configuration alone does not prove execution or runtime compliance.
+
 Gitar requested changes on PR #1 and PR #3; both were merged before the findings
 were addressed. The initial fixes merged in [PR #8](https://github.com/DL4P1N/Kubecon-2026/pull/8)
 as [39fe521](https://github.com/DL4P1N/Kubecon-2026/commit/39fe521c).
