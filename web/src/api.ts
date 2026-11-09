@@ -15,16 +15,18 @@ import type {
 } from "@cc/shared";
 
 const TOKEN_KEY = "cc.token";
+let memoryToken: string | null = null;
 
 export function getToken(): string | null {
   try {
-    return sessionStorage.getItem(TOKEN_KEY);
+    return memoryToken ?? sessionStorage.getItem(TOKEN_KEY);
   } catch {
-    return null;
+    return memoryToken;
   }
 }
 
 export function setToken(token: string): void {
+  memoryToken = token;
   try {
     sessionStorage.setItem(TOKEN_KEY, token);
   } catch {
