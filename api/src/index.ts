@@ -1,5 +1,6 @@
 import { loadConfig } from "./config.js";
 import { buildServer } from "./server.js";
+import { shutdownTelemetry } from "./telemetry/sdk.js";
 
 const config = loadConfig();
 const app = buildServer(config);
@@ -14,6 +15,9 @@ try {
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
-    app.close().finally(() => process.exit(0));
+    app
+      .close()
+      .then(shutdownTelemetry)
+      .finally(() => process.exit(0));
   });
 }
