@@ -207,7 +207,8 @@ test("delete my data: each status gets its own plan, and only 204 claims server 
 
   const expired = deletionPlan(401);
   assert.match(expired.message, /session has expired/);
-  assert.match(expired.message, /Sign in or register again/);
+  assert.match(expired.message, /still stored/);
+  assert.match(expired.message, /ask the organisers/);
   assert.ok(!/No server record|no record/i.test(expired.message));
   assert.deepEqual([expired.serverDeleted, expired.clearLocal, expired.clearToken], [false, false, false]);
 
