@@ -1,189 +1,146 @@
 # Conference Companion
 
-Find the right KubeCon talks, build a personal schedule without overlapping
-sessions, and check into rooms with a short-lived QR code. Organizers can see
-aggregate interests from attendees who opt in, while the team uses
-Elasticsearch search, OpenTelemetry, Dash0, Radar, and Gitar to build and
-inspect the application. See the [design document](Conference%20Companion_%20Design%20Doc.md)
-and [demo evidence ledger](docs/track-evidence.md) for scope and observed results.
+**From conference sign-up to the right talk, schedule, and room.**
 
-## What to try
+A Cloud Native Hackathon submission for **“make conferences easier”** — Salt Lake City, 9 November 2026. Attendees register in a short chat, find talks using their own vocabulary, and check into rooms with a short-lived QR code. Organizers see aggregate interests and room-demand suggestions rather than individual profiles.
 
-| Experience | Route | Implementation and evidence |
-| --- | --- | --- |
-| Register (the page says what is kept and why), then get recommendations | `/register` → `/onboarding` | [Attendee flow](web/src/pages/Onboarding.tsx), [signed registration](api/src/routes/register.ts) |
-| Save a personal schedule and display a short-lived room QR | `/schedule` | [Schedule authentication](https://github.com/DL4P1N/Kubecon-2026/pull/22), [QR/entitlement checks](https://github.com/DL4P1N/Kubecon-2026/pull/21) |
-| Compare keyword and hybrid search, with Elasticsearch request bodies | `/search` | [Initial five-query results](docs/demo/search-comparison-measured.json), [measured 12-query report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162), [evaluation script](scripts/search-eval.ts); 5 wins, 7 ties, 0 losses, not a majority win |
-| Scan a room QR or use its text alternative; reread entitlements on each scan | `/kiosk` | [Access implementation and tests](https://github.com/DL4P1N/Kubecon-2026/pull/21); live camera/cluster acceptance must be checked separately |
-| Inspect topic counts and organizer-keyed clusters | `/map`, `/clusters` | [Aggregation](api/src/interests/aggregate.ts), [cluster design and limitations](docs/cluster-map.md); groups below five are suppressed, thresholds untested on real attendee data |
+[![CI](https://github.com/DL4P1N/Kubecon-2026/actions/workflows/ci.yml/badge.svg)](https://github.com/DL4P1N/Kubecon-2026/actions/workflows/ci.yml)
 
-The screenshots below show the actual local Kubernetes environment, not an
-attendee UI mockup. The [offline UI recording and screenshots](docs/demo/recording.md)
-use visibly disclosed synthetic data and mock API responses; live attendee-flow
-recording remains pending.
+**[Open the app](https://conference-companion-ecan4.vercel.app)** · [Three-minute demo script (recording-time setup)](docs/storyboard-3min.md) · [Evidence ledger](docs/track-evidence.md) · [Design document](Conference%20Companion_%20Design%20Doc.md)
 
-![Radar overview of the conference-companion namespace](docs/demo/radar-overview.png)
+![Conference Companion landing page captured from the public deployment](docs/demo/submission-landing.png)
 
-[Open the live-cluster topology screenshot](docs/demo/radar-topology.png).
+## Try the attendee journey
+
+| Step | What to try |
+| --- | --- |
+| **Register** | [Chat sign-up](https://conference-companion-ecan4.vercel.app/site/register.html?c=cloud-native-hackathon-slc-2026) explains what is kept, collects interests, and creates a ticket and recommended schedule through the real API. The deployed chat uses scripted questions, not an LLM. |
+| **Find a talk** | [Search](https://conference-companion-ecan4.vercel.app/search) compares keyword and hybrid retrieval over **417 real KubeCon NA 2026 sessions**, including the Elasticsearch request bodies. |
+| **Plan the day** | [Schedule](https://conference-companion-ecan4.vercel.app/schedule) saves selected talks without overlaps and displays a short-lived room-access QR. Register first in the same browser tab. |
+| **Check the door** | [Kiosk](https://conference-companion-ecan4.vercel.app/kiosk) accepts a camera scan or token-text alternative and checks current server-side entitlements on every scan. |
+| **Understand demand** | [Interest map](https://conference-companion-ecan4.vercel.app/map), [clusters](https://conference-companion-ecan4.vercel.app/clusters), and [organizer view](https://conference-companion-ecan4.vercel.app/organizer) show aggregates; protected views require the organizer key. Groups smaller than five are suppressed. |
+| **Inspect health** | [Status](https://conference-companion-ecan4.vercel.app/status) reports application health and in-process search measurements. These are not Dash0 SLO measurements. |
+
+The [native iOS companion](ios/README.md) adds tickets, schedule, a floor plan, spoken directions, and signed Wallet-pass integration. It is a separate Xcode build, not an app installed by the website. Indoor positioning and other-attendee scenes include explicitly simulated signals/data; this is not a deployed venue-tracking system. Seven of the landing page's eight conference listings are fictional demo events.
 
 ## Architecture
 
-This diagram shows component relationships. The [evidence ledger](docs/track-evidence.md)
-distinguishes implemented paths from live verification; transport TLS exceptions
-are tracked separately and must not be inferred from the diagram.
+The public frontend runs on Vercel. **The backend and user data remain on the Mac's Kubernetes cluster.** Vercel proxies API requests; it does not host Elasticsearch or mount the data volume.
 
 ```mermaid
 flowchart LR
-  Browser["Attendee browser<br/>React + OpenTelemetry web SDK"]
-  subgraph Kind["Local kind cluster: conference-companion"]
-    Web["nginx web"]
-    API["Fastify API<br/>Signed sessions + room QR checks"]
-    ES["Elasticsearch<br/>semantic_text + E5 inference<br/>BM25 + semantic retrieval via RRF"]
-    OTel["OpenTelemetry collector<br/>Attribute allowlist + log scrubbing"]
-    Web -->|/api| API
-    API -->|Authenticated HTTPS| ES
-    Web -->|/otlp proxy| OTel
-    API -->|Traces, metrics, logs| OTel
+  Browser["Browser / iOS companion"] --> Vercel["Vercel<br/>Static landing + React app"]
+  subgraph Mac["Operator Mac"]
+    Tunnel["HTTPS tunnel"]
+    subgraph Kind["kind · conference-companion namespace"]
+      Web["nginx"]
+      API["Fastify API<br/>Sessions · search · room access"]
+      ES["Elasticsearch<br/>Catalog · profiles · schedules<br/>Entitlements · aggregates"]
+      PVC[("PersistentVolumeClaim")]
+      Collector["OpenTelemetry Collector<br/>Attribute allowlists + scrubbing"]
+      Web -->|/api| API
+      API -->|Authenticated HTTPS| ES
+      ES --> PVC
+      Web -->|/otlp| Collector
+      API -->|Telemetry| Collector
+    end
+    Tunnel -->|Local port-forward| Web
   end
-  Browser --> Web
-  OTel --> Dash0["Dash0<br/>Telemetry analysis"]
-  Radar["Local Radar UI + read-only MCP"] -.->|Inspect workloads| API
-  Radar -.->|Inspect workloads| ES
-  Gitar["Gitar<br/>Project rules + code review"] -.-> PRs["GitHub pull requests"]
-  PRs -.->|Reviewed changes| API
+  Vercel -->|API and OTLP proxy over HTTPS| Tunnel
+  Collector --> Dash0["Dash0 SaaS"]
 ```
 
-Elasticsearch embeds the real catalog through `semantic_text`; the API combines
-keyword and semantic retrieval with RRF. The optional k-means job runs in Node,
-with Elasticsearch storing its inputs and aggregate outputs. See
-[search implementation](api/src/search/queries.ts), [catalog/inference setup](docs/elasticsearch.md),
-and [cluster computation](docs/cluster-map.md).
+Elasticsearch's `semantic_text` field uses the multilingual E5 inference endpoint. The API combines BM25 and semantic retrieval with reciprocal rank fusion; catalog-vocabulary expansion applies to both legs. The Node clustering job computes k-means and stores aggregate results in Elasticsearch. [Search implementation](api/src/search/queries.ts) · [Inference setup](docs/elasticsearch.md) · [Cluster design](docs/cluster-map.md).
+
+### Technologies and hosting
+
+| Layer | Technologies | Where it runs |
+| --- | --- | --- |
+| Web | React 18, TypeScript, Vite 6; vanilla ES modules and Three.js for the landing scene | Vercel static deployment; nginx copy in Kubernetes |
+| API | Node.js 22, Fastify 5, Zod, signed JWT sessions/QR tokens | Kubernetes Deployment on the Mac |
+| Data and retrieval | Elasticsearch 8.19.6, BM25, `semantic_text`, multilingual E5, RRF | Kubernetes StatefulSet; local persistent volume |
+| Background work | Retention and interest-cluster jobs | Kubernetes CronJobs using the API image |
+| Observability | OpenTelemetry JS/web SDKs, Collector, Dash0 | SDKs in app; Collector in Kubernetes; Dash0 hosted service |
+| Kubernetes operations | Docker, kind, Radar UI and read-only MCP | Operator Mac; Radar inspects the dedicated cluster |
+| Delivery and review | GitHub Actions, Vitest, Playwright/axe, Gitar project rules and PR reviews | GitHub / Gitar; local development tooling |
+| Optional native app | SwiftUI, iOS 26+, QR and Wallet integration | Separately built and installed on an iPhone |
+
+## Evidence, not just integrations
+
+| Track | What we used it for | Inspect the evidence |
+| --- | --- | --- |
+| **Elasticsearch** | Real catalog, inference, hybrid search, schedules, and aggregate data. Vocabulary expansion improved the measured held-out paraphrases; it also improved keyword search. | [Shipped evaluation and limitations](docs/evidence/search-eval-52.md), [raw results](docs/evidence/search-eval-52.json), [comparison queries](docs/search-comparison.md) |
+| **Dash0** | Browser → API → Elasticsearch trace, dashboards/SLOs, and a telemetry-privacy investigation with remediation. | [Trace proof](docs/evidence/live-smoke.md#browser--api--elasticsearch-proof), [live dashboard](docs/demo/dash0-live-dashboard-slos.jpg), [SLO pages](docs/demo/dash0-live-slo-list.jpg), [Agent0/MCP investigation](docs/evidence/dash0-agent0-investigation.md), [export privacy check](docs/evidence/dash0-privacy-live.json) |
+| **Radar** | Live Kubernetes inspection, a safeguarded AI investigation of retained model-capacity errors, and resource sizing. The original ML-memory diagnosis used Elasticsearch APIs; Radar's later verdict and follow-up are distinguished. | [Actual investigation](docs/track-evidence.md#actual-radar-ai-investigation-task-30), [topology](docs/demo/radar-topology.png), [resource report](docs/evidence/radar-resources.md) |
+| **Gitar** | Project-aware repository rules, review findings acted on during development, and explicitly requested CI-failure diagnosis. This is the Gitar entry; no Sonar tooling integration is claimed. | [Rules and fixes](docs/track-evidence.md#gitar-findings-acted-on), [CI diagnosis](docs/gitar-ci-diagnosis.md), [room-access audit-log fix PR](https://github.com/DL4P1N/Kubecon-2026/pull/75) |
+
+Search measurement, same 417-talk index, eight held-out questions:
+
+| Retrieval | Expansion off: hit@3 | Expansion on: hit@3 | MRR@10 off → on |
+| --- | ---: | ---: | ---: |
+| Keyword | 0/8 | 4/8 | 0.016 → 0.516 |
+| Hybrid | 3/8 | 6/8 | 0.215 → 0.642 |
+
+These are small, same-author judged sets, not a production A/B result. The rejected eval-phrase rules are not shipped. Dashboard/SLO captures show a short observation window, not 28-day compliance; Gitar auto-apply and automatic CI-failure triggering are not claimed.
+
+[Live session-isolation and QR revoke/restore checks](docs/evidence/live-smoke.md#session-isolation-and-live-qr-revocation--70-deployed-9c047d7) used two synthetic attendees and the same fresh QR across allow → deny → allow. Those checks and the search/Dash0 captures predate the latest landing integration; their recorded release boundaries still apply. The [offline recording](docs/demo/recording.md) is a visibly labelled mock-API rehearsal, not live backend proof.
 
 ## Run locally
 
-Use **Node 22.15+**, npm, Docker, and enough memory for Elasticsearch's 4 GiB
-container plus the application. The [secured ES runbook](docs/es-deployment.md)
-contains certificate-volume setup, private credential provisioning,
-`companion_svc` bootstrap, licensing, and the ML memory setting. Complete that
-setup before seeding; never disable certificate verification.
+**Prerequisites:** Node **22.15+**, npm, Docker, and memory for Elasticsearch's 4 GiB container plus inference and the application.
+
+1. Run `npm ci` from the repository root.
+2. Create a private `.env` using [.env.example](.env.example) as a reference; preserve any existing credentials. Configuration is read from environment variables, not automatically loaded from this file.
+3. Follow the [secured Elasticsearch runbook](docs/es-deployment.md) to provision credentials, trusted CA, service-user permissions, licensing, and ML memory. Do not disable certificate verification. [Compose](deploy/compose/docker-compose.yml) supplies Elasticsearch and the collector; [observability setup](docs/observability.md#run-locally) covers collector credentials.
+4. Load the API environment and initialize the catalog **once on a new environment**:
 
 ```sh
-npm ci
+# API terminal; source only your own trusted local file.
+set -a
+. ./.env
+set +a
+
 npm run build
-npm test
-# After the secured ES setup, with its service credentials and trusted CA loaded:
 npm run es:init
 npm run seed
+npm run dev:api  # http://localhost:3000
 ```
 
-Compose provides Elasticsearch and the collector; the development applications
-run on the host. See [Compose ES setup](docs/es-deployment.md#local-compose)
-and [telemetry setup](docs/observability.md#run-locally) for required environment
-variables. Keep Dash0 credentials in the collector environment only.
-
-Registration loads public talk tags from `GET /api/catalog/topics` (`{ topics: string[] }`).
-This reads a keyword terms aggregation on `talks.tags` (up to 1,000 distinct tags),
-not attendee interests. Empty user queries on `/api/search` remain invalid.
-If the catalog is unavailable the form offers a retry rather than sending an
-empty search. To smoke-test a deployed app without API mocks, set
-`LIVE_APP_URL` to its origin and run `npm run test:a11y -w web -- --grep "live catalog"`.
-The smoke test only reads catalog metadata and selects a checkbox; it creates no attendee.
+In another terminal:
 
 ```sh
-# In separate terminals after configuring the dependencies:
-docker compose -f deploy/compose/docker-compose.yml up -d elasticsearch otel-collector
-npm run dev:api  # localhost:3000
-npm run dev:web  # localhost:5173; proxies /api and /otlp
+npm run dev:web  # http://localhost:5173; /site/ is the landing entry
 ```
 
-API configuration comes from environment variables, listed in
-[.env.example](.env.example). Real secrets belong in local environment variables
-or Kubernetes Secrets. [Telemetry](docs/observability.md) covers SDK startup,
-collector allowlists, and the browser → API → ES trace verification procedure.
+The Vite server proxies `/api` and `/otlp`. OAuth linking requires provider client credentials and matching callback URLs; see [sign-in configuration](docs/sign-in.md). Provider links live in the browser and are **not** cross-device account login or profile synchronization. Keep OAuth client secrets on the API, never in `VITE_*` variables or the frontend bundle.
 
-For Kubernetes, follow the [dedicated kind deployment runbook](deploy/k8s/app/README.md)
-and [Radar runbook](docs/radar.md). They create an isolated kubeconfig, provision
-Secrets, load local images, deploy dependencies/app, run the one-shot real-talk
-seed, and port-forward the web Service. A health check verifies its own hop;
-exercise the real registration/search/scan routes before presenting.
+### Development and deployment
 
-The [retention runbook](docs/retention.md) and
-[cluster runbook](docs/cluster-map.md) cover scheduled jobs. The demo script,
-synthetic seed, and recorded fallback are separate deliverables; check their
-merge and verification status in the [evidence ledger](docs/track-evidence.md).
+```sh
+npm run typecheck
+npm test
+npm --prefix landing test
+npm run test:a11y -w web  # requires the Playwright browser/dependencies
+```
 
-## Privacy and security
+| Guide | Contents |
+| --- | --- |
+| [Kubernetes deployment](deploy/k8s/app/README.md) | Dedicated kubeconfig, Secrets, images, app rollout, seed, and port-forward |
+| [Chat](docs/chat.md) | Scripted flow; optional Claude CLI mode and usage boundary |
+| [Retention](docs/retention.md) / [clusters](docs/cluster-map.md) | Scheduled jobs, profile deletion, aggregation limits |
+| [Telemetry](docs/observability.md) / [allowlist](docs/telemetry-allowlist.md) | SDKs, collector, scrubbing, and trace verification |
+| [Radar](docs/radar.md) / [Dash0](docs/dash0.md) / [Gitar](docs/gitar.md) | Operator and sponsor-track setup |
+| [iOS](ios/README.md) | Xcode build, server URL, signing, Wallet, and simulated features |
 
-- Session tokens are signed; room QR tokens use a separate audience and about
-  60-second expiry. Each scan checks the current entitlement and fails closed.
-  [Token design](api/src/auth/token.ts), [scan checks](api/src/routes/access.ts).
-- Interest views cover every registered attendee (not an opt-in) and suppress
-  groups smaller than five. They expose aggregates; clustering centroids remain server-side.
-  [Aggregation](api/src/interests/aggregate.ts), [cluster boundaries](docs/cluster-map.md).
-- Attendee profiles are kept by default so the next conference can recommend
-  talks from the first minute; set `ATTENDEE_RETENTION_HOURS=24` to delete them
-  after that long instead. Door and session tokens stay short-lived. Attendees
-  can delete their own profile with `DELETE /api/me` (see the runbook).
-  [Retention behavior and validation limits](docs/retention.md).
-- Telemetry uses explicit resource, trace, log, and metric allowlists, and
-  scrubs URL query strings from log bodies. Attendee IDs, precise user
-  locations, tokens, and free-text answers are prohibited by policy; the
-  [privacy regression](https://github.com/DL4P1N/Kubecon-2026/pull/30) covers its
-  tested flows. Additional raw URL/path findings are being investigated in
-  board task #40; do not read the policy as complete live proof.
-  [Allowlist](docs/telemetry-allowlist.md), [SDK/logging design](docs/observability.md).
-- Application ES access uses `companion_svc`; admin bootstrap credentials are
-  separate. ES has authentication and CA-validated TLS. Internal app/collector
-  transport gaps are tracked honestly in the [live evidence](docs/track-evidence.md#evidence-boundaries).
-  [ES deployment and permission checks](docs/es-deployment.md).
+## Data, privacy, and demo boundaries
 
-## Sponsor tracks
+- **Storage:** profiles, schedules, entitlements, and aggregate results are Elasticsearch documents on the local Kubernetes volume. Vercel forwards requests to the API; only Elasticsearch writes that volume. Browser-local kept profiles/history are separate from server storage.
+- **Retention:** registering keeps the profile for future conferences by default and includes aggregate-interest use; it is not a separate opt-in. A positive `ATTENDEE_RETENTION_HOURS` enables timed retention. `DELETE /api/me` is the profile-deletion endpoint. Read the [current policy and limitations](docs/retention.md), not the older 24-hour demo assumptions.
+- **Access:** signed attendee sessions last eight hours; room QR tokens last about 60 seconds, use a separate audience, and are checked against current entitlements. Organizer access uses a separate key. [Token implementation](api/src/auth/token.ts).
+- **Telemetry:** explicit allowlists exclude attendee identifiers, tokens, precise locations, and free-text answers. The committed privacy evidence is a bounded observation, not a universal audit. Elasticsearch has authenticated, CA-validated TLS; internal app/collector transport is **not** verified end-to-end TLS.
+- **Current deployment:** the public site depends on the operator Mac staying awake with Docker, the port-forward, and the HTTPS tunnel running. The single-node local volume is not a replicated production database. The current Cloudflare Quick Tunnel does not support the new SSE registration feed; it needs a streaming-capable tunnel. Normal API requests remain separate from that feed.
+- **Known hardening work:** merged landing integration has follow-ups tracked on team board #78, including stored opt-out handling, binding OAuth state to the initiating browser, deletion-error handling, and expired-record cleanup when timed retention is off. The owner explicitly approved deploying this build before those fixes; this is a hackathon demo, not a claim of production readiness.
 
-### Elasticsearch
+## License
 
-[Real catalog and inference evidence](docs/track-evidence.md#judge-swimlanes-and-claim-gates),
-[observed five-query comparisons](docs/demo/search-comparison-measured.json),
-[evaluation/tuning PR #27](https://github.com/DL4P1N/Kubecon-2026/pull/27).
-The [operator's measured report](https://github.com/DL4P1N/Kubecon-2026/pull/27#issuecomment-6749696162)
-uses 12 hand-judged questions against 417 indexed talks: current hybrid won 5,
-tied 7 and lost 0; hit@3 was 5/12 vs keyword 0/12, MRR@10 was 0.306 vs 0.017.
-This does not meet the majority-of-12 win criterion. The other tested tuning
-variants were no better; current configuration was retained. The
-[measured report in the repository](docs/demo/search-eval-report.md) and
-[updated comparison](docs/search-comparison.md) landed in
-[PR #40](https://github.com/DL4P1N/Kubecon-2026/pull/40), separately from the evaluator.
-
-### Dash0
-
-[Dash0 evidence and pending items](docs/track-evidence.md#dash0),
-[collector export/scrubbing observation](docs/track-evidence.md#evidence-boundaries),
-[OpenTelemetry SDK PR #15](https://github.com/DL4P1N/Kubecon-2026/pull/15),
-[privacy regression PR #30](https://github.com/DL4P1N/Kubecon-2026/pull/30).
-Collector-to-Dash0 export and a synthetic attribute scrub were observed;
-end-to-end trace, live SLO/dashboard, and Agent0/MCP investigation must pass
-their own evidence gates. The privacy regression tests application spans/logs
-and collector configuration; it does not run a real collector.
-
-### Radar
-
-[Deployment, real ML-capacity incident, and controlled-test boundaries](docs/track-evidence.md#radar),
-[overview screenshot](docs/demo/radar-overview.png),
-[topology screenshot](docs/demo/radar-topology.png),
-[deployment and probe-fix PR #6](https://github.com/DL4P1N/Kubecon-2026/pull/6).
-Radar UI and read-only MCP were used against the live kind namespace. The
-original ES allocation diagnosis came from ES APIs. The later
-[actual Radar AI run and verification](docs/track-evidence.md#actual-radar-ai-investigation-task-30)
-is captured in [PR #37](https://github.com/DL4P1N/Kubecon-2026/pull/37);
-its retained scaling-error finding is distinguished from current healthy
-one-allocation serving.
-
-### Gitar / Sonar track
-
-[Acted-on findings](docs/track-evidence.md#gitar-findings-acted-on),
-[repository-rule execution](docs/track-evidence.md#repository-rule-verification-task-34),
-[PR #25 Gitar dashboard](https://github.com/DL4P1N/Kubecon-2026/pull/25#issuecomment-6749180455).
-“Rules 1/1 met” proves the check ran on a config/docs PR; the probe finding was
-acted on and tested during a **controlled** API outage. Functional validation
-is disabled. An [explicitly requested retrospective CI diagnosis](docs/gitar-ci-diagnosis.md)
-is verified; automatic CI-failure triggering and auto-apply remain unproven. This is a Gitar entry;
-no Sonar tooling integration is claimed.
+No project-wide license is declared in this repository. Vendored components retain their own notices and licenses.
