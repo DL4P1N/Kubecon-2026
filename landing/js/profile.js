@@ -162,7 +162,7 @@ export function deletionPlan(status) {
   if (status === 204) return { kind: "deleted", message: "Deleted from this browser. Deleted from the server.", clearLocal: true, clearToken: true, serverDeleted: true };
   if (status === 404) return { kind: "no-record", message: "Deleted from this browser. No server record was found for this session.", clearLocal: true, clearToken: true, serverDeleted: false };
   if (status === "no-token") return { kind: "no-session", message: "This browser has no server session, so only the data stored in this browser was removed.", clearLocal: true, clearToken: true, serverDeleted: false };
-  if (status === 401) return { kind: "expired", message: "Your session has expired, so nothing was deleted. Sign in or register again on this device, then delete your data to remove the server record.", clearLocal: false, clearToken: false, serverDeleted: false };
+  if (status === 401) return { kind: "expired", message: "Your session has expired, so nothing was deleted and your server record is still stored. This browser can no longer delete it; ask the organisers to remove it.", clearLocal: false, clearToken: false, serverDeleted: false };
   if (status === null) return { kind: "unreachable", message: "The server could not be reached, so nothing was deleted. Check your connection and try again.", clearLocal: false, clearToken: false, serverDeleted: false };
   return { kind: "server-error", message: "The server could not be reached or did not confirm the deletion, so nothing was deleted. Try again in a moment.", clearLocal: false, clearToken: false, serverDeleted: false };
 }

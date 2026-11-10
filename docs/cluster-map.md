@@ -7,7 +7,7 @@ of at least 5.
 ## How it works
 
 1. `npm run clusters` (the API image runs `node dist/clusters/cli.js`) scrolls
-   through `attendees` for unexpired records (every registered attendee) that have an
+   through `attendees` for unexpired records (every registered attendee whose stored `consent.cluster_map` is not false) that have an
    `interest_vector`. Only vectors and interest tags are read, never IDs or names.
 2. **k-means runs in the Node job process.** Elasticsearch stores the input
    vectors and the output documents; it does not run the clustering.

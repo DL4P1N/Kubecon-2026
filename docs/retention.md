@@ -7,7 +7,7 @@ the profile (display name and interests today; role, goal and format
 preferences as the product adds them) so the next conference can recommend
 talks from the first minute, and so organisers can use aggregate interests to
 choose future talks. The aggregate interest map and QR check-in are not
-opt-ins: they apply to every registered attendee. What protects people is that
+opt-ins: they apply to every registered attendee except one whose stored consent flag is an explicit false (older opt-outs are still honoured). What protects people is that
 aggregates never show a group under 5 (small groups are pooled into "other",
 and "other" is hidden if it is still under 5). Email is never stored.
 
