@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { App, siteNavigation } from "../src/App.js";
 
@@ -36,6 +37,16 @@ describe("/auth/:provider/callback", () => {
     expect(stored.google.displayName).toBe("Ada");
     expect(stored.github).toMatchObject({ displayName: "Grace Hopper", handle: "ghopper", avatarUrl: "https://a.example/x.png" });
     expect(Number.isNaN(Date.parse(stored.github.linkedAt))).toBe(false);
+  });
+
+  it("posts the one-time state only once under StrictMode", async () => {
+    const fetchMock = reply(200, { provider: "github", displayName: "Grace", return: "/site/profile.html", app: false });
+    vi.stubGlobal("fetch", fetchMock);
+    const replace = vi.spyOn(siteNavigation, "replace").mockImplementation(() => {});
+    render(<StrictMode><MemoryRouter initialEntries={["/auth/github/callback?code=abc&state=strict1"]}><App /></MemoryRouter></StrictMode>);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/site/profile.html"));
+    expect(authCalls(fetchMock)).toHaveLength(1);
+    expect(localStorage.getItem("cc.linked.v1")).toContain("github");
   });
 
   it("finishes in the native app when the flow began there, and keeps a fallback link", async () => {

@@ -33,10 +33,20 @@ function setup(env: Record<string, string> = ENV, fetchFn?: typeof fetch, now?: 
 async function start(app: ReturnType<typeof setup>, provider: string, query = "") {
   const res = await app.inject({ method: "GET", url: `/api/auth/${provider}/start${query}` });
   const loc = res.headers.location ? new URL(String(res.headers.location)) : null;
-  return { res, loc, state: loc?.searchParams.get("state") ?? "" };
+  const state = loc?.searchParams.get("state") ?? "";
+  const cookie = String(res.headers["set-cookie"] ?? "").split(";")[0];
+  if (cookie) cookies.set(state, cookie);
+  return { res, loc, state, cookie };
 }
-const callback = (app: ReturnType<typeof setup>, provider: string, payload: unknown) =>
-  app.inject({ method: "POST", url: `/api/auth/${provider}/callback`, payload: payload as object });
+// state -> the nonce cookie the start response set, so callback() behaves like the same browser.
+const cookies = new Map<string, string>();
+const callback = (app: ReturnType<typeof setup>, provider: string, payload: unknown, cookie?: string) =>
+  app.inject({
+    method: "POST",
+    url: `/api/auth/${provider}/callback`,
+    payload: payload as object,
+    headers: { cookie: cookie ?? cookies.get((payload as { state?: string }).state ?? "") ?? "" },
+  });
 
 describe("GET /api/auth/providers", () => {
   it("lists the three providers and whether each is fully configured", async () => {
@@ -194,6 +204,25 @@ describe("POST /api/auth/:provider/callback", () => {
     const res = await app.inject({ url: "/api/auth/providers" });
     expect(res.statusCode).toBe(429);
     expect(res.json()).toMatchObject({ statusCode: 429, error: "rate_limited" });
+  });
+});
+
+describe("OAuth browser binding", () => {
+  it("sets an HttpOnly SameSite=Lax nonce cookie scoped to /api/auth at start", async () => {
+    const { res } = await start(setup(), "github");
+    const c = String(res.headers["set-cookie"]);
+    expect(c).toMatch(/^cc_oauth=[\w-]{20,}; Path=\/api\/auth; HttpOnly; SameSite=Lax; Max-Age=600$/);
+  });
+
+  it("rejects a callback without the cookie or with another browser's cookie, and burns the state", async () => {
+    const app = setup(ENV, fakeFetch({ login: "ghopper", name: "Grace Hopper" }).fn);
+    const a = await start(app, "github");
+    const b = await start(app, "github");
+    expect((await callback(app, "github", { code: "c", state: a.state }, "")).json()).toMatchObject({ error: "invalid_state" });
+    expect((await callback(app, "github", { code: "c", state: b.state }, a.cookie)).statusCode).toBe(400);
+    expect((await callback(app, "github", { code: "c", state: a.state }, a.cookie)).statusCode).toBe(400); // already consumed
+    const c = await start(app, "github");
+    expect((await callback(app, "github", { code: "c", state: c.state }, `x=1; ${c.cookie}`)).statusCode).toBe(200);
   });
 });
 

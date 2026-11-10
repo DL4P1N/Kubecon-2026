@@ -152,14 +152,19 @@ export const SESSION_DATA_KEYS = ["cc.token", "cc.offline-session"];
 export const SESSION_DATA_PREFIXES = ["cc.chat.v1."];
 
 /**
- * What to say and whether to drop the token, from the DELETE /api/me result.
- * `status` is the HTTP status, or null when there was no token or the request failed. Only 204 claims server deletion.
- * 401 and 404 mean nothing is stored for this session. Any other status leaves the token so the visitor can try again.
+ * What to say and what to keep, from the DELETE /api/me result.
+ * `status` is the HTTP status, "no-token" when this browser has no session token, or null when the request failed.
+ * Only 204 claims server deletion; only 404 and "no-token" clear local data without a server answer.
+ * A network failure, 401 or other status keeps the token and local data so the visitor can try again.
+ * `clearLocal` says whether to remove local data; `clearToken` whether to drop the session token.
  */
 export function deletionPlan(status) {
-  if (status === 204) return { message: "Deleted from this browser. Deleted from the server.", clearToken: true, serverDeleted: true };
-  if (status === null || status === 401 || status === 404) return { message: "Deleted from this browser. No server record was found for this session.", clearToken: true, serverDeleted: false };
-  return { message: "Deleted from this browser. The server did not confirm a deletion, so try again later.", clearToken: false, serverDeleted: false };
+  if (status === 204) return { kind: "deleted", message: "Deleted from this browser. Deleted from the server.", clearLocal: true, clearToken: true, serverDeleted: true };
+  if (status === 404) return { kind: "no-record", message: "Deleted from this browser. No server record was found for this session.", clearLocal: true, clearToken: true, serverDeleted: false };
+  if (status === "no-token") return { kind: "no-session", message: "This browser has no server session, so only the data stored in this browser was removed.", clearLocal: true, clearToken: true, serverDeleted: false };
+  if (status === 401) return { kind: "expired", message: "Your session has expired, so nothing was deleted and your server record is still stored. This browser can no longer delete it; ask the organisers to remove it.", clearLocal: false, clearToken: false, serverDeleted: false };
+  if (status === null) return { kind: "unreachable", message: "The server could not be reached, so nothing was deleted. Check your connection and try again.", clearLocal: false, clearToken: false, serverDeleted: false };
+  return { kind: "server-error", message: "The server could not be reached or did not confirm the deletion, so nothing was deleted. Try again in a moment.", clearLocal: false, clearToken: false, serverDeleted: false };
 }
 
 export const shareLabel = (n) => (n === 1 ? "Shared 1 time" : `Shared ${n} times`);
@@ -438,18 +443,21 @@ async function start() {
     keepBtn.addEventListener("click", () => { showAsk(true); delAsk.focus(); });
     confirmBtn.addEventListener("click", async () => {
       confirmBtn.disabled = true;
-      let status = null;
+      let status = "no-token";
       let token = null;
       try { token = sessionStorage.getItem("cc.token"); } catch { /* storage unavailable */ }
       if (token) {
+        status = null;
         try { const r = await fetch("/api/me", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }); status = r.status; } catch { status = null; }
       }
       const plan = deletionPlan(status);
-      for (const k of LOCAL_DATA_KEYS) { try { localStorage.removeItem(k); } catch { /* ignore */ } }
-      try {
-        for (const k of SESSION_DATA_KEYS) if (k !== "cc.token" || plan.clearToken) sessionStorage.removeItem(k);
-        for (const k of Object.keys(sessionStorage)) if (SESSION_DATA_PREFIXES.some((pre) => k.startsWith(pre))) sessionStorage.removeItem(k);
-      } catch { /* ignore */ }
+      if (plan.clearLocal) {
+        for (const k of LOCAL_DATA_KEYS) { try { localStorage.removeItem(k); } catch { /* ignore */ } }
+        try {
+          for (const k of SESSION_DATA_KEYS) if (k !== "cc.token" || plan.clearToken) sessionStorage.removeItem(k);
+          for (const k of Object.keys(sessionStorage)) if (SESSION_DATA_PREFIXES.some((pre) => k.startsWith(pre))) sessionStorage.removeItem(k);
+        } catch { /* ignore */ }
+      }
       confirmBtn.disabled = false;
       showAsk(true);
       delStatus.textContent = "";

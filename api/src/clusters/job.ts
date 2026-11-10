@@ -75,6 +75,8 @@ export async function loadOptedInAttendees(
         query: {
           bool: {
             filter: [
+              // Absent consent counts as consenting; only a stored false excludes.
+              { bool: { must_not: [{ term: { "consent.cluster_map": false } }] } },
               { range: { expires_at: { gt: now.toISOString() } } },
               { exists: { field: "interest_vector" } },
             ],

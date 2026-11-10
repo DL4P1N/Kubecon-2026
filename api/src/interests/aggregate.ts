@@ -35,8 +35,9 @@ export function buildTopicCounts(kept: InterestTopicCount[], otherCount: number,
   return topics.sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
 }
 
-/** Every registered attendee that is not past an expiry (expired docs count as deleted). Consent is not a gate. */
+/** Attendees not past an expiry (expired docs count as deleted) and not explicitly opted out of the cluster map (absent = consenting). */
 const optedIn = (now: Date) => [
+  { bool: { must_not: [{ term: { "consent.cluster_map": false } }] } },
   { range: { expires_at: { gt: now.toISOString() } } },
 ];
 

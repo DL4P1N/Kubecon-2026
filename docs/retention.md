@@ -7,7 +7,7 @@ the profile (display name and interests today; role, goal and format
 preferences as the product adds them) so the next conference can recommend
 talks from the first minute, and so organisers can use aggregate interests to
 choose future talks. The aggregate interest map and QR check-in are not
-opt-ins: they apply to every registered attendee. What protects people is that
+opt-ins: they apply to every registered attendee except one whose stored consent flag is an explicit false (older opt-outs are still honoured). What protects people is that
 aggregates never show a group under 5 (small groups are pooled into "other",
 and "other" is hidden if it is still under 5). Email is never stored.
 
@@ -15,7 +15,7 @@ This is one setting, `ATTENDEE_RETENTION_HOURS`:
 
 | Value | Behaviour |
 | --- | --- |
-| unset or `0` (default) | Profiles, entitlements and saved schedules are kept indefinitely. New documents get the far-future `expires_at` sentinel `9999-12-31T23:59:59.999Z` (so expiry checks that fail closed on a missing date keep working). The retention job is a no-op: it logs `Retention is off ... nothing deleted` and sends no request to Elasticsearch. |
+| unset or `0` (default) | Profiles, entitlements and saved schedules are kept indefinitely. New documents get the far-future `expires_at` sentinel `9999-12-31T23:59:59.999Z` (so expiry checks that fail closed on a missing date keep working). The retention job still deletes documents whose `expires_at` has already passed (left over from an earlier timed policy; kept profiles carry the sentinel, so they are unaffected) and logs `Retention is off ...`; it never deletes by `created_at` while off. |
 | positive integer, e.g. `24` | Timed deletion as before: `expires_at` = creation + that many hours, the CronJob purges, and `/api/me` and access checks reject expired attendees. |
 | anything else | The API (and `loadConfig`) refuses to start. |
 
@@ -61,7 +61,7 @@ the existing strict schedule and entitlement mappings, which have no
 `created_at` field. Missing timestamps do not match; writers must always supply
 an expiry or creation timestamp.
 
-The CronJob runs hourly (and does nothing while retention is off), so cleanup can lag expiry by up to one hour. It uses
+The CronJob runs hourly (and, while retention is off, only removes already-expired documents), so cleanup can lag expiry by up to one hour. It uses
 the app's Elasticsearch credentials and fails on conflicts, partial failures
 or timeout so failed Jobs remain visible. Rerunning is safe.
 

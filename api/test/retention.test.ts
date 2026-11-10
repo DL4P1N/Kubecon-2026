@@ -44,6 +44,10 @@ it("rejects an invalid clock before issuing deletion requests", () => {
   expect(() => retentionQuery(new Date("invalid"), DAY)).toThrow("Invalid retention clock");
 });
 
+it("builds an expires_at-only query when retention is off", () => {
+  expect(retentionQuery(now, null)).toEqual({ query: { bool: { minimum_should_match: 1, should: [{ range: { expires_at: { lte: "2026-11-09T12:00:00.000Z" } } }] } } });
+});
+
 it("rejects a non-positive retention period before issuing deletion requests", () => {
   expect(() => retentionQuery(now, 0)).toThrow("Invalid retention period");
   expect(() => retentionQuery(now, Number.NaN)).toThrow("Invalid retention period");
@@ -51,23 +55,33 @@ it("rejects a non-positive retention period before issuing deletion requests", (
 
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
-it("is a no-op that logs one line and sends nothing when retention is off (null)", async () => {
+it("with retention off (null) logs one line and deletes only expired documents, never by created_at", async () => {
   const log = vi.spyOn(console, "log").mockImplementation(() => {});
-  const request = vi.fn();
-  expect(await runRetention({ request } as unknown as EsClient, now, null)).toBe(0);
-  expect(request).not.toHaveBeenCalled();
+  const docs = [
+    { id: "old-policy-expired", expires_at: "2026-11-09T11:59:59.000Z", created_at: "2026-11-08T00:00:00Z" },
+    { id: "kept-sentinel", expires_at: "9999-12-31T23:59:59.999Z", created_at: "2020-01-01T00:00:00Z" },
+  ];
+  const request = vi.fn(async (_method, _path, body) => {
+    const rule = body.query.bool.should[0].range.expires_at.lte;
+    expect(body.query.bool.should).toHaveLength(1);
+    const deleted = docs.filter((d) => Date.parse(d.expires_at) <= Date.parse(rule)).length;
+    return { status: 200, body: { deleted, failures: [] } };
+  });
+  expect(await runRetention({ request } as unknown as EsClient, now, null)).toBe(3);
+  expect(request).toHaveBeenCalledTimes(3);
+  expect(JSON.stringify(request.mock.calls[0]![2])).not.toContain("created_at");
   expect(log).toHaveBeenCalledTimes(1);
   expect(log.mock.calls[0]![0]).toMatch(/Retention is off/);
 });
 
-it("defaults to off when ATTENDEE_RETENTION_HOURS is unset or 0", async () => {
+it("defaults to off when ATTENDEE_RETENTION_HOURS is unset or 0, still deleting only already-expired documents", async () => {
   vi.spyOn(console, "log").mockImplementation(() => {});
-  const request = vi.fn();
+  const request = vi.fn(async () => ({ status: 200, body: { deleted: 0 } }));
   vi.stubEnv("ATTENDEE_RETENTION_HOURS", "");
   expect(await runRetention({ request } as unknown as EsClient, now)).toBe(0);
   vi.stubEnv("ATTENDEE_RETENTION_HOURS", "0");
   expect(await runRetention({ request } as unknown as EsClient, now)).toBe(0);
-  expect(request).not.toHaveBeenCalled();
+  expect(request).toHaveBeenCalledTimes(6);
 });
 
 it("ATTENDEE_RETENTION_HOURS=24 purges attendees, schedules and entitlements older than 24 hours", async () => {

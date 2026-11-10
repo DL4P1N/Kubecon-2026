@@ -49,8 +49,8 @@ export const registerBodySchema = z.object({
     .min(1, "at least one interest is required")
     .max(MAX_INTERESTS)
     .transform((xs) => [...new Set(xs.map((x) => x.toLowerCase()))]),
-  // No longer a gate: the interest map and QR check-in apply to every attendee. Still accepted (and
-  // validated when present) so existing clients keep working; the stored value is always true/true.
+  // The chat sign-up does not ask for consent, so each flag defaults to true when absent. An explicit
+  // false is stored and honoured (QR token, interest aggregate, cluster job).
   consent: z
     .object({
       clusterMap: z.boolean(),
@@ -183,7 +183,7 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
           display_name: body.name,
           interests: body.interests,
           ...(interestVector ? { interest_vector: interestVector } : {}),
-          consent: { cluster_map: true, qr_checkin: true },
+          consent: { cluster_map: body.consent?.clusterMap ?? true, qr_checkin: body.consent?.qrCheckin ?? true },
           created_at: createdAt,
           expires_at: expiresAt,
         };
@@ -222,8 +222,8 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
    * Self-service erasure. Deletes every per-attendee document (all keyed by the attendee ID):
    * `entitlements`, `schedules`, and last the `attendees` profile. The profile goes last so a
    * partial failure (503) can simply be retried with the same token. Missing entitlement or
-   * schedule docs are fine. If the profile was already gone the token no longer grants anything:
-   * 401 (stray schedule/entitlement docs are still cleaned). Aggregates and clusters are not
+   * schedule docs are fine. If the profile was already gone: 404
+   * (stray schedule/entitlement docs are still cleaned). Aggregates and clusters are not
    * touched here; they drop the attendee on the next job run. Nothing here logs or returns the ID.
    */
   app.delete(routes.deleteMe.path, limitFor(DEFAULT_RATE_LIMITS.me), async (req, reply) =>
@@ -240,7 +240,7 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
       } catch {
         return reply.code(503).send({ error: "storage_unavailable", message: "could not delete profile" });
       }
-      if (!profileExisted) return reply.code(401).send({ error: "unauthorized", message: "attendee not found" });
+      if (!profileExisted) return reply.code(404).send({ error: "not_found", message: "attendee not found" });
       return reply.code(204).send();
     }),
   );

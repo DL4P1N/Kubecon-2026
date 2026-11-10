@@ -23,6 +23,20 @@ export function storeLinked(r: AuthCallbackResponse): void {
   }
 }
 
+// The state is one-time: under React StrictMode the effect runs twice, so both runs share one request.
+const inFlight = new Map<string, Promise<AuthCallbackResponse>>();
+function postCallbackOnce(provider: string, code: string, state: string): Promise<AuthCallbackResponse> {
+  const key = `${provider}\n${state}`;
+  let p = inFlight.get(key);
+  if (!p) {
+    p = api.authCallback(provider, { code, state });
+    inFlight.set(key, p);
+    const forget = () => { if (inFlight.get(key) === p) inFlight.delete(key); };
+    p.then(forget, forget);
+  }
+  return p;
+}
+
 /**
  * OAuth redirect target: /auth/:provider/callback?code=&state=. Posts the code to the API (which holds
  * the client secret), stores the returned profile in this browser, then goes back to where sign-in began.
@@ -44,7 +58,7 @@ export function AuthCallback() {
     let cancelled = false;
     (async () => {
       try {
-        const linked = await api.authCallback(provider, { code, state });
+        const linked = await postCallbackOnce(provider, code, state);
         if (cancelled) return;
         storeLinked(linked);
         if (linked.app) {

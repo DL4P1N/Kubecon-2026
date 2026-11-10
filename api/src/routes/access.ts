@@ -82,21 +82,25 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
         const id = await requireAttendee(tokens, req, reply);
         if (id === null) return reply;
 
-        let doc: { found?: boolean; _source?: Pick<AttendeeDoc, "expires_at"> } | undefined;
+        let doc: { found?: boolean; _source?: Pick<AttendeeDoc, "consent" | "expires_at"> } | undefined;
         try {
           const r = await es.request<typeof doc>(
             "GET",
-            `/attendees/_doc/${encodeURIComponent(id)}?_source_includes=expires_at`,
+            `/attendees/_doc/${encodeURIComponent(id)}?_source_includes=consent,expires_at`,
             undefined,
             [404],
           );
           doc = r.body;
         } catch {
-          return reply.code(503).send({ error: "storage_unavailable", message: "could not check attendee" });
+          return reply.code(503).send({ error: "storage_unavailable", message: "could not check consent" });
         }
         const src = doc?.found ? doc._source : undefined;
         if (!src || !isActive(src.expires_at, now())) {
           return reply.code(401).send({ error: "unauthorized", message: "attendee not found" });
+        }
+        // Absent counts as consenting (registration defaults to true); only a stored false refuses.
+        if (src.consent?.qr_checkin === false) {
+          return reply.code(403).send({ error: "forbidden", message: "QR check-in was not opted in" });
         }
         const signed = await tokens.sign(id, { audience: ACCESS_AUDIENCE, ttlSeconds: ACCESS_TOKEN_TTL_SECONDS });
         const res: AccessTokenResponse = { token: signed.token, expiresAt: signed.expiresAt };

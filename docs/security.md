@@ -30,10 +30,10 @@ Cached aggregate routes are cheap and get the most headroom.
 | `POST /api/schedule` | Bearer session token (HS256) | 120 | none | `maxTalks` 1 to 50, `talkIds` ≤ 100 strings or onboarding answers as above; body ≤ 256 KiB | The caller's own schedule |
 | `GET /api/schedule` | Bearer session token | 120 | none | none | The caller's own schedule |
 | `GET /api/schedule.ics` | Bearer session token | 120 (shares the schedule limit value) | `Cache-Control: private, no-store` | `talkId` one string of 1 to 200 chars | The caller's own schedule as iCalendar |
-| `POST /api/register` | none | 120 (`REGISTER_RATE_LIMIT_PER_MINUTE`) | none | zod: name ≤ 80, email ≤ 254 (never stored), 1 to 20 interests × ≤ 64, optional legacy consent booleans (ignored: stored true/true); unknown fields dropped | The new attendee ID and token, to that caller only |
+| `POST /api/register` | none | 120 (`REGISTER_RATE_LIMIT_PER_MINUTE`) | none | zod: name ≤ 80, email ≤ 254 (never stored), 1 to 20 interests × ≤ 64, optional consent booleans (each defaults to true when absent; an explicit false is stored and honoured); unknown fields dropped | The new attendee ID and token, to that caller only |
 | `GET /api/me` | Bearer session token, plus expiry checked against ES | 120 | none | none | The caller's own profile (vector excluded) |
-| `DELETE /api/me` | Bearer session token | 120 (shares the `/api/me` limit value, own counter) | none | none | `204`, no body. Deletes the caller's `entitlements`, `schedules` and `attendees` documents (last, so a 503 can be retried). `401` if the profile is already gone. Never returns or logs the attendee ID |
-| `POST /api/access/token` | Bearer session token (every registered attendee) | 300 | none | none | Short-lived QR token (`aud` = access) |
+| `DELETE /api/me` | Bearer session token | 120 (shares the `/api/me` limit value, own counter) | none | none | `204`, no body. Deletes the caller's `entitlements`, `schedules` and `attendees` documents (last, so a 503 can be retried). `404` if the profile is already gone; `401` for a missing or invalid token. Never returns or logs the attendee ID |
+| `POST /api/access/token` | Bearer session token; `403` if the stored `consent.qr_checkin` is false | 300 | none | none | Short-lived QR token (`aud` = access) |
 | `POST /api/access/scan` | Signed QR token, entitlement checked server-side | 600 | none | zod: token, room (known room catalog) | `allow`/`deny`, room, reason. Never the attendee ID |
 | `GET /api/interests/aggregate` | none (public organizer view) | 300 | 15 s in memory, single-flight, `Cache-Control: public, max-age=15`; ES copy written at most once a minute | none (no input) | Topic counts with k ≥ 5 suppression (small buckets merged into `other`, dropped if still < 5) |
 | `GET /api/interests/clusters` | `x-organizer-key` (constant-time compare; 503 in production if unset) | 120 | 15 s in memory, after authorization | none (no input) | Cluster labels and sizes ≥ `MIN_CLUSTER_SIZE`. Centroids stay server-side |
@@ -74,7 +74,7 @@ status are logged.
   never `allow`) if the lookup errors (`api/src/routes/access.ts`).
 - **k ≥ 5 suppression.** Interest aggregates and clusters never return a
   group under 5 attendees (`api/src/interests/aggregate.ts`,
-  `api/src/routes/clusters.ts`), and every registered attendee is counted
+  `api/src/routes/clusters.ts`), and every registered attendee is counted unless their stored `consent.cluster_map` is false
   (the interest map is not an opt-in; k-anonymity is the protection).
 - **Retention (profiles kept by default).** Attendee profiles, entitlements
   and schedules are kept so the next conference can recommend talks from the
@@ -83,8 +83,11 @@ status are logged.
   + that period and the CronJob deletes expired docs
   (`deploy/k8s/app/retention-cronjob.yaml`, `docs/retention.md`). `/api/me`
   and access checks reject expired attendees. Session tokens, QR tokens, scan
-  logs and room-activity windows stay short-lived. No user-facing delete or
-  export exists yet (see Open items in `docs/retention.md`).
+  logs and room-activity windows stay short-lived. Attendees can delete
+  their own data: `DELETE /api/me` (bearer token) removes the entitlements,
+  schedule and profile, and the site's profile page has "Delete my data"
+  (it also clears what this browser stores). No export exists yet (see Open
+  items in `docs/retention.md`).
 - **Telemetry attribute allowlist.** Spans go through `withSpan`, which drops
   any attribute that is not on the allowlist, and the OTel collector scrubs
   again (`docs/telemetry-allowlist.md`). Attendee IDs are never logged or put
