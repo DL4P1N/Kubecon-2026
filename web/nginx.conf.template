@@ -59,6 +59,12 @@ server {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
   }
 
+  # Signed Apple Wallet passes: Wallet and the app only accept this content type.
+  location ~ ^/site/passes/.+\.pkpass$ {
+    types { }
+    default_type application/vnd.apple.pkpass;
+  }
+
   location /site/ {
     try_files $uri $uri/ /site/index.html;
   }

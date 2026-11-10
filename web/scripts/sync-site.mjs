@@ -60,7 +60,7 @@ if (existsSync(join(SRC, "assets/icons"))) {
   }
 }
 const pages = new Set(selected);
-for (const dir of ["css", "js", "scene", "vendor", "data"]) if (existsSync(join(SRC, dir))) walk(join(SRC, dir)).forEach(add);
+for (const dir of ["css", "js", "scene", "vendor", "data", "passes"]) if (existsSync(join(SRC, dir))) walk(join(SRC, dir)).forEach(add);
 
 // ---- 2. closure over everything the copied text files reference (this is what pulls in assets/)
 function refsIn(text, ext) {
