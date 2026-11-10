@@ -85,7 +85,30 @@ These are small, same-author judged sets, not a production A/B result. The rejec
 
 [Live session-isolation and QR revoke/restore checks](docs/evidence/live-smoke.md#session-isolation-and-live-qr-revocation--70-deployed-9c047d7) used two synthetic attendees and the same fresh QR across allow → deny → allow. Those checks and the search/Dash0 captures predate the latest landing integration; their recorded release boundaries still apply. The [offline recording](docs/demo/recording.md) is a visibly labelled mock-API rehearsal, not live backend proof.
 
-## Run locally
+## Deploy reproducibly
+
+The [local infrastructure runner](deploy/local/README.md) creates an isolated kind
+cluster, generates fresh credentials and Elasticsearch certificates, builds the
+images, and provisions the catalog, application, collector, and scheduled jobs.
+It does not read your existing `.env` or change your default kubeconfig.
+
+```sh
+npm ci
+node deploy/local/companion.mjs up --accept-elastic-trial
+node deploy/local/companion.mjs serve
+```
+
+The trial flag explicitly permits activating Elastic's inference-capable trial
+on the new local cluster. See the guide for Docker memory requirements and
+first-run model downloads.
+
+For a public frontend, the [Vercel Terraform configuration](deploy/terraform/vercel/README.md)
+deploys the built static application and proxies requests to your own HTTPS backend.
+Supply your own Vercel credentials through the provider environment; the backend
+and Elasticsearch still run in Kubernetes. Generated secrets, kubeconfigs,
+artifacts, and Terraform state are excluded from git and application build contexts.
+
+## Develop locally
 
 **Prerequisites:** Node **22.15+**, npm, Docker, and memory for Elasticsearch's 4 GiB container plus inference and the application.
 
@@ -125,6 +148,8 @@ npm run test:a11y -w web  # requires the Playwright browser/dependencies
 
 | Guide | Contents |
 | --- | --- |
+| [Reproducible local infrastructure](deploy/local/README.md) | Fresh kind cluster, generated credentials/TLS, catalog bootstrap, app, and jobs |
+| [Optional Vercel Terraform](deploy/terraform/vercel/README.md) | Static frontend project/deployment, API rewrites, and public OAuth callbacks |
 | [Kubernetes deployment](deploy/k8s/app/README.md) | Dedicated kubeconfig, Secrets, images, app rollout, seed, and port-forward |
 | [Chat](docs/chat.md) | Scripted flow; optional Claude CLI mode and usage boundary |
 | [Retention](docs/retention.md) / [clusters](docs/cluster-map.md) | Scheduled jobs, profile deletion, aggregation limits |

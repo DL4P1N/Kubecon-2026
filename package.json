@@ -5,6 +5,7 @@
   "description": "Conference Companion monorepo (api, web, shared API contract)",
   "engines": { "node": ">=22" },
   "workspaces": ["shared", "api", "web"],
+  "devDependencies": { "yaml": "^2.9.1" },
   "scripts": {
     "build": "npm run build -w shared && npm run build -w api && npm run build -w web",
     "test": "npm run build -w shared && npm run test --workspaces --if-present",

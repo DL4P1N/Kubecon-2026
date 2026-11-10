@@ -11,3 +11,18 @@ landing/shots
 landing/node_modules
 landing/test
 web/public/site
+
+# Infrastructure state and credentials never belong in application build contexts.
+deploy/compose/certs
+deploy/local
+deploy/terraform
+**/.env*
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/*.tfvars
+**/*.key
+**/*.pem
+**/*.p8
+**/*.p12
