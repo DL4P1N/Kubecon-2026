@@ -45,7 +45,8 @@ const run = (bin, argv, opts = {}) => execFileSync(bin, argv, { cwd: root, stdio
 const capture = (bin, argv, opts = {}) =>
   execFileSync(bin, argv, { cwd: root, encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'], ...opts });
 const kubectl = (...argv) => capture('kubectl', [...kubeArgs, '-n', namespace, ...argv]);
-const apply = (docs) => kubectl('apply', '-f', '-', { input: docs.map((d) => YAML.stringify(d)).join('---\n') });
+const apply = (docs) =>
+  capture('kubectl', [...kubeArgs, '-n', namespace, 'apply', '-f', '-'], { input: docs.map((d) => YAML.stringify(d)).join('---\n') });
 const kindClusters = () => capture('kind', ['get', 'clusters']).split(/\s+/).filter(Boolean);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -103,12 +104,17 @@ async function portForward(target, remotePort) {
   return { port, stop: () => child.kill('SIGTERM') };
 }
 
-/** Elasticsearch request through the private port-forward; credentials go via stdin, never argv. */
+/** Elasticsearch request through the private port-forward; credentials go via stdin, never argv. Errors carry curl's stderr. */
 function es(port, user, password, endpoint) {
-  const body = capture('curl', ['-sS', '--fail', '--cacert', files.cert, '--config', '-', `https://localhost:${port}${endpoint}`], {
-    input: `user = "${user}:${password}"\n`,
-  });
-  return JSON.parse(body);
+  try {
+    const body = capture('curl', ['-sS', '--fail', '--cacert', files.cert, '--config', '-', `https://localhost:${port}${endpoint}`], {
+      input: `user = "${user}:${password}"\n`,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    return JSON.parse(body);
+  } catch (err) {
+    throw new Error(`${endpoint}: ${String(err.stderr ?? err.message).trim()}`);
+  }
 }
 
 async function retry(label, attempts, fn) {
@@ -168,7 +174,8 @@ async function prepare() {
   const haveKey = await exists(files.key);
   if (haveCert !== haveKey) throw new Error('Only half of the private TLS keypair exists; refusing to rotate it.');
   if (!haveCert) {
-    run('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-sha256', '-nodes', '-days', '365', '-keyout', files.key, '-out', files.cert, '-config', path.join(root, 'scripts/es-cert.conf')], { stdio: ['ignore', 'ignore', 'inherit'] });
+    // stderr is captured (only progress dots on success) and surfaces in the thrown error on failure.
+    run('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-sha256', '-nodes', '-days', '365', '-keyout', files.key, '-out', files.cert, '-config', path.join(root, 'scripts/es-cert.conf')], { stdio: ['ignore', 'ignore', 'pipe'] });
     await chmod(files.key, 0o600);
     await chmod(files.cert, 0o600);
   }
@@ -225,11 +232,7 @@ async function up() {
   await prepare();
   const creds = JSON.parse(await readFile(files.credentials, 'utf8'));
   const cert = await readFile(files.cert, 'utf8');
-  try {
-    kubectl('get', 'namespace', namespace, '-o', 'name');
-  } catch {
-    capture('kubectl', [...kubeArgs, 'create', 'namespace', namespace]);
-  }
+  apply([{ apiVersion: 'v1', kind: 'Namespace', metadata: { name: namespace } }]);
 
   apply([
     secret('elasticsearch-admin', { password: creds.elasticPassword }),

@@ -5,7 +5,7 @@ This runner creates a dedicated **kind** cluster (`companion-local`), separate k
 ## Prerequisites
 
 - macOS/Linux workstation with Node.js **22.15+**, npm dependencies installed (`npm ci` at repository root), Docker Desktop/Engine, kind, kubectl, OpenSSL, curl, and bash.
-- Allocate at least 7.65 GiB to Docker; Elasticsearch itself requests/limits 4 GiB and uses a 1 GiB heap, with 50% ML memory allowance. Other workloads and kind nodes need additional headroom. Single-node Elasticsearch is not HA; its PVC is retained in the cluster.
+- Docker memory: Elasticsearch requests/limits 4 GiB (1 GiB heap, 50% ML allowance). The whole `companion-local` node measured about 3.2 GiB while seeding, so an 8 GiB Docker VM is enough on its own; if other clusters or containers already use Docker memory, raise the VM size first (Docker Desktop → Settings → Resources). Single-node Elasticsearch is not HA; its PVC lives inside the kind node.
 - A usable Elastic license with NLP inference support. On a new cluster Elastic may offer a one-time trial. Read Elastic's trial terms before opting in. Inference model deployment and initial 417-talk catalog indexing can take many minutes; the CLI waits up to 30 minutes for the real seed Job and verifies inference endpoint access.
 
 ## Fresh setup and reruns

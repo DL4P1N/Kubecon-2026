@@ -25,12 +25,13 @@ Set `VERCEL_API_TOKEN` in the environment from your own Vercel token. The provid
 Create a private `terraform.tfvars` in this directory (never commit it):
 
 ```hcl
-project_name      = "my-conference-companion"
-# Optional; omit for a personal Vercel account.
-# team_id          = "your-team-id"
-backend_origin    = "https://your-reachable-backend.example"
+project_name       = "my-conference-companion"
+team_id            = "team_yourTeamId" # Team Settings → General, or `vercel teams ls`
+backend_origin     = "https://your-reachable-backend.example"
 artifact_directory = "artifacts"
 ```
+
+`team_id` is required even for a Hobby account: if it is left to the token's default team, the provider records no team in state and the next `plan`/`destroy` fails with "Unexpected Identity Change". If you are already in that state, `terraform destroy -refresh=false` still removes the resources.
 
 OAuth callback registration: use the project's stable production alias from `terraform output -json production_domain_urls` (not the immutable `deployment_url`) and register `https://<stable-alias>/auth/<provider>/callback` with each enabled provider. Set the matching backend `*_OAUTH_REDIRECT_URI` to that same public URL; OAuth client credentials belong only in backend runtime environment, not this module. The browser callback page posts its result to `/api/auth/:provider/callback`.
 
@@ -57,7 +58,9 @@ This is destructive to the Terraform-owned Vercel project/deployment. Back up an
 
 ## Routes and operational constraints
 
-Generated routing redirects `/` and `/site` to `/site/`; proxies `/api/*` and `/site/api/*` to backend `/api/*`, `/otlp/*` to `/otlp/*`, and `/healthz` to the backend. API responses use `Cache-Control: private, no-store`. Static files are served before `/site/*` falls back to `/site/index.html`, then other paths fall back to `/index.html`. `.pkpass` responses retain `application/vnd.apple.pkpass`. The root redirect is a relative path and exposes no backend origin.
+Generated routing redirects `/` and `/site` to `/site/`; proxies `/api/*` and `/site/api/*` to backend `/api/*`, `/otlp/*` to `/otlp/*`, and `/healthz` to the backend. API routes add `Cache-Control: private, no-store` unless the backend sets its own header (for example `/api/status` returns `public, max-age=10`). Static files are served before `/site/*` falls back to `/site/index.html`, then other paths fall back to `/index.html`. `.pkpass` responses retain `application/vnd.apple.pkpass`. The root redirect is a relative path and exposes no backend origin.
+
+End-to-end check after `apply`: `curl -sI https://<alias>/` returns `302` to `/site/`, `curl -s https://<alias>/healthz` returns `{"status":"ok",…}`, and `curl -s 'https://<alias>/api/search?q=observability'` returns catalog hits from your backend. Through a Cloudflare quick tunnel, `/api/events` answers `200 text/event-stream` but delivers no events, because the tunnel buffers the stream; the live demo feed needs a streaming-capable tunnel.
 
 
 Vercel account/team policy may enforce Standard Deployment Protection or other access controls independently of project configuration. Project authentication is explicitly configured as `none`, but this cannot override an account-level policy. Before claiming a public frontend works, inspect the project's/account's Deployment Protection settings and select a plan/settings that permits the required public access; if policy cannot be changed, the frontend remains protected and Terraform cannot report it as public. No preview SSO bypass or fake public-success behavior is configured.

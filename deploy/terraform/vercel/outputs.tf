@@ -1,6 +1,6 @@
 output "deployment_url" {
   description = "Immutable URL for this specific production deployment; do not register it as a stable OAuth redirect."
-  value       = vercel_deployment.frontend.url
+  value       = "https://${vercel_deployment.frontend.url}"
 }
 
 output "production_domain_urls" {

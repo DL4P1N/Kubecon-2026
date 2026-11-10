@@ -9,9 +9,13 @@ variable "project_name" {
 }
 
 variable "team_id" {
-  description = "Optional Vercel team ID to own the new project; omit for the personal account."
+  description = "Vercel team ID (team_…) that owns the new project. Every Vercel account, including Hobby, has one; find it under Team Settings → General or with `vercel teams ls`. Required: leaving it to the token's default team makes the provider's stored identity drift on the next refresh."
   type        = string
-  default     = null
+
+  validation {
+    condition     = can(regex("^team_[A-Za-z0-9]+$", var.team_id))
+    error_message = "team_id must be a Vercel team ID such as team_abc123."
+  }
 }
 
 variable "backend_origin" {
