@@ -12,3 +12,16 @@ deploy/compose/certs/
 
 # Static front door served under /site/ (dev symlink to ../landing; web/vite.config.ts recreates it)
 web/public/site
+
+# Local deployment credentials, kubeconfigs, and generated frontend artifacts.
+deploy/local/.state/
+deploy/terraform/vercel/artifacts/
+
+# Terraform caches and private environment/state inputs; commit the provider lock.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log

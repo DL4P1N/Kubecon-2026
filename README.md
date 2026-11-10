@@ -25,32 +25,13 @@ The [native iOS companion](ios/README.md) adds tickets, schedule, a floor plan, 
 
 ## Architecture
 
-The public frontend runs on Vercel. **The backend and user data remain on the Mac's Kubernetes cluster.** Vercel proxies API requests; it does not host Elasticsearch or mount the data volume.
+The public frontend runs on Vercel. **The backend and user data stay on the operator Mac's Kubernetes cluster;** Vercel only serves static files and proxies `/api` and `/otlp` through an HTTPS tunnel.
 
-```mermaid
-flowchart LR
-  Browser["Browser / iOS companion"] --> Vercel["Vercel<br/>Static landing + React app"]
-  subgraph Mac["Operator Mac"]
-    Tunnel["HTTPS tunnel"]
-    subgraph Kind["kind · conference-companion namespace"]
-      Web["nginx"]
-      API["Fastify API<br/>Sessions · search · room access"]
-      ES["Elasticsearch<br/>Catalog · profiles · schedules<br/>Entitlements · aggregates"]
-      PVC[("PersistentVolumeClaim")]
-      Collector["OpenTelemetry Collector<br/>Attribute allowlists + scrubbing"]
-      Web -->|/api| API
-      API -->|Authenticated HTTPS| ES
-      ES --> PVC
-      Web -->|/otlp| Collector
-      API -->|Telemetry| Collector
-    end
-    Tunnel -->|Local port-forward| Web
-  end
-  Vercel -->|API and OTLP proxy over HTTPS| Tunnel
-  Collector --> Dash0["Dash0 SaaS"]
-```
+![Deployment architecture: clients reach a static Vercel frontend, which proxies through cloudflared into a kind cluster running nginx, the Fastify API, Elasticsearch, the OpenTelemetry Collector, and scheduled jobs; telemetry goes to Dash0](docs/architecture.png)
 
-Elasticsearch's `semantic_text` field uses the multilingual E5 inference endpoint. The API combines BM25 and semantic retrieval with reciprocal rank fusion; catalog-vocabulary expansion applies to both legs. The Node clustering job computes k-means and stores aggregate results in Elasticsearch. [Search implementation](api/src/search/queries.ts) · [Inference setup](docs/elasticsearch.md) · [Cluster design](docs/cluster-map.md).
+Source: [`docs/architecture.drawio`](docs/architecture.drawio) (edit in draw.io, then re-export the PNG).
+
+Search combines BM25 and Elasticsearch `semantic_text` (multilingual E5) with reciprocal rank fusion; catalog-vocabulary expansion applies to both. A Node CronJob computes k-means interest clusters and stores only aggregates. [Search implementation](api/src/search/queries.ts) · [Inference setup](docs/elasticsearch.md) · [Cluster design](docs/cluster-map.md).
 
 ### Technologies and hosting
 
@@ -81,11 +62,23 @@ Search measurement, same 417-talk index, eight held-out questions:
 | Keyword | 0/8 | 4/8 | 0.016 → 0.516 |
 | Hybrid | 3/8 | 6/8 | 0.215 → 0.642 |
 
-These are small, same-author judged sets, not a production A/B result. The rejected eval-phrase rules are not shipped. Dashboard/SLO captures show a short observation window, not 28-day compliance; Gitar auto-apply and automatic CI-failure triggering are not claimed.
+These are small, same-author judged sets, not a production A/B result. Dashboard/SLO captures cover a short observation window, not 28-day compliance.
 
-[Live session-isolation and QR revoke/restore checks](docs/evidence/live-smoke.md#session-isolation-and-live-qr-revocation--70-deployed-9c047d7) used two synthetic attendees and the same fresh QR across allow → deny → allow. Those checks and the search/Dash0 captures predate the latest landing integration; their recorded release boundaries still apply. The [offline recording](docs/demo/recording.md) is a visibly labelled mock-API rehearsal, not live backend proof.
+[Live session-isolation and QR revoke/restore checks](docs/evidence/live-smoke.md#session-isolation-and-live-qr-revocation--70-deployed-9c047d7) used two synthetic attendees and the same QR across allow → deny → allow. The [offline recording](docs/demo/recording.md) is a labelled mock-API rehearsal, not live backend proof.
 
-## Run locally
+## Deploy reproducibly
+
+**Local Kubernetes.** The [local runner](deploy/local/README.md) creates an isolated kind cluster, generates fresh credentials and TLS, builds the images, and deploys Elasticsearch, the app, the collector, and the jobs with the real 417-talk catalog. It never reads `.env` or touches your default kubeconfig. Needs about 8 GiB of Docker memory.
+
+```sh
+npm ci
+node deploy/local/companion.mjs up --accept-elastic-trial   # flag = you accept Elastic's trial terms
+node deploy/local/companion.mjs serve                        # http://127.0.0.1:8080
+```
+
+**Public frontend (optional).** [Terraform for Vercel](deploy/terraform/vercel/README.md) creates a new project and deploys the static build in front of your own HTTPS backend origin. Supply your own `VERCEL_API_TOKEN` and `team_id`. Generated secrets, kubeconfigs, artifacts, and Terraform state are git-ignored and excluded from image build contexts.
+
+## Develop locally
 
 **Prerequisites:** Node **22.15+**, npm, Docker, and memory for Elasticsearch's 4 GiB container plus inference and the application.
 
@@ -114,7 +107,7 @@ npm run dev:web  # http://localhost:5173; /site/ is the landing entry
 
 The Vite server proxies `/api` and `/otlp`. OAuth linking requires provider client credentials and matching callback URLs; see [sign-in configuration](docs/sign-in.md). Provider links live in the browser and are **not** cross-device account login or profile synchronization. Keep OAuth client secrets on the API, never in `VITE_*` variables or the frontend bundle.
 
-### Development and deployment
+### Checks and guides
 
 ```sh
 npm run typecheck
@@ -125,6 +118,8 @@ npm run test:a11y -w web  # requires the Playwright browser/dependencies
 
 | Guide | Contents |
 | --- | --- |
+| [Reproducible local infrastructure](deploy/local/README.md) | Fresh kind cluster, generated credentials/TLS, catalog bootstrap, app, and jobs |
+| [Optional Vercel Terraform](deploy/terraform/vercel/README.md) | Static frontend project/deployment, API rewrites, and public OAuth callbacks |
 | [Kubernetes deployment](deploy/k8s/app/README.md) | Dedicated kubeconfig, Secrets, images, app rollout, seed, and port-forward |
 | [Chat](docs/chat.md) | Scripted flow; optional Claude CLI mode and usage boundary |
 | [Retention](docs/retention.md) / [clusters](docs/cluster-map.md) | Scheduled jobs, profile deletion, aggregation limits |
@@ -138,8 +133,8 @@ npm run test:a11y -w web  # requires the Playwright browser/dependencies
 - **Retention:** registering keeps the profile for future conferences by default and includes aggregate-interest use; it is not a separate opt-in. A positive `ATTENDEE_RETENTION_HOURS` enables timed retention. `DELETE /api/me` is the profile-deletion endpoint. Read the [current policy and limitations](docs/retention.md), not the older 24-hour demo assumptions.
 - **Access:** signed attendee sessions last eight hours; room QR tokens last about 60 seconds, use a separate audience, and are checked against current entitlements. Organizer access uses a separate key. [Token implementation](api/src/auth/token.ts).
 - **Telemetry:** explicit allowlists exclude attendee identifiers, tokens, precise locations, and free-text answers. The committed privacy evidence is a bounded observation, not a universal audit. Elasticsearch has authenticated, CA-validated TLS; internal app/collector transport is **not** verified end-to-end TLS.
-- **Current deployment:** the public site depends on the operator Mac staying awake with Docker, the port-forward, and the HTTPS tunnel running. The single-node local volume is not a replicated production database. The current Cloudflare Quick Tunnel does not support the new SSE registration feed; it needs a streaming-capable tunnel. Normal API requests remain separate from that feed.
-- **Known hardening work:** merged landing integration has follow-ups tracked on team board #78, including stored opt-out handling, binding OAuth state to the initiating browser, deletion-error handling, and expired-record cleanup when timed retention is off. The owner explicitly approved deploying this build before those fixes; this is a hackathon demo, not a claim of production readiness.
+- **Current deployment:** the public site depends on the operator Mac staying awake with Docker, the port-forward, and the HTTPS tunnel running. The single-node volume is not a replicated database. The Cloudflare Quick Tunnel buffers the SSE registration feed (`/api/events`); live updates need a streaming-capable tunnel.
+- **Known hardening work** (team board #78): stored opt-out handling, binding OAuth state to the initiating browser, deletion-error handling, and expired-record cleanup when timed retention is off. This is a hackathon demo, not a production-readiness claim.
 
 ## License
 
