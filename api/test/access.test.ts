@@ -116,7 +116,7 @@ describe("QR access", () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/register",
-      payload: { name: "Ada", interests: ["kubernetes"], consent: { clusterMap: false, qrCheckin } }, // legacy field, ignored
+      payload: { name: "Ada", interests: ["kubernetes"], consent: { clusterMap: false, qrCheckin } },
     });
     return res.json() as RegisterResponse;
   }
@@ -154,8 +154,21 @@ describe("QR access", () => {
     expect(roomActivity.snapshot([ROOM]).rooms[0]).toEqual({ room: ROOM, level: "quiet" });
   });
 
-  it("issues a QR token to every registered attendee (consent is not a gate), and 401 without or with a bad session", async () => {
+  it("refuses a QR token (403) to an attendee who stored qr_checkin=false", async () => {
     const reg = await register(false);
+    expect(es.docs.get(`attendees/${reg.attendeeId}`)!.consent).toMatchObject({ qr_checkin: false });
+    const res = await qrToken(reg);
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({ error: "forbidden" });
+  });
+
+  it("issues a QR token when consent was never sent (defaults true) or the stored field is missing, and 401 without or with a bad session", async () => {
+    const noConsent = await app.inject({ method: "POST", url: "/api/register", payload: { name: "Ada", interests: ["kubernetes"] } });
+    expect((await qrToken(noConsent.json() as RegisterResponse)).statusCode).toBe(200);
+    const reg = await register(true);
+    const key = `attendees/${reg.attendeeId}`;
+    const { consent: _drop, ...legacy } = es.docs.get(key)!;
+    es.docs.set(key, legacy);
     expect((await qrToken(reg)).statusCode).toBe(200);
     expect((await app.inject({ method: "POST", url: "/api/access/token", payload: {} })).statusCode).toBe(401);
     const bad = await app.inject({ method: "POST", url: "/api/access/token", headers: { authorization: "Bearer a.b.c" }, payload: {} });

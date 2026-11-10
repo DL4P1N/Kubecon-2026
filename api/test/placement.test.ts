@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MIN_CLUSTER_SIZE, type InterestTopicCount } from "@cc/shared";
-import { planPlacement, talkDemand, type PlacementTalk } from "../src/rooms/placement.js";
+import { planPlacement, talkDemand, talkPeakInterest, type PlacementTalk } from "../src/rooms/placement.js";
 
 const at = (h: number, m = 0) => new Date(Date.UTC(2026, 10, 10, h, m)).toISOString();
 const t = (id: string, room: string, tags: string[], start = 9, end = 10): PlacementTalk => ({
@@ -21,6 +21,13 @@ describe("talkDemand", () => {
   });
 });
 
+describe("talkPeakInterest", () => {
+  it("is the largest single-topic count, never a sum", () => {
+    expect(talkPeakInterest(["Kubernetes", " security ", "kubernetes"], agg)).toBe(40);
+    expect(talkPeakInterest(["other", "wasm"], agg)).toBe(0);
+  });
+});
+
 describe("planPlacement", () => {
   const caps = { Big: 300, Mid: 100, Small: 30 };
 
@@ -33,6 +40,14 @@ describe("planPlacement", () => {
     expect(by.a).toMatchObject({ demand: 12, suggestedRoom: "Mid", moved: true, overCapacity: false });
     expect(by.c).toMatchObject({ demand: 0, suggestedRoom: "Small", moved: true });
     expect(r.capacitiesConfigured).toBe(true);
+  });
+
+  it("does not flag over capacity from a double-counted demand sum", () => {
+    // demand 52 (40 + 12) exceeds 50 seats, but no single topic has more than 40 attendees.
+    const r = plan([t("a", "Mid50", ["kubernetes", "security"])], agg, { Mid50: 50 });
+    expect(r.slots[0].talks[0]).toMatchObject({ demand: 52, overCapacity: false });
+    const tight = plan([t("a", "Mid39", ["kubernetes", "security"])], agg, { Mid39: 39 });
+    expect(tight.slots[0].talks[0]).toMatchObject({ demand: 52, overCapacity: true });
   });
 
   it("keeps rooms where nothing needs to change", () => {

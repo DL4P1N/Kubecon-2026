@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { AuthProviderId, AuthCallbackResponse } from "@cc/shared";
 import type { OAuthProviderConfig } from "../config.js";
 
@@ -77,6 +77,29 @@ export interface PendingState {
   app: boolean;
   /** PKCE code verifier (Google); never leaves the server. */
   verifier: string;
+  /** Random value also set as an HttpOnly cookie at start; the callback must present it (browser binding). */
+  nonce: string;
+}
+
+export const NONCE_COOKIE = "cc_oauth";
+
+/** HttpOnly, SameSite=Lax (survives the provider's top-level redirect back), ten minutes, scoped to /api/auth. */
+export const nonceCookie = (nonce: string, secure: boolean) =>
+  `${NONCE_COOKIE}=${nonce}; Path=/api/auth; HttpOnly; SameSite=Lax; Max-Age=${STATE_TTL_MS / 1000}${secure ? "; Secure" : ""}`;
+
+export const clearNonceCookie = () => `${NONCE_COOKIE}=; Path=/api/auth; HttpOnly; SameSite=Lax; Max-Age=0`;
+
+/** Constant-time check of the nonce cookie against the one stored with the state. */
+export function nonceMatches(expected: string, cookieHeader: string | undefined): boolean {
+  if (!cookieHeader) return false;
+  for (const part of cookieHeader.split(";")) {
+    const i = part.indexOf("=");
+    if (i < 0 || part.slice(0, i).trim() !== NONCE_COOKIE) continue;
+    const a = Buffer.from(part.slice(i + 1).trim());
+    const b = Buffer.from(expected);
+    return a.length === b.length && timingSafeEqual(a, b);
+  }
+  return false;
 }
 
 /** One-time `state` values held in memory for ten minutes. Bounded: the oldest entries go first. */
@@ -90,13 +113,14 @@ export function createStateStore(opts: { ttlMs?: number; max?: number; now?: () 
     for (const [k, v] of entries) if (v.expires <= t) entries.delete(k);
   };
   return {
-    create(value: Omit<PendingState, "verifier">): { state: string; verifier: string } {
+    create(value: Omit<PendingState, "verifier" | "nonce">): { state: string; verifier: string; nonce: string } {
       sweep();
       while (entries.size >= max) entries.delete(entries.keys().next().value as string);
       const state = randomBytes(24).toString("base64url");
       const verifier = randomBytes(32).toString("base64url");
-      entries.set(state, { expires: now() + ttl, value: { ...value, verifier } });
-      return { state, verifier };
+      const nonce = randomBytes(24).toString("base64url");
+      entries.set(state, { expires: now() + ttl, value: { ...value, verifier, nonce } });
+      return { state, verifier, nonce };
     },
     /** Single use: a state is gone after the first lookup, valid or not. */
     consume(state: string, provider: AuthProviderId): PendingState | null {

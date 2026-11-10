@@ -106,7 +106,8 @@ describe("POST /api/register and GET /api/me", () => {
     // Default policy: profiles are kept, so expires_at is the far-future NO_EXPIRY sentinel.
     expect(attendee.expires_at).toBe(NO_EXPIRY);
     // Consent is no longer a gate: stored true/true whatever a legacy client sent.
-    expect(attendee.consent).toEqual({ cluster_map: true, qr_checkin: true });
+    // The body sent qrCheckin: false; the explicit opt-out is stored, not overridden.
+    expect(attendee.consent).toEqual({ cluster_map: true, qr_checkin: false });
     expect(es.docs.get(`entitlements/${reg.attendeeId}`)!.expires_at).toBe(NO_EXPIRY);
     expect(es.docs.get(`entitlements/${reg.attendeeId}`)).toMatchObject({ pass_type: "general", rooms: ["*"] });
 
@@ -116,7 +117,7 @@ describe("POST /api/register and GET /api/me", () => {
       attendeeId: reg.attendeeId,
       name: "Ada",
       interests: ["kubernetes", "opentelemetry"],
-      consent: { clusterMap: true, qrCheckin: true },
+      consent: { clusterMap: true, qrCheckin: false },
       onboarded: false,
     });
   });
@@ -127,6 +128,13 @@ describe("POST /api/register and GET /api/me", () => {
     expect(res.statusCode).toBe(201);
     const reg = res.json() as RegisterResponse;
     expect(es.docs.get(`attendees/${reg.attendeeId}`)!.consent).toEqual({ cluster_map: true, qr_checkin: true });
+  });
+
+  it("stores an explicit false for each consent flag and defaults only an absent flag to true", async () => {
+    const both = (await register({ ...validBody, consent: { clusterMap: false, qrCheckin: false } })).json() as RegisterResponse;
+    expect(es.docs.get(`attendees/${both.attendeeId}`)!.consent).toEqual({ cluster_map: false, qr_checkin: false });
+    const mapOnly = (await register({ ...validBody, consent: { clusterMap: false, qrCheckin: true } })).json() as RegisterResponse;
+    expect(es.docs.get(`attendees/${mapOnly.attendeeId}`)!.consent).toEqual({ cluster_map: false, qr_checkin: true });
   });
 
   describe("ATTENDEE_RETENTION_HOURS=24 restores timed expiry", () => {
@@ -157,8 +165,8 @@ describe("POST /api/register and GET /api/me", () => {
       expect(res.body).toBe("");
       for (const index of ["attendees", "schedules", "entitlements"]) expect(es.docs.has(`${index}/${ada.attendeeId}`)).toBe(false);
       for (const index of ["attendees", "schedules", "entitlements"]) expect(es.docs.has(`${index}/${bob.attendeeId}`)).toBe(true);
-      // Same token: nothing left to act on.
-      expect((await del(ada.token)).statusCode).toBe(401);
+      // Same token: the profile is gone.
+      expect((await del(ada.token)).statusCode).toBe(404);
       expect((await me(ada.token)).statusCode).toBe(401);
       expect((await me(bob.token)).statusCode).toBe(200);
     });
@@ -170,11 +178,11 @@ describe("POST /api/register and GET /api/me", () => {
       expect(es.docs.has(`attendees/${ada.attendeeId}`)).toBe(true);
     });
 
-    it("a second call cleans stray documents but still answers 401", async () => {
+    it("a second call cleans stray documents but answers 404", async () => {
       const ada = (await register()).json() as RegisterResponse;
       expect((await del(ada.token)).statusCode).toBe(204);
       es.docs.set(`schedules/${ada.attendeeId}`, { attendee_id: ada.attendeeId, talk_ids: [] });
-      expect((await del(ada.token)).statusCode).toBe(401);
+      expect((await del(ada.token)).statusCode).toBe(404);
       expect(es.docs.has(`schedules/${ada.attendeeId}`)).toBe(false);
     });
 

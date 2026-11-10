@@ -33,7 +33,8 @@ const norm = (s: string) => s.trim().toLowerCase();
  * Tags missing from the aggregate (suppressed, k < MIN_CLUSTER_SIZE) add 0,
  * and the merged OTHER_TOPIC bucket is never matched. An attendee interested
  * in two of a talk's tags is counted once per tag, so demand is a relative
- * score (an upper bound on interested attendees), not a headcount.
+ * score (an upper bound on interested attendees), not a headcount. It ranks
+ * talks; it is never compared with room capacity (see talkPeakInterest).
  */
 export function talkDemand(tags: readonly string[], aggregate: readonly InterestTopicCount[]): number {
   const counts = new Map<string, number>();
@@ -41,6 +42,20 @@ export function talkDemand(tags: readonly string[], aggregate: readonly Interest
   let demand = 0;
   for (const tag of new Set(tags.map(norm))) demand += counts.get(tag) ?? 0;
   return demand;
+}
+
+/**
+ * The largest single-topic count among the talk's distinct tags present in the
+ * aggregate. One topic's count is a count of distinct attendees, so this figure
+ * can never count a person twice (unlike talkDemand) and is a lower bound on
+ * the talk's interested attendees: it is what is compared with room capacity.
+ */
+export function talkPeakInterest(tags: readonly string[], aggregate: readonly InterestTopicCount[]): number {
+  const counts = new Map<string, number>();
+  for (const t of aggregate) if (t.topic !== OTHER_TOPIC) counts.set(norm(t.topic), t.count);
+  let peak = 0;
+  for (const tag of new Set(tags.map(norm))) peak = Math.max(peak, counts.get(tag) ?? 0);
+  return peak;
 }
 
 const known = (capacities: RoomCapacities, room: string): number | null => {
@@ -51,6 +66,8 @@ const known = (capacities: RoomCapacities, room: string): number | null => {
 interface Entry {
   talk: PlacementTalk;
   demand: number;
+  /** Largest single-topic attendee count; the only figure compared with capacity. */
+  peak: number;
   capacity: number | null;
   startMs: number;
   endMs: number;
@@ -70,6 +87,10 @@ interface Entry {
  * ranked, so it is left out of the re-dealing: its talk gets
  * `capacityKnown: false` and `suggestedRoom: null`, and only `demandRank`
  * says anything about it. Over-capacity and moved are never flagged for it.
+ *
+ * `overCapacity` compares the room's seats with the largest single-topic
+ * attendee count of the talk, not with the (double-counting) demand score, so
+ * it only fires when at least that many distinct attendees want the talk.
  */
 export function planPlacement(input: PlacementInput): RoomPlacementResponse {
   const slots = new Map<string, Entry[]>();
@@ -85,6 +106,7 @@ export function planPlacement(input: PlacementInput): RoomPlacementResponse {
     const entry: Entry = {
       talk,
       demand: talkDemand(talk.tags, input.aggregate),
+      peak: talkPeakInterest(talk.tags, input.aggregate),
       capacity: known(input.capacities, talk.room),
       startMs,
       endMs,
@@ -128,7 +150,7 @@ export function planPlacement(input: PlacementInput): RoomPlacementResponse {
           capacityKnown: e.capacity !== null,
           suggestedRoom,
           moved: suggestedRoom !== null && suggestedRoom !== room,
-          overCapacity: e.capacity !== null && e.demand > e.capacity,
+          overCapacity: e.capacity !== null && e.peak > e.capacity,
         };
       });
       return { start: new Date(entries[0].startMs).toISOString(), end: new Date(entries[0].endMs).toISOString(), talks };

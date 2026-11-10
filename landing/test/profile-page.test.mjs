@@ -190,19 +190,35 @@ test("delete my data: which keys are cleared", () => {
   assert.deepEqual(SESSION_DATA_PREFIXES, ["cc.chat.v1."]);
 });
 
-test("delete my data: the message follows the response, and only 204 claims server deletion", () => {
-  assert.equal(deletionPlan(204).message, "Deleted from this browser. Deleted from the server.");
-  assert.equal(deletionPlan(204).serverDeleted, true);
-  for (const status of [401, 404, null]) {
+test("delete my data: each status gets its own plan, and only 204 claims server deletion", () => {
+  const ok = deletionPlan(204);
+  assert.equal(ok.message, "Deleted from this browser. Deleted from the server.");
+  assert.deepEqual([ok.serverDeleted, ok.clearLocal, ok.clearToken], [true, true, true]);
+
+  const gone = deletionPlan(404);
+  assert.match(gone.message, /No server record was found/);
+  assert.deepEqual([gone.serverDeleted, gone.clearLocal, gone.clearToken], [false, true, true]);
+
+  const none = deletionPlan("no-token");
+  assert.match(none.message, /no server session/);
+  assert.match(none.message, /only the data stored in this browser was removed/);
+  assert.ok(!/No server record/.test(none.message));
+  assert.deepEqual([none.serverDeleted, none.clearLocal], [false, true]);
+
+  const expired = deletionPlan(401);
+  assert.match(expired.message, /session has expired/);
+  assert.match(expired.message, /Sign in or register again/);
+  assert.ok(!/No server record|no record/i.test(expired.message));
+  assert.deepEqual([expired.serverDeleted, expired.clearLocal, expired.clearToken], [false, false, false]);
+
+  for (const status of [null, 500, 503, 200, 403]) {
     const p = deletionPlan(status);
-    assert.equal(p.message, "Deleted from this browser. No server record was found for this session.");
-    assert.equal(p.serverDeleted, false);
-    assert.equal(p.clearToken, true);
+    assert.equal(p.serverDeleted, false, String(status));
+    assert.equal(p.clearLocal, false, String(status));
+    assert.equal(p.clearToken, false, String(status));
+    assert.match(p.message, /could not be reached/);
+    assert.match(p.message, /try again/i);
+    assert.ok(!/Deleted from the server|No server record/.test(p.message));
   }
-  for (const status of [500, 503, 200, 403]) {
-    const p = deletionPlan(status);
-    assert.equal(p.serverDeleted, false);
-    assert.equal(p.clearToken, false);
-    assert.ok(!/Deleted from the server/.test(p.message));
-  }
+  assert.notEqual(deletionPlan(null).kind, deletionPlan(401).kind);
 });

@@ -18,7 +18,7 @@ account is not a login: the Conference Companion session is still the one from r
 ## Flow
 
 1. The page links to `/api/auth/<provider>/start?return=/site/profile.html` (add `&app=1` from the iOS app).
-2. The API answers 302 to the provider with `state`. Scopes: GitHub `read:user`; Google and LinkedIn `openid profile`.
+2. The API answers 302 to the provider with `state` and sets an HttpOnly, SameSite=Lax cookie (`cc_oauth`, 10 minutes, path `/api/auth`) holding a nonce stored with that state; the callback POST must carry the matching cookie, so a state started in one browser cannot be completed in another (400 `invalid_state`). Scopes: GitHub `read:user`; Google and LinkedIn `openid profile`.
 3. The provider redirects to `/auth/<provider>/callback?code=&state=` (a React route, `web/src/pages/AuthCallback.tsx`).
 4. That page POSTs `{code, state}` to `/api/auth/<provider>/callback`, stores the result in `cc.linked.v1`
    and replaces the location with the returned `return` path. With `app=1` it goes to

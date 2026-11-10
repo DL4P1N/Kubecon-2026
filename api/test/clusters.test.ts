@@ -36,7 +36,7 @@ function fakeEs() {
       searchBody = body;
       pageSize = body.size;
       const all = [...attendees.values()]
-        .filter((a) => (a.consent as { cluster_map: boolean }).cluster_map === true && Array.isArray(a.interest_vector))
+        .filter((a) => (a.consent as { cluster_map?: boolean } | undefined)?.cluster_map !== false && Array.isArray(a.interest_vector))
         .map((a) => ({ _source: { interests: a.interests, interest_vector: a.interest_vector } }));
       scrollRest = all.slice(pageSize);
       return json(page(all.slice(0, pageSize)));
@@ -222,7 +222,7 @@ describe("cluster job, demo seed and route", () => {
     await app.close();
   });
 
-  it("requests every unexpired attendee with a vector (consent is not a filter), and skips malformed vectors", async () => {
+  it("requests every unexpired, non-opted-out attendee with a vector, and skips malformed vectors", async () => {
     const es = fakeEs();
     const mk = (id: string, optIn: boolean, vector: unknown): [string, Doc] => [
       id,
@@ -234,11 +234,14 @@ describe("cluster job, demo seed and route", () => {
       mk("bad-values", true, [1, "x", 0, 0]),
     ];
     entries.forEach(([id, d]) => es.attendees.set(id, d));
+    // Explicit opt-outs are excluded; a doc with no consent field counts as consenting.
+    for (let i = 0; i < 3; i++) es.attendees.set(`out-${i}`, mk(`out-${i}`, false, [1, 0, 0, 0.5])[1]);
+    es.attendees.set("no-consent", { interests: ["kubernetes"], interest_vector: [1, 0, 0, 0.9], consent: undefined });
     const result = await runClusterJob(es.client, { now: () => now, runId: "run-test-2" });
-    expect(result.attendees).toBe(6);
+    expect(result.attendees).toBe(7);
     expect(result.skipped).toBe(2);
     const filters = JSON.stringify((es.searchBody as { query: unknown }).query);
-    expect(filters).not.toContain("consent");
+    expect(filters).toContain('{"bool":{"must_not":[{"term":{"consent.cluster_map":false}}]}}');
     expect(filters).toContain("expires_at");
     expect(filters).toContain("interest_vector");
   });
