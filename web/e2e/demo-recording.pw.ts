@@ -37,14 +37,12 @@ test("record labelled offline UI fallback", async ({ browser }) => {
     return route.fulfill({ json });
   });
   try {
-    await page.goto("http://127.0.0.1:4173/register");
-    await page.getByLabel("Name", { exact: true }).fill("DEMO Ada (synthetic)");
-    await page.getByLabel("Email").fill("demo-ada@example.invalid");
+    // Sign-up is the static site (/site/register.html) now; this React-app recording starts from a synthetic session.
+    await page.addInitScript(() => sessionStorage.setItem("cc.token", "synthetic-session-not-valid"));
+    await page.goto("http://127.0.0.1:4173/onboarding");
     await page.getByLabel("kubernetes", { exact: true }).check();
-    await page.getByLabel(/Allow QR/).check();
-    await page.screenshot({ path: resolve(output, "fallback-register.png") });
+    await page.screenshot({ path: resolve(output, "fallback-onboarding.png") });
     await page.waitForTimeout(1800);
-    await page.getByRole("button", { name: "Register", exact: true }).click();
     await page.getByLabel("What would you like to learn, in your own words?").fill("Secure my Kubernetes supply chain");
     await page.waitForTimeout(1500);
     await page.getByRole("button", { name: "Find talks" }).click();

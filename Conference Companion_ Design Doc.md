@@ -4,6 +4,8 @@
 Cloud Native Hackathon, Mon Nov 9, 2026, The Shop Workspace, Salt Lake City
 Status: agreed plan after advocate/critic review. Working document for a one-day build.
 
+Policy changed 9 Nov 2026 by the product owner: profiles are kept, not deleted after 24 hours (sections 3, 5 and 6 updated; see `docs/retention.md`).
+
 ## 1. Goal
 
 A conference companion covering registration, personalized talk recommendation and scheduling, access control tied to registration, aggregate interest maps for room and speaker placement, and security across all of it. Every part must serve the "make conferences easier" judging theme.
@@ -13,14 +15,14 @@ A conference companion covering registration, personalized talk recommendation a
 - **Depth tracks:** Elasticsearch (Find the Right Talk), Radar (AI SRE), Dash0 (Stop Flying Blind). Each has one named owner and one demo artifact.
 - **Light entry:** Sonar/Gitar (Never Merge Broken). Committed review-instructions file, project-specific repo rules, and at least one acted-on finding. If that is not achieved, enter it as a side note, not a track claim.
 - **Incidental:** Merge Forward (accessibility). Handled by a scheduled accessibility pass.
-- **Dropped as a product feature:** Wi-Fi triangulation. Browsers cannot read RSSI or BSSID, and there is no venue AP access, floor plan or calibration data. Replaced by consented QR check-in per room.
+- **Dropped as a product feature:** Wi-Fi triangulation. Browsers cannot read RSSI or BSSID, and there is no venue AP access, floor plan or calibration data. Replaced by QR check-in per room.
 - **Demoted:** the Wi-Fi fingerprint estimator survives only as a feature-flagged, offline simulated-replay demo, capped at 1.5 hours and cut first if time runs short. It is labeled "simulated signal replay, not measured at the venue," and no accuracy figures are claimed.
 
 ## 3. Modules
 
 | # | Module | Priority | Summary |
 |---|---|---|---|
-| 1 | Registration | Core | Sign-up with profile and interests stored in Elasticsearch. Issues a signed attendee token. Consent screen. |
+| 1 | Registration | Core | Sign-up with profile and interests stored in Elasticsearch. Issues a signed attendee token. Registration states what is kept and why. |
 | 2 | Scheduling | Core | Onboarding questions feed a hybrid (BM25 plus dense vector) query over the talk catalog. Output is a personal schedule. |
 | 3 | Access (QR per room) | Core | Short-lived signed token carries attendee ID only. Entitlements are checked server-side on each scan. Demo kiosk or scanner page. |
 | 4 | Cluster map | Conditional | Batch job over ES aggregations of interest vectors. Results written back to ES. Clusters under 5 are suppressed or merged into "other." Falls back to a static aggregate chart if the team is 1-2 people. |
@@ -39,11 +41,11 @@ Note: k-means is not claimed to run inside Elasticsearch. It runs as a batch job
 
 ## 5. Data flow
 
-1. Attendee registers (Module 1). Profile and interests are indexed in ES. A signed token is issued. Consent is recorded.
+1. Attendee registers (Module 1). Profile and interests are indexed in ES. A signed token is issued. Registration says what is kept and why.
 2. Onboarding questions produce a query. Hybrid search returns ranked talks. The personal schedule is saved (Module 2).
 3. At a room, the attendee's token is scanned. The API checks the entitlement server-side and logs only the decision and the room, not the attendee ID (Module 3).
 4. A batch job aggregates interest vectors into clusters, suppresses any cluster under 5, and writes results back to ES for the map view (Module 4).
-5. Retention: attendee-level data is deleted after 24 hours.
+5. Retention: profiles are kept (name and interests today; role, goal and format preferences as the product adds them) so the next conference can recommend talks from the first minute, and so organisers can use aggregate interests to choose future talks. Operators can set `ATTENDEE_RETENTION_HOURS` (for example 24) to restore timed deletion. Door tokens, session tokens and room-activity windows stay short-lived.
 
 ## 6. Security and privacy
 
@@ -54,7 +56,7 @@ Note: k-means is not claimed to run inside Elasticsearch. It runs as a batch job
 - **Telemetry scrubbing:** an allowlist of span and log attributes, not a blocklist, enforced in the OTel collector. A test asserts that no attendee ID or location appears in exported spans. This test doubles as a Dash0 demo point.
 - **No sensitive data:** no questions about health, politics or identity. No raw location or RSSI collection from attendees. No per-device tracking.
 - **Aggregation:** k-anonymity minimum of 5 for any displayed cluster. With 170-200 attendees the map may look sparse. The real thresholds are untested on live data and this will be stated.
-- **Consent:** a screen at registration explaining what is stored and why, with an opt-in for the cluster map and QR check-in.
+- **Notice, not opt-in:** registration explains what is stored and why. The aggregate interest map and QR check-in apply to every registered attendee and are not opt-ins; the protection is that aggregates never show a group under 5.
 
 ## 7. Track evidence plan
 

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import { trace } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
@@ -6,6 +6,7 @@ import type { MeResponse, RegisterResponse } from "@cc/shared";
 import { createTokenService } from "../src/auth/token.js";
 import { createEsClient } from "../src/es/client.js";
 import { registerRoutes, registerBodySchema } from "../src/routes/register.js";
+import { NO_EXPIRY } from "../src/retentionPolicy.js";
 
 const KEY = "test-signing-key-that-is-long-enough-0123456789";
 
@@ -102,7 +103,11 @@ describe("POST /api/register and GET /api/me", () => {
     );
     expect(attendee.interests).toEqual(["kubernetes", "opentelemetry"]);
     expect(JSON.stringify(attendee)).not.toContain("ada@example.com");
-    expect(Date.parse(attendee.expires_at as string) - Date.parse(attendee.created_at as string)).toBe(24 * 3600 * 1000);
+    // Default policy: profiles are kept, so expires_at is the far-future NO_EXPIRY sentinel.
+    expect(attendee.expires_at).toBe(NO_EXPIRY);
+    // Consent is no longer a gate: stored true/true whatever a legacy client sent.
+    expect(attendee.consent).toEqual({ cluster_map: true, qr_checkin: true });
+    expect(es.docs.get(`entitlements/${reg.attendeeId}`)!.expires_at).toBe(NO_EXPIRY);
     expect(es.docs.get(`entitlements/${reg.attendeeId}`)).toMatchObject({ pass_type: "general", rooms: ["*"] });
 
     const me = await app.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${reg.token}` } });
@@ -111,8 +116,93 @@ describe("POST /api/register and GET /api/me", () => {
       attendeeId: reg.attendeeId,
       name: "Ada",
       interests: ["kubernetes", "opentelemetry"],
-      consent: { clusterMap: true, qrCheckin: false },
+      consent: { clusterMap: true, qrCheckin: true },
       onboarded: false,
+    });
+  });
+
+  it("accepts a body with no consent field and stores true/true", async () => {
+    const { consent: _omitted, ...noConsent } = validBody;
+    const res = await register(noConsent);
+    expect(res.statusCode).toBe(201);
+    const reg = res.json() as RegisterResponse;
+    expect(es.docs.get(`attendees/${reg.attendeeId}`)!.consent).toEqual({ cluster_map: true, qr_checkin: true });
+  });
+
+  describe("ATTENDEE_RETENTION_HOURS=24 restores timed expiry", () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("sets expires_at 24 hours after registration on the attendee and entitlement", async () => {
+      vi.stubEnv("ATTENDEE_RETENTION_HOURS", "24");
+      const reg = (await register()).json() as RegisterResponse;
+      const attendee = es.docs.get(`attendees/${reg.attendeeId}`)!;
+      expect(Date.parse(attendee.expires_at as string) - Date.parse(attendee.created_at as string)).toBe(24 * 3600 * 1000);
+      expect(es.docs.get(`entitlements/${reg.attendeeId}`)!.expires_at).toBe(attendee.expires_at);
+    });
+  });
+
+  describe("DELETE /api/me", () => {
+    const del = (token?: string) =>
+      app.inject({ method: "DELETE", url: "/api/me", headers: token ? { authorization: `Bearer ${token}` } : {} });
+    const me = (token: string) => app.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${token}` } });
+
+    it("deletes only the caller's profile, schedule and entitlement, answers 204, and the token stops working", async () => {
+      const ada = (await register()).json() as RegisterResponse;
+      const bob = (await register({ ...validBody, name: "Bob" })).json() as RegisterResponse;
+      for (const r of [ada, bob]) {
+        es.docs.set(`schedules/${r.attendeeId}`, { attendee_id: r.attendeeId, talk_ids: ["a"], updated_at: "x", expires_at: NO_EXPIRY });
+      }
+      const res = await del(ada.token);
+      expect(res.statusCode).toBe(204);
+      expect(res.body).toBe("");
+      for (const index of ["attendees", "schedules", "entitlements"]) expect(es.docs.has(`${index}/${ada.attendeeId}`)).toBe(false);
+      for (const index of ["attendees", "schedules", "entitlements"]) expect(es.docs.has(`${index}/${bob.attendeeId}`)).toBe(true);
+      // Same token: nothing left to act on.
+      expect((await del(ada.token)).statusCode).toBe(401);
+      expect((await me(ada.token)).statusCode).toBe(401);
+      expect((await me(bob.token)).statusCode).toBe(200);
+    });
+
+    it("answers 401 without a token or with a bad token and deletes nothing", async () => {
+      const ada = (await register()).json() as RegisterResponse;
+      expect((await del()).statusCode).toBe(401);
+      expect((await del("a.b.c")).statusCode).toBe(401);
+      expect(es.docs.has(`attendees/${ada.attendeeId}`)).toBe(true);
+    });
+
+    it("a second call cleans stray documents but still answers 401", async () => {
+      const ada = (await register()).json() as RegisterResponse;
+      expect((await del(ada.token)).statusCode).toBe(204);
+      es.docs.set(`schedules/${ada.attendeeId}`, { attendee_id: ada.attendeeId, talk_ids: [] });
+      expect((await del(ada.token)).statusCode).toBe(401);
+      expect(es.docs.has(`schedules/${ada.attendeeId}`)).toBe(false);
+    });
+
+    it("keeps the profile and answers 503 when a delete fails, so the caller can retry", async () => {
+      const ada = (await register()).json() as RegisterResponse;
+      const real = es.client.request.bind(es.client);
+      let fail = true;
+      es.client.request = (async (method: string, path: string, ...rest: unknown[]) => {
+        if (fail && method === "DELETE" && path.startsWith("/schedules/")) throw new Error(`boom ${path}`);
+        return (real as (...a: unknown[]) => unknown)(method, path, ...rest);
+      }) as typeof es.client.request;
+      const failed = await del(ada.token);
+      expect(failed.statusCode).toBe(503);
+      expect(JSON.stringify(failed.json())).not.toContain(ada.attendeeId);
+      expect(es.docs.has(`attendees/${ada.attendeeId}`)).toBe(true);
+      fail = false;
+      expect((await del(ada.token)).statusCode).toBe(204);
+    });
+
+    it("puts no attendee ID on its span, which carries allowlisted attributes only", async () => {
+      exporter.reset();
+      const ada = (await register()).json() as RegisterResponse;
+      exporter.reset();
+      await del(ada.token);
+      const span = exporter.getFinishedSpans().find((s) => s.name === "me.delete")!;
+      expect(span.attributes["http.route"]).toBe("/api/me");
+      expect(span.attributes["http.response.status_code"]).toBe(204);
+      expect(JSON.stringify([span.attributes, span.events])).not.toContain(ada.attendeeId);
     });
   });
 
@@ -261,7 +351,6 @@ describe("register body validation", () => {
     rejects({ ...validBody, interests: ["x".repeat(65)] });
     rejects({ ...validBody, interests: Array.from({ length: 21 }, (_, i) => `t${i}`) });
     rejects({ ...validBody, interests: [42] });
-    rejects({ ...validBody, consent: undefined });
     rejects({ ...validBody, consent: { clusterMap: "yes", qrCheckin: true } });
   });
 

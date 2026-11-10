@@ -25,8 +25,12 @@ export interface RateLimitPolicy {
   status: RouteLimit;
   interestsAggregate: RouteLimit;
   interestsClusters: RouteLimit;
+  roomPlacement: RouteLimit;
   me: RouteLimit;
   catalogTopics: RouteLimit;
+  chat: RouteLimit;
+  events: RouteLimit;
+  auth: RouteLimit;
 }
 
 export const DEFAULT_RATE_LIMITS: RateLimitPolicy = {
@@ -36,8 +40,14 @@ export const DEFAULT_RATE_LIMITS: RateLimitPolicy = {
   status: { max: 600 },
   interestsAggregate: { max: 300 },
   interestsClusters: { max: 120 },
+  roomPlacement: { max: 60 },
   me: { max: 120 },
   catalogTopics: { max: 300 },
+  // Each chat turn may spawn the Claude CLI (which spends usage), so the guard is tighter than for reads.
+  chat: { max: 30 },
+  events: { max: 30 },
+  // Each callback makes two outbound calls to a provider; sign-in is a once-in-a-while action.
+  auth: { max: 30 },
 };
 
 export const RATE_LIMIT_WINDOW = "1 minute";
@@ -51,6 +61,11 @@ export interface RateLimitedBody {
   statusCode: 429;
   error: "rate_limited";
   message: string;
+}
+
+/** The shared 429 body, for limits enforced outside @fastify/rate-limit (concurrency caps). */
+export function rateLimitedBody(message: string): RateLimitedBody {
+  return { statusCode: 429, error: "rate_limited", message };
 }
 
 /**

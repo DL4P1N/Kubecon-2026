@@ -1,0 +1,20 @@
+{
+  "formatVersion": 1,
+  "passTypeIdentifier": "pass.com.erickwhatcott.confcompanion",
+  "teamIdentifier": "U2B6QHT22K",
+  "organizationName": "Conference Companion",
+  "description": "Conference door ticket",
+  "serialNumber": "REPLACE-WITH-TICKET-ID",
+  "logoText": "Conference Companion",
+  "backgroundColor": "rgb(15, 31, 16)",
+  "foregroundColor": "rgb(255, 255, 255)",
+  "labelColor": "rgb(198, 241, 157)",
+  "relevantDate": "2026-11-09T09:00:00-07:00",
+  "locations": [{ "latitude": 40.7608, "longitude": -111.8910, "relevantText": "Venue nearby: show your door ticket" }],
+  "barcodes": [{ "format": "PKBarcodeFormatQR", "message": "REPLACE-WITH-TICKET-QR-MESSAGE", "messageEncoding": "iso-8859-1" }],
+  "eventTicket": {
+    "primaryFields": [{ "key": "event", "label": "CONFERENCE", "value": "Cloud Native Hackathon" }],
+    "secondaryFields": [{ "key": "venue", "label": "VENUE", "value": "The Shop Workspace, Salt Lake City" }],
+    "auxiliaryFields": [{ "key": "who", "label": "ATTENDEE", "value": "REPLACE-WITH-NAME" }]
+  }
+}

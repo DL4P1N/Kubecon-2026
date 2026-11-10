@@ -338,7 +338,8 @@ describe("schedule routes", () => {
     const saved = docs.get("ada-1") as Record<string, unknown>;
     expect(saved.talk_ids).toEqual(["a", "c"]);
     expect(saved.updated_at).toBe(fixedNow.toISOString());
-    expect(saved.expires_at).toBe("2026-11-11T07:00:00.000Z");
+    // Default policy: schedules are kept like profiles (ATTENDEE_RETENTION_HOURS unset).
+    expect(saved.expires_at).toBe("9999-12-31T23:59:59.999Z");
 
     const get = await app.inject({ method: "GET", url: "/api/schedule", headers });
     expect((get.json() as ScheduleResponse).items.map((i) => i.talk.id).sort()).toEqual(["a", "c"]);

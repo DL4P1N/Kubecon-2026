@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en" data-type="software" data-radius="sharp" data-ground="sand" data-buttons="solid" data-motion>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Conference Companion: conference app for attendees and organizers</title>
+<meta name="description" content="Register in a chat, get a schedule built from your interests and check into rooms with a short-lived QR code. Next event: Cloud Native Hackathon, Salt Lake City.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Conference Companion: conference app for attendees and organizers">
+<meta property="og:description" content="Register in a chat, get a schedule from your interests, check into rooms with a QR code.">
+<meta property="og:image" content="share.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0f1f10">
+<!-- <link rel="canonical" href="https://[the client's domain]/"> until the domain is known -->
+<meta name="cc-auth-base" content="">
+<meta name="site-kind" content="software">
+<meta name="page-type" content="software">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400..700&family=JetBrains+Mono:wght@400..500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/system.css">
+<link rel="stylesheet" href="assets/ui/cards.css">
+<link rel="stylesheet" href="assets/motion/motion.css">
+<link rel="stylesheet" href="assets/backgrounds/backgrounds.css">
+<link rel="stylesheet" href="assets/layout/layout.css">
+<link rel="stylesheet" href="assets/icons/icon.css">
+<style>
+:root {
+  --p-bg: #0f1f10; --p-surface: #162a17; --p-ink: #ffffff; --p-muted: #aab3aa;
+  --p-accent: #c6f19d; --p-accent-ink: #0f1f10; --p-action: #c6f19d; --p-action-ink: #0f1f10;
+  --p-inv-bg: #ffffff; --p-inv-surface: #ecedec; --p-inv-ink: #0f1f10; --p-inv-muted: #606c60;
+  --p-inv-accent: #0f1f10; --p-inv-accent-ink: #ffffff; --p-inv-action: #0f1f10; --p-inv-action-ink: #ffffff;
+  --font-display: "Host Grotesk", system-ui, sans-serif;
+  --font-text: "Host Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --display-weight: 500;
+  --display-tracking: -0.035em;
+  --display-tracking-xl: -0.04em;
+}
+</style>
+<link rel="stylesheet" href="assets/ui/base.css">
+<link rel="stylesheet" href="assets/ui/window/fragment.css">
+<link rel="stylesheet" href="assets/ui/doc/fragment.css">
+<link rel="stylesheet" href="assets/ui/chat/fragment.css">
+<link rel="stylesheet" href="assets/diagrams/diagram.css">
+<link rel="stylesheet" href="css/site.css">
+<link rel="stylesheet" href="scene/venue.css">
+<link rel="stylesheet" href="css/index-sections.css">
+<link rel="stylesheet" href="css/demo.css">
+<script>document.documentElement.classList.add('m-enter');setTimeout(()=>document.documentElement.classList.add('m-enter-done'),700)</script>
+<script src="assets/backgrounds/backgrounds.js"></script>
+<script>document.documentElement.classList.add('mo-js');setTimeout(()=>document.documentElement.classList.add('mo-safe'),2500)</script>
+<link rel="modulepreload" href="assets/moments/moments.js">
+<link rel="modulepreload" href="assets/moments/lib.js">
+<link rel="modulepreload" href="assets/moments/liquid-type/moment.js">
+</head>
+<body>
+<div data-venue data-venue-mode="background" data-venue-data="data/demo-aggregates.json" aria-hidden="true"><img data-venue-still src="scene/still-overview.png" alt=""></div>
+<!-- type: software
+     deal: hero split (the venue is the page background), nav nav-mega, close close-type, footer footer-statement (data-ground sand), rhythm space, buttons solid, mark stack, grounds none
+     palette forest-pale-lime, type host, radius sharp
+     moments: liquid-type in #retention (a statement: the one fact to remember ripples under the pointer)
+     scene: custom pixel venue (user brief): one fixed full-page background host, shots per section via data-venue-shot -->
+
+<header class="nav">
+  <div class="wrap nav__bar">
+    <a class="skip-link" href="#top">Skip to content</a>
+    <a class="nav__logo" href="index.html"><span class="mark" data-mark="stack" aria-hidden="true"></span>Conference Companion</a>
+    <nav class="nav__links" aria-label="Main">
+      <div class="nav__item"><a class="nav__link" href="index.html#conferences">Conferences</a></div>
+      <div class="nav__item"><a class="nav__link" href="profile.html">Profile</a></div>
+      <div class="nav__item">
+        <a class="nav__link" data-app-link="/schedule" href="http://localhost:5173/schedule">App <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <div class="nav__menu">
+          <div class="wrap grid">
+            <div class="menu-col span-3">
+              <p class="t-label">Attendees</p>
+              <a data-app-link="/schedule" href="http://localhost:5173/schedule">Schedule<span>Your talks, no overlaps</span></a>
+              <a data-app-link="/search" href="http://localhost:5173/search">Search<span>Keyword against hybrid</span></a>
+              <a data-app-link="/navigate" href="http://localhost:5173/navigate">Find my room<span>Directions to your next talk</span></a>
+              <a data-app-link="/onboarding" href="http://localhost:5173/onboarding">Onboarding<span>Say what you want to learn</span></a>
+            </div>
+            <div class="menu-col span-3">
+              <p class="t-label">At the venue</p>
+              <a data-app-link="/map" href="http://localhost:5173/map">Interest map<span>Topic counts, in aggregate</span></a>
+              <a data-app-link="/clusters" href="http://localhost:5173/clusters">Clusters<span>Groups of 5 or more</span></a>
+              <a data-app-link="/kiosk" href="http://localhost:5173/kiosk">Kiosk<span>Scan a room QR code</span></a>
+            </div>
+            <div class="menu-col span-3">
+              <p class="t-label">Organizers</p>
+              <a data-app-link="/organizer" href="http://localhost:5173/organizer">Organizer<span>Aggregate interest views</span></a>
+              <a data-app-link="/status" href="http://localhost:5173/status">Status<span>Search and API health</span></a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="nav__item"><a class="nav__link" href="index.html#journey">Journey</a></div>
+      <div class="nav__item"><a class="nav__link" href="index.html#privacy">Privacy</a></div>
+    </nav>
+    <div class="nav__actions">
+      <a class="btn btn--primary" href="register.html?c=cloud-native-hackathon-slc-2026"><span>Register</span><span class="nav-long">for a conference</span></a>
+    </div>
+    <button class="nav__toggle" type="button" aria-expanded="false" aria-label="Menu"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero hero--split" data-enter data-venue-shot="overview" data-venue-side="left" aria-labelledby="hero-h">
+    <div class="wrap"><div class="hero-text grid hero__grid">
+      <div class="hero__panel panel span-6">
+      <div class="hero__text">
+        <p class="hero__kicker"><span data-status-badge></span></p>
+        <h1 id="hero-h">Conference app for attendees and organizers</h1>
+        <p class="hero__lead">Register in a chat, get a schedule from your interests, check into rooms with a short-lived QR code. Next event: Cloud Native Hackathon, Salt Lake City, 9 November 2026.</p>
+        <div class="btn-row"><a class="btn btn--primary" href="register.html?c=cloud-native-hackathon-slc-2026">Register for a conference<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a><a class="btn btn--secondary" href="#conferences">Find a conference</a></div>
+        <div class="hero__ticket" aria-label="Next event">
+          <span class="pxframe"><span class="pxframe__in"><canvas data-qr="self" data-qr-scale="2" data-qr-conference="cloud-native-hackathon-slc-2026" role="img" aria-label="QR code that opens registration for the Cloud Native Hackathon on your phone"></canvas></span></span>
+          <div><p class="t-label">Next event</p><p class="hero__ticket-name">Cloud Native Hackathon</p><p class="hero__ticket-meta">Mon 9 Nov 2026, The Shop Workspace</p></div>
+        </div>
+      </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section class="section scene-sec" id="journey" data-chapter="arrive" data-venue-shot="arrive" data-venue-side="left" style="--h: 1" aria-labelledby="ch-arrive-h">
+    <div class="wrap">
+      <div class="vcard panel">
+        <h2 id="ch-arrive-h">Sign-up chat and ticket</h2>
+        <div class="vpanel">
+          <p class="t-label"><b>01 / 04</b> Registration</p>
+          <p>A host asks a few questions and registers you. The chat says up front what registering does: you get a QR ticket for room doors, your profile is kept, and your interests count in the interest map.</p>
+          <div class="ui ui-panel ui-chat frag" aria-label="Sign-up chat, three lines">
+            <div class="ui-chat__body">
+              <div class="ui-msg ui-msg--bot"><span class="ui-agent ui-msg__av" aria-hidden="true"></span><span class="ui-msg__col"><span class="ui-chat__answer">Welcome to Cloud Native Hackathon! What should I call you?</span></span></div>
+              <div class="ui-msg ui-msg--me"><span class="ui-msg__text">Mia</span></div>
+              <div class="ui-msg ui-msg--bot"><span class="ui-agent ui-msg__av" aria-hidden="true"></span><span class="ui-msg__col"><span class="ui-chat__answer">Thanks, Mia. Which topics do you want to hear about?</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hud-rail" aria-hidden="true" data-hud-rail>
+        <div class="rail__track"><span class="rail__fill"></span><span class="rail__tick is-on" style="top:0"></span><span class="rail__tick" style="top:33.3%"></span><span class="rail__tick" style="top:66.6%"></span><span class="rail__tick" style="top:calc(100% - 11px)"></span></div>
+        <span class="rail__count">01 / 04</span>
+      </div>
+    </div>
+  </section>
+  <section class="section scene-sec" data-chapter="schedule" data-venue-shot="schedule" data-venue-side="left" style="--h: 1" aria-labelledby="ch-schedule-h">
+    <div class="wrap">
+      <div class="vcard panel">
+        <h2 id="ch-schedule-h">A schedule from your interests</h2>
+        <div class="vpanel">
+          <p class="t-label"><b>02 / 04</b> Schedule</p>
+          <p>Your answers become one query that combines keyword matching (BM25) with dense-vector search over the talk catalog, so the schedule has no overlapping sessions. Your profile is kept after the event, so the next conference you join recommends talks from the first minute and you answer the sign-up questions once.</p>
+          <div class="ui ui-panel frag" aria-label="Personal schedule, three talks">
+            <ul class="frag__rows">
+              <li class="frag__row"><span class="frag__time">11:00</span><span class="frag__main">Filter, Transform, Route: Mastering OTTL in the OpenTelemetry Collector</span></li>
+              <li class="frag__row"><span class="frag__time">11:50</span><span class="frag__main">Welcome to the Vulnpocalypse!</span></li>
+              <li class="frag__row"><span class="frag__time">14:20</span><span class="frag__main">Why Your Monitoring Stack is a Security Risk</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="section scene-sec" data-chapter="scan" data-venue-shot="scan" data-venue-side="left" style="--h: 1" aria-labelledby="ch-scan-h">
+    <div class="wrap">
+      <div class="vcard panel">
+        <h2 id="ch-scan-h">Room <span class="nowrap">check-in</span> by QR code</h2>
+        <div class="vpanel">
+          <p class="t-label"><b>03 / 04</b> Room check-in</p>
+          <p>The QR code carries a signed, short-lived token that holds only your attendee ID. The server checks your entitlement on every scan, so a ticket that is revoked is turned away.</p>
+          <div class="ui ui-panel frag" aria-label="Two door scans, one allowed and one denied">
+            <ul class="frag__rows">
+              <li class="frag__row"><span class="frag__st is-ok">Allowed</span><span class="frag__main">Salt Lake Ballroom DE</span></li>
+              <li class="frag__row"><span class="frag__st is-no">Denied</span><span class="frag__main">Regency Ballroom B-D</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="section scene-sec" data-chapter="clusters" data-venue-shot="clusters" data-venue-side="left" style="--h: 1" aria-labelledby="ch-clusters-h">
+    <div class="wrap">
+      <div class="vcard panel">
+        <h2 id="ch-clusters-h">The interest map</h2>
+        <div class="vpanel">
+          <p class="t-label"><b>04 / 04</b> Interest map</p>
+          <p>Your interests count in the organizers' interest map, in aggregate only: never individuals, and a group under 5 is folded into other. They also use it to choose talks for future conferences.</p>
+          <div class="ui ui-panel frag" aria-label="Attendees per topic cluster">
+            <ul class="frag__rows frag__rows--bars">
+              <li class="frag__row"><span class="frag__main">Kubernetes</span><span class="frag__bar" style="--w: 100%"></span><span class="frag__n">24</span></li>
+              <li class="frag__row"><span class="frag__main">Observability</span><span class="frag__bar" style="--w: 71%"></span><span class="frag__n">17</span></li>
+              <li class="frag__row"><span class="frag__main">Security</span><span class="frag__bar" style="--w: 50%"></span><span class="frag__n">12</span></li>
+              <li class="frag__row"><span class="frag__main">Other (fewer than 5)</span><span class="frag__bar" style="--w: 25%"></span><span class="frag__n">6</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section sx-sec" id="schedule" aria-labelledby="schedule-h" data-venue-shot="stage" data-venue-side="left">
+    <div class="wrap grid">
+     <div class="sx sx--left">
+      <div class="sx__head">
+        <h2 id="schedule-h">A schedule from your interests</h2>
+        <p class="t-lead">Pick topics and the app searches the talk catalog by keyword and by meaning, then drops sessions that overlap. Every talk says why it was picked.</p>
+        <p><a class="link" data-app-link="/schedule" href="http://localhost:5173/schedule">Try the schedule</a></p>
+      </div>
+      <div class="frame frame--lit sx__lit">
+      <div class="ui app" role="img" aria-label="The personal schedule: a list of talks on Wednesday with the open talk, Why Your Monitoring Stack is a Security Risk, and the reason it was recommended" data-ui-pause-host>
+        <div class="app__pane app__pane--list">
+          <div class="ui ui-panel ui-win" data-ui="window" data-open="Suggested" data-work="Checking" data-done="Saved">
+            <div class="ui-win__bar">
+              <span class="ui-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="ui-win__crumb">My schedule <i>/</i> <b>Wed 11 Nov</b></span>
+              <span class="ui-spacer"></span>
+              <span class="ui-win__search" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg><span class="ui-win__ph">Search</span><span class="ui-kbd">/</span></span>
+            </div>
+            <div class="ui-win__body">
+              <nav class="ui-win__side" aria-hidden="true">
+                <span class="ui-win__nav is-on"><svg class="ui-icon" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="10" rx="1"/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3"/></svg>Schedule<em>6</em></span>
+                <span class="ui-win__nav"><svg class="ui-icon" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>Search</span>
+                <span class="ui-win__nav"><svg class="ui-icon" viewBox="0 0 16 16"><path d="M3 5V3.5h2M11 3.5h2V5M13 11v1.5h-2M5 12.5H3V11M5 8h6"/></svg>Check-in</span>
+                <span class="ui-win__label">Skipped</span>
+                <span class="ui-win__nav"><span class="ui-win__hash">#</span>Overlaps<em>3</em></span>
+              </nav>
+              <div class="ui-win__main">
+                <div class="ui-win__cols" aria-hidden="true"><span>Speaker</span><span>Talk</span><span>Status</span><span>Starts</span></div>
+                <ul class="ui-win__rows">
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="1">MD</span><span class="ui-win__who">Matt Dering</span><span class="ui-win__sub">Going Cloud Native in Baseball</span><span class="ui-win__st is-done" data-st>Saved</span><span class="ui-win__age">11:00</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="3">LR</span><span class="ui-win__who">Liz Rice</span><span class="ui-win__sub">Welcome to the Vulnpocalypse!</span><span class="ui-win__st" data-st>Suggested</span><span class="ui-win__age">11:50</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="4">VG</span><span class="ui-win__who">Vinayak Goyal</span><span class="ui-win__sub">Why Your Monitoring Stack is a Security Risk</span><span class="ui-win__st" data-st>Suggested</span><span class="ui-win__age">14:20</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="2">AM</span><span class="ui-win__who">Andrew McNamara</span><span class="ui-win__sub">Your CI's Mistaken Identity</span><span class="ui-win__st" data-st>Suggested</span><span class="ui-win__age">15:10</span></li>
+                  <li class="ui-win__row" data-row><span class="ui-avatar" data-tone="2">MC</span><span class="ui-win__who">Maxime Coquerel</span><span class="ui-win__sub">Kubernetes Secrets Were a Bad Idea. Now What?</span><span class="ui-win__st is-you" data-st>Overlap</span><span class="ui-win__age">14:48</span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="app__pane app__pane--open" data-ui-loop>
+          <div class="ui ui-doc" data-ui="doc">
+            <article class="ui-doc__page">
+              <div class="ui-doc__label">Wed 11 Nov, 14:20 to 14:50, Hyatt Regency, Salt Lake Ballroom DE, advanced</div>
+              <div class="ui-doc__title">Why Your Monitoring Stack is a Security Risk</div>
+              <div class="ui-doc__text">For years, the Kubernetes community has lived with a &ldquo;necessary evil&rdquo;: granting monitoring agents and health checkers the <mark class="ui-doc__mark is-on">nodes/proxy permission</mark>. While intended for simple metrics scraping, this permission is effectively a node-level superuser capability.</div>
+              <div class="ui-doc__text">With the graduation of <mark class="ui-doc__mark" data-kind="Why recommended" data-msg="Kubernetes is one of the topics you picked." data-where="Talk tags: kubernetes">Fine-Grained Kubelet API Authorization</mark> to General Availability in v1.36, Kubernetes finally provides a robust, least-privilege alternative.</div>
+              <div class="ui-doc__text">Speakers: Vinayak Goyal, Graham Helton. Track: Security.</div>
+            </article>
+            <aside class="ui-doc__note ui-panel is-on" aria-live="polite">
+              <div class="ui-doc__kind"><span class="ui-doc__dot"></span><span data-doc-kind>Why recommended</span></div>
+              <div class="ui-doc__msg" data-doc-msg>Matches your interests: security and Kubernetes.</div>
+              <div class="ui-doc__where" data-doc-where>Talk tags: security, kubernetes, ai</div>
+            </aside>
+          </div>
+        </div>
+      </div>
+      </div>
+     </div>
+    </div>
+  </section>
+
+  <section class="section sx-sec" id="conferences" aria-labelledby="find-h" data-venue-shot="lounge" data-venue-side="left">
+    <div class="wrap grid">
+     <div class="sx sx--right">
+      <div class="sx__head">
+        <h2 id="find-h">Find a conference</h2>
+        <p class="t-lead">Search by name, city or topic. Each card opens that conference&rsquo;s page and its registration QR code.</p>
+      </div>
+      <form class="ui ui-panel finder" role="search" aria-label="Conference finder" data-find-form action="#conferences" method="get">
+        <div class="ui-win__bar">
+          <span class="ui-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="ui-win__crumb">Conferences</span>
+          <span class="ui-spacer"></span>
+          <p class="finder__count" role="status" aria-live="polite" data-find-count>8 conferences</p>
+        </div>
+        <div class="finder__fields">
+          <div class="field"><label for="find-q">Search conferences</label><input id="find-q" name="q" type="search" autocomplete="off" data-find-q></div>
+          <div class="field"><label for="find-topic">Topic</label><select id="find-topic" name="topic" data-find-topic><option value="">All topics</option></select></div>
+        </div>
+        <ul class="find__list" data-conference-results>
+          <li><a class="card find-card" data-real href="conference.html?c=cloud-native-hackathon-slc-2026"><span class="find-card__name">Cloud Native Hackathon</span><span class="find-card__meta">Salt Lake City · The Shop Workspace</span><span class="find-card__date">9 Nov 2026</span></a></li>
+          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=harborline-platform-days-2026"><span class="find-card__name">Harborline Platform Days</span><span class="find-card__meta">Rotterdam · The Rope Works Hall</span><span class="find-card__date">2–3 Dec 2026</span></a></li>
+          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=ember-ml-systems-2027"><span class="find-card__name">Ember ML Systems Forum</span><span class="find-card__meta">Toronto · Foundry Atrium</span><span class="find-card__date">16–17 Feb 2027</span></a></li>
+          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=quillstack-web-2027"><span class="find-card__name">Quillstack Web Conf</span><span class="find-card__meta">Austin · Pecan Yard Theatre</span><span class="find-card__date">23–24 Mar 2027</span></a></li>
+          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=lowtide-security-congress-2027"><span class="find-card__name">Lowtide Security Congress</span><span class="find-card__meta">Lisbon · Riverside Dockhouse</span><span class="find-card__date">11–13 May 2027</span></a></li>
+          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=sparrowfield-data-days-2027"><span class="find-card__name">Sparrowfield Data Days</span><span class="find-card__meta">Chicago · Grain Exchange Hall</span><span class="find-card__date">8–9 Jun 2027</span></a></li>
+          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=tidepool-edge-summit-2027"><span class="find-card__name">Tidepool Edge Summit</span><span class="find-card__meta">Singapore · Lakeside Pavilion</span><span class="find-card__date">17–18 Aug 2027</span></a></li>
+          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=brightwater-open-source-weekend-2027"><span class="find-card__name">Brightwater Open Source Weekend</span><span class="find-card__meta">Nairobi · Acacia Commons</span><span class="find-card__date">2–3 Oct 2027</span></a></li>
+        </ul>
+      </form>
+     </div>
+    </div>
+  </section>
+
+  <section class="section statement sx-sec" id="retention" aria-labelledby="ret-h" data-venue-shot="overview" data-venue-side="left">
+    <div class="wrap grid">
+      <div class="ret" data-moment="liquid-type">
+        <h2 id="ret-h" class="mo-lt__type">Answer once. Profile kept.</h2>
+        <div class="ret__detail">
+          <p class="t-lead">Registering keeps your name, role, interests, goal and format preferences, so your next conference recommends talks from the first minute and you answer the questions only once.</p>
+          <ul class="rows">
+            <li><span class="rows__name">QR ticket</span><span class="rows__value">For room doors</span></li>
+            <li><span class="rows__name">Your profile</span><span class="rows__value">Kept for your next conference</span></li>
+            <li><span class="rows__name">Interest map</span><span class="rows__value">Aggregate only, groups under 5 in other</span></li>
+            <li><span class="rows__name">Door scans</span><span class="rows__value">Decision and room only</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section sx-sec" id="privacy" aria-labelledby="privacy-h" data-venue-shot="clusters" data-venue-side="left">
+    <div class="wrap grid">
+     <div class="sx sx--right">
+      <div class="sx__head">
+        <h2 id="privacy-h">What the app stores</h2>
+        <ul class="facts">
+          <li>Kept: your profile, so your next conference recommends talks from the first minute. It stays until you delete it. Delete it any time from <a class="link" href="profile.html">your profile</a>.</li>
+          <li>Organizers see aggregate interest counts, never individuals, and use them to choose future talks. Groups under 5 are folded into other.</li>
+          <li>Room tokens are signed, short-lived and carry only an attendee ID. The server checks entitlement on each scan; a scan logs only the decision and room.</li>
+          <li>The collector forwards an allowlist of attributes, never a blocklist. A test asserts that no attendee ID or location appears in exported spans.</li>
+          <li>There are no questions about health, politics or identity.</li>
+          <li class="facts__link"><a class="link" data-app-link="/status" href="http://localhost:5173/status">See live API status</a></li>
+        </ul>
+      </div>
+      <div class="frame sx__dg">
+        <div class="dg" data-diagram><script type="application/json">{
+          "layout": "fanin",
+          "size": "band",
+          "alt": "Traces, logs and metrics from the web app and the API on Kubernetes pass through the OpenTelemetry collector, which applies the attribute allowlist, and reach Dash0.",
+          "sources": [
+            {"label": "Web app", "icon": "ui:globe", "sub": "Browser SDK"},
+            {"label": "API", "icon": "kubernetes", "sub": "Runs on Kubernetes"}
+          ],
+          "target": {"label": "Collector", "icon": "opentelemetry"},
+          "then": {"label": "Dash0", "icon": "si:dash0", "meta": "Allowlist only"}
+        }</script></div>
+      </div>
+     </div>
+    </div>
+  </section>
+
+  <section class="section sx-sec" id="faq" aria-labelledby="faq-h" data-venue-shot="host" data-venue-side="left">
+    <div class="wrap grid">
+      <div class="faqbox">
+        <h2 id="faq-h">Questions</h2>
+        <div class="faq">
+          <div class="faq__item"><h3>Do I need to give my email?</h3><p>No. Registration needs a name and one topic. Email is optional and not stored.</p></div>
+          <div class="faq__item"><h3>Does the app track where I am?</h3><p>No. Room check-in is a QR scan at the door. There is no raw location and no per-device tracking.</p></div>
+          <div class="faq__item"><h3>What happens to my data after the event?</h3><p>Your profile is kept, so your next conference recommends talks from the first minute and you answer the questions only once.</p></div>
+          <div class="faq__item"><h3>How do organizers use it for future talks?</h3><p>They see aggregate counts, never individuals, with groups under 5 folded into other. The counts help choose future talks.</p></div>
+          <div class="faq__item"><h3>Is the cluster map proven?</h3><p>No. The minimum group size is untested on live attendee data, and with 170 to 200 attendees the map may look sparse.</p></div>
+        </div>
+      </div>
+      <div class="frame frame--lit consent">
+        <div class="ui ui-panel ui-checks reg3" data-ui="checklist" role="img" aria-label="Registering does three things: a QR ticket for room doors, your profile kept for your next conference, and your interests counted in the organizers' aggregate map">
+          <div class="ui-checks__head">
+            <div class="ui-title">Registering does three things</div>
+          </div>
+          <ul class="ui-checks__list">
+            <li class="ui-check is-done"><span class="ui-check__box"><svg viewBox="0 0 16 16"><path d="m4.5 8.2 2.3 2.3 4.7-5"/></svg></span><span class="ui-check__text"><span class="ui-check__label">QR ticket</span><span class="ui-check__sub">For room doors</span></span></li>
+            <li class="ui-check is-done"><span class="ui-check__box"><svg viewBox="0 0 16 16"><path d="m4.5 8.2 2.3 2.3 4.7-5"/></svg></span><span class="ui-check__text"><span class="ui-check__label">Profile kept</span><span class="ui-check__sub">Recommends talks at your next conference</span></span></li>
+            <li class="ui-check is-done"><span class="ui-check__box"><svg viewBox="0 0 16 16"><path d="m4.5 8.2 2.3 2.3 4.7-5"/></svg></span><span class="ui-check__text"><span class="ui-check__label">Interest map</span><span class="ui-check__sub">Aggregate only, groups under 5 in other</span></span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer closing footer--statement" id="contact" aria-labelledby="close-h">
+  <div class="wrap">
+    <div class="closing__cta close--type">
+      <div class="section-head">
+        <h2 id="close-h">Register in a chat, get a ticket</h2>
+        <p>Your ticket is a pixel QR code you scan at the door.</p>
+      </div>
+      <a class="btn btn--primary btn--xl btn--wide" href="register.html?c=cloud-native-hackathon-slc-2026">Register for a conference<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a>
+    </div>
+    <div class="closing__links">
+      <div class="grid">
+        <div class="span-4 stack-4">
+          <a class="nav__logo" href="#top"><span class="mark" data-mark="stack" aria-hidden="true"></span>Conference Companion</a>
+          <p class="footer__lede">Registration, schedules and room check-in for one conference at a time.</p>
+          <div class="scene-ctl" role="group" aria-label="Scene settings">
+            <button type="button" data-venue-control="pause" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="5" height="18" x="14" y="3" rx="1"/><rect width="5" height="18" x="5" y="3" rx="1"/></svg><span>Pause motion</span></button>
+            <button type="button" data-venue-control="static" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><span>Static view</span></button>
+          </div>
+        </div>
+        <div class="span-2 footer__col"><h3>Attendees</h3><ul>
+          <li><a data-app-link="/register" href="http://localhost:5173/register">Register</a></li>
+          <li><a data-app-link="/onboarding" href="http://localhost:5173/onboarding">Onboarding</a></li>
+          <li><a data-app-link="/schedule" href="http://localhost:5173/schedule">Schedule</a></li>
+          <li><a data-app-link="/search" href="http://localhost:5173/search">Search</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>At the venue</h3><ul>
+          <li><a data-app-link="/kiosk" href="http://localhost:5173/kiosk">Kiosk</a></li>
+          <li><a data-app-link="/map" href="http://localhost:5173/map">Interest map</a></li>
+          <li><a data-app-link="/clusters" href="http://localhost:5173/clusters">Clusters</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>Organizers</h3><ul>
+          <li><a data-app-link="/organizer" href="http://localhost:5173/organizer">Organizer</a></li>
+          <li><a data-app-link="/status" href="http://localhost:5173/status">Status</a></li></ul></div>
+        <div class="span-2 footer__col"><h3>This site</h3><ul>
+          <li><a href="#journey">Journey</a></li>
+          <li><a href="#conferences">Conferences</a></li>
+          <li><a href="#faq">Questions</a></li>
+          <li><a href="#privacy">Privacy</a></li></ul></div>
+      </div>
+      <div class="footer__legal">
+        <span>&copy; 2026 Conference Companion</span>
+        <div class="socials"></div>
+        <span class="footer__tm">Product names and logos are trademarks of their owners</span>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="assets/system.js"></script>
+<script type="module" src="assets/motion/motion.js"></script>
+<script type="module" src="assets/layout/layout.js"></script>
+<script type="module" src="assets/diagrams/mount.js"></script>
+<script type="module" src="scene/venue.js"></script>
+<script type="module" src="js/qr.js"></script>
+<script type="module" src="js/companion-api.js"></script>
+<script type="module" src="js/pages.js"></script>
+<script type="module" src="js/index-sections.js"></script>
+<script type="module" src="js/demo.js"></script>
+</body>
+</html>

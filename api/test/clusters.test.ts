@@ -222,7 +222,7 @@ describe("cluster job, demo seed and route", () => {
     await app.close();
   });
 
-  it("only requests opted-in, unexpired attendees with a vector, and skips malformed vectors", async () => {
+  it("requests every unexpired attendee with a vector (consent is not a filter), and skips malformed vectors", async () => {
     const es = fakeEs();
     const mk = (id: string, optIn: boolean, vector: unknown): [string, Doc] => [
       id,
@@ -230,7 +230,6 @@ describe("cluster job, demo seed and route", () => {
     ];
     const entries = [
       ...Array.from({ length: 6 }, (_, i) => mk(`in-${i}`, true, [1, 0, 0, i / 100])),
-      mk("out-1", false, [1, 0, 0, 0]),
       mk("bad-dims", true, [1, 0]),
       mk("bad-values", true, [1, "x", 0, 0]),
     ];
@@ -239,7 +238,7 @@ describe("cluster job, demo seed and route", () => {
     expect(result.attendees).toBe(6);
     expect(result.skipped).toBe(2);
     const filters = JSON.stringify((es.searchBody as { query: unknown }).query);
-    expect(filters).toContain('"consent.cluster_map":true');
+    expect(filters).not.toContain("consent");
     expect(filters).toContain("expires_at");
     expect(filters).toContain("interest_vector");
   });

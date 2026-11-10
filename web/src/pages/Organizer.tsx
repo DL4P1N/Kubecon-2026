@@ -1,10 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { OTHER_TOPIC, type InterestAggregateResponse, type InterestClustersResponse } from "@cc/shared";
+import { OTHER_TOPIC, type InterestAggregateResponse, type InterestClustersResponse, type RoomPlacementResponse } from "@cc/shared";
 import { api, ApiError } from "../api.js";
+import { EmptyState, ErrorState, LoadingState } from "../components/PageState.js";
 import { describeStatus, useStatus } from "../components/status.js";
 import { ROOM_STEP, roomSize } from "./InterestMap.js";
 import "./discovery.css";
 import "../components/status.css";
+
+const slotTime = (start: string, end: string) =>
+  `${new Date(start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${new Date(end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 
 const topicLabel = (topic: string) => (topic === OTHER_TOPIC ? "Other (smaller groups combined)" : topic);
 
@@ -19,6 +23,9 @@ export function Organizer() {
   const [key, setKey] = useState("");
   const [clusters, setClusters] = useState<InterestClustersResponse | null>(null);
   const [clusterError, setClusterError] = useState("");
+  const [placement, setPlacement] = useState<RoomPlacementResponse | null>(null);
+  const [placementError, setPlacementError] = useState("");
+  const [placementLoading, setPlacementLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const { status, loaded } = useStatus();
   const statusView = describeStatus(status);
@@ -47,13 +54,29 @@ export function Organizer() {
     }
   }
 
+  async function loadPlacement(organizerKey: string) {
+    setPlacementLoading(true);
+    setPlacementError("");
+    try {
+      setPlacement(await api.roomPlacement(organizerKey));
+    } catch (err) {
+      setPlacement(null);
+      setPlacementError(err instanceof ApiError && err.status === 401 ? "An organizer key is required." : "Could not load room placement. Please try again.");
+    } finally {
+      setPlacementLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadClusters("");
+    void loadPlacement("");
   }, []);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!pending) void loadClusters(key.trim());
+    if (pending) return;
+    void loadClusters(key.trim());
+    void loadPlacement(key.trim());
   }
 
   const k = aggregate?.suppressedBelow ?? clusters?.minClusterSize ?? 5;
@@ -141,6 +164,64 @@ export function Organizer() {
                 ? `${clusters.suppressed} opted-in attendee${clusters.suppressed === 1 ? " is" : "s are"} not shown because their group has fewer than ${clusters.minClusterSize} members.`
                 : `Every opted-in attendee is in a group of at least ${clusters.minClusterSize}.`}
             </p>
+          </>
+        )}
+      </section>
+
+      <section aria-labelledby="org-placement">
+        <h2 id="org-placement">Room placement</h2>
+        {placementLoading && <LoadingState>Loading room placement…</LoadingState>}
+        {placementError && <ErrorState onRetry={() => void loadPlacement(key.trim())}>{placementError}</ErrorState>}
+        {placement && placement.slots.length === 0 && <EmptyState><p>No talks with a readable time were found.</p></EmptyState>}
+        {placement && placement.slots.length > 0 && (
+          <>
+            <p>
+              Demand is the sum of attendee counts for a talk&apos;s tags. Only topics with at least {placement.suppressedBelow} opted-in
+              attendees count, and one attendee can be counted under several tags, so read it as a relative score, not a headcount.
+            </p>
+            {!placement.capacitiesConfigured && (
+              <p role="status">
+                No room capacities are configured (ROOM_CAPACITIES), so no room is suggested. Talks are ranked by demand only.
+              </p>
+            )}
+            <table className="placement-table">
+              <caption>Talks by time slot, highest demand first</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Slot</th>
+                  <th scope="col">Talk</th>
+                  <th scope="col">Demand</th>
+                  <th scope="col">Current room</th>
+                  <th scope="col">Suggested room</th>
+                </tr>
+              </thead>
+              <tbody>
+                {placement.slots.flatMap((slot) =>
+                  slot.talks.map((t) => (
+                    <tr key={`${slot.start}-${slot.end}-${t.talkId}`}>
+                      <td>{slotTime(slot.start, slot.end)}</td>
+                      <th scope="row">{t.title}</th>
+                      <td>{t.demand}</td>
+                      <td>
+                        {t.currentRoom}
+                        {t.overCapacity && t.currentCapacity !== null && (
+                          <strong className="placement-flag">Over capacity: demand {t.demand}, {t.currentCapacity} seats</strong>
+                        )}
+                        {!t.capacityKnown && <span className="placement-flag">Capacity unknown</span>}
+                      </td>
+                      <td>
+                        {t.suggestedRoom ?? "No suggestion"}
+                        {t.moved && <strong className="placement-flag">Move</strong>}
+                        {t.suggestedRoom !== null && !t.moved && <span className="placement-flag">Keep</span>}
+                      </td>
+                    </tr>
+                  )),
+                )}
+              </tbody>
+            </table>
+            {placement.skippedTalks > 0 && (
+              <p>{placement.skippedTalks} talk{placement.skippedTalks === 1 ? " was" : "s were"} left out because the time could not be read.</p>
+            )}
           </>
         )}
       </section>

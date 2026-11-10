@@ -23,15 +23,16 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const width of [375, 1280]) {
-  for (const path of ["register", "onboarding", "schedule", "search", "kiosk", "clusters"]) {
+  for (const path of ["onboarding", "schedule", "search", "kiosk", "clusters", "navigate"]) {
     test(`${path} at ${width}px has no serious or critical accessibility violations`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
-      // The schedule is personal: give the page a (synthetic) registered session, as /register would.
+      // The schedule is personal: give the page a (synthetic) registered session, as sign-up would.
       if (path === "schedule") await page.addInitScript(() => sessionStorage.setItem("cc.token", "synthetic-token"));
       await page.goto(`/${path}`);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-      if (path === "register" || path === "onboarding") await expect(page.getByLabel("kubernetes", { exact: true })).toBeVisible();
+      if (path === "onboarding") await expect(page.getByLabel("kubernetes", { exact: true })).toBeVisible();
       if (path === "clusters") await expect(page.getByText("Kubernetes + Helm")).toBeVisible();
+      if (path === "navigate") await expect(page.getByText("Simulated signals")).toBeVisible();
       if (path === "schedule") {
         await expect(page.getByText(talk.title)).toBeVisible();
         await page.getByRole("button", { name: "Show room QR" }).click();
@@ -61,52 +62,3 @@ for (const width of [375, 1280]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 }
-
-test("keyboard-only registration follows labels and keeps optional consent off", async ({ page }) => {
-  await page.goto("/register");
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
-  await page.keyboard.press("Enter");
-  await page.keyboard.press("Tab");
-  await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
-  expect(await page.getByLabel("Name", { exact: true }).evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("solid");
-  await page.keyboard.type("Demo Attendee");
-  await page.keyboard.press("Tab");
-  await expect(page.getByLabel("Email")).toBeFocused();
-  await page.keyboard.type("demo@example.com");
-  await page.keyboard.press("Tab");
-  await expect(page.getByLabel("kubernetes", { exact: true })).toBeFocused();
-  await page.keyboard.press("Space");
-  await expect(page.getByLabel("kubernetes", { exact: true })).toBeChecked();
-  await page.keyboard.press("Tab");
-  await expect(page.getByLabel(/Include my interests/)).not.toBeChecked();
-  await page.keyboard.press("Tab");
-  await expect(page.getByLabel(/Allow QR/)).not.toBeChecked();
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "Register", exact: true })).toBeFocused();
-  const registerRequest = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/register");
-  await page.keyboard.press("Enter");
-  expect((await registerRequest).postDataJSON()).toMatchObject({
-    interests: ["kubernetes"], consent: { clusterMap: false, qrCheckin: false },
-  });
-  await expect(page.getByRole("heading", { name: "Onboarding", exact: true })).toBeVisible();
-  await expect(page.getByRole("main")).toBeFocused();
-  // Topic options load asynchronously; wait for them before checking tab order.
-  await expect(page.getByLabel("kubernetes", { exact: true })).toBeVisible();
-  await page.keyboard.press("Tab");
-  await expect(page.getByLabel("kubernetes", { exact: true })).toBeFocused();
-});
-
-test("typing on the same page does not move focus", async ({ page }) => {
-  await page.goto("/register");
-  await page.getByLabel("Name", { exact: true }).focus();
-  await page.keyboard.type("Demo");
-  await expect(page.getByLabel("Name", { exact: true })).toBeFocused();
-});
-
-test("initial root redirect preserves skip-link-first tab order", async ({ page }) => {
-  await page.goto("/");
-  await expect(page).toHaveURL(/\/register$/);
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
-});

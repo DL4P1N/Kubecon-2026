@@ -9,3 +9,6 @@ test-results/
 playwright-report/
 .DS_Store
 deploy/compose/certs/
+
+# Static front door served under /site/ (dev symlink to ../landing; web/vite.config.ts recreates it)
+web/public/site

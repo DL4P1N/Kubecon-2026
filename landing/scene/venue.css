@@ -1,0 +1,43 @@
+/* Pixel venue host. Styles only [data-venue] and what scene/venue.js puts inside it. */
+[data-venue] {
+  --venue-bg-fallback: #0e1410;
+  background: var(--venue-bg, var(--venue-bg-fallback));
+}
+:where([data-venue]:not([data-venue-mode="background"])) { position: relative; overflow: hidden; }
+[data-venue][data-venue-mode="background"] {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+}
+[data-venue] > canvas[data-venue-canvas] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+[data-venue] > img[data-venue-still] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  image-rendering: pixelated;
+}
+[data-venue][data-venue-live] > img[data-venue-still] { visibility: hidden; }
+[data-venue]:not([data-venue-live]) > canvas[data-venue-canvas] { visibility: hidden; }
+/* flat wash of the ground colour over the scene so page text stays legible */
+[data-venue][data-venue-mode="background"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--venue-bg, var(--venue-bg-fallback));
+  opacity: var(--venue-dim-live, var(--venue-dim, 0.25));
+  pointer-events: none;
+}

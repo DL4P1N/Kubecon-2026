@@ -18,7 +18,7 @@ it("exports the count on a retention span and correlated log without document da
   logs.setGlobalLoggerProvider(logger);
   setSpanRunner();
   try {
-    await runRetention(fakeEs(() => ({ body: { deleted: 2, failures: [] } })), new Date("2026-11-09T12:00:00Z"));
+    await runRetention(fakeEs(() => ({ body: { deleted: 2, failures: [] } })), new Date("2026-11-09T12:00:00Z"), 24 * 3600 * 1000);
     await tracer.forceFlush();
     await logger.forceFlush();
     const span = spanExporter.getFinishedSpans().find((span) => span.name === "retention.run")!;

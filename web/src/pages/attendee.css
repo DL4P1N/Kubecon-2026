@@ -1,14 +1,31 @@
-.attendee-form { display: grid; gap: .5rem; line-height: 1.5; padding-bottom: 2rem; }
-.attendee-form h1 { margin-bottom: 0; }
-.attendee-form p { margin: .25rem 0 .75rem; }
-.attendee-form fieldset { margin: 1rem 0; border: 1px solid #64748b; border-radius: .5rem; padding: 1rem; min-width: 0; }
-.attendee-form legend { font-weight: 650; padding: 0 .35rem; }
-.attendee-form input:not([type=checkbox]), .attendee-form select, .attendee-form textarea { box-sizing: border-box; width: 100%; border: 1px solid #64748b; border-radius: .25rem; background: white; color: #1a1a1a; }
-.attendee-form textarea { font: inherit; padding: .6rem; }
-.attendee-form input[type=checkbox] { width: 1.15rem; height: 1.15rem; vertical-align: middle; }
-.attendee-form label { padding: .25rem 0; }
-.attendee-form button { background: #164e9b; color: white; border: 0; border-radius: .3rem; padding: .75rem 1rem; cursor: pointer; }
-.attendee-form button:disabled { background: #475569; cursor: wait; }
-.attendee-form [role=alert] { color: #991b1b; }
-.topic-choices { display: flex; flex-wrap: wrap; column-gap: 1rem; }
-.attendee-form label:has(input[type=checkbox]) { display: inline-flex; align-items: center; gap: .35rem; min-height: 44px; min-width: 44px; margin-top: .25rem; }
+/* Register and Onboarding forms. Flat surface fieldsets, sharp topic chips. */
+.attendee-form { max-width: 640px; padding-bottom: var(--s-6); }
+.attendee-form h1 { margin-bottom: var(--s-3); }
+.attendee-form > p { color: var(--muted); }
+.attendee-form fieldset { margin: var(--s-6) 0; }
+.attendee-form fieldset p { color: var(--muted); font-size: var(--t-small); max-width: none; }
+.attendee-form [role=alert] { margin-top: var(--s-4); }
+.attendee-form #email-help, .attendee-form [id$="-help"] { color: var(--muted); font-size: var(--t-small); margin-top: var(--s-2); }
+
+/* Topic chips: 1px line at rest; lime fill, dark ink and a check mark when chosen (same as the sign-up chat) */
+.topic-choices { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+.attendee-form .topic-choices label:has(input[type=checkbox]), .topic-choices label:has(input[type=checkbox]) {
+  display: inline-flex; align-items: center; gap: var(--s-2); min-height: 44px; min-width: 44px; margin: 0; padding: 0 var(--s-4);
+  background: var(--bg); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  font-size: var(--t-small); font-weight: 500; cursor: pointer;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.topic-choices label:has(input[type=checkbox]):hover { border-color: var(--ink); }
+.topic-choices label:has(input[type=checkbox]:checked) { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.topic-choices label:has(input[type=checkbox]:checked):hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.topic-choices label:has(input[type=checkbox]:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.topic-choices input[type=checkbox] {
+  appearance: none; -webkit-appearance: none; width: 16px; height: 16px; margin: 0; flex: none;
+  background: transparent; border: 1px solid currentColor; border-radius: 0;
+}
+.topic-choices input[type=checkbox]:checked {
+  background: var(--accent-ink) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23c6f19d' stroke-width='2'/%3E%3C/svg%3E") center / 100% no-repeat;
+  border-color: var(--accent-ink);
+}
+.topic-choices input[type=checkbox]:focus-visible { outline: none; }
+@media (max-width: 760px) { .attendee-form button[type=submit] { width: 100%; } }

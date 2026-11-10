@@ -1,0 +1,585 @@
+{
+  "synthetic": true,
+  "programmeNote": "Synthetic one-day programme: real talk titles re-slotted into one day for the demo.",
+  "conference": "cloud-native-hackathon-slc-2026",
+  "attendeeCount": 184,
+  "clusters": [
+    {
+      "id": "platform",
+      "label": "Platform & GitOps",
+      "count": 52,
+      "topTags": [
+        "kubernetes",
+        "gitops",
+        "platform engineering"
+      ]
+    },
+    {
+      "id": "observability",
+      "label": "Observability & Incident Response",
+      "count": 44,
+      "topTags": [
+        "incident response",
+        "observability",
+        "opentelemetry"
+      ]
+    },
+    {
+      "id": "ai-ops",
+      "label": "AI Ops",
+      "count": 36,
+      "topTags": [
+        "ai sre",
+        "ml infrastructure",
+        "supply chain"
+      ]
+    },
+    {
+      "id": "security",
+      "label": "Security & Supply Chain",
+      "count": 27,
+      "topTags": [
+        "ebpf",
+        "security",
+        "supply chain"
+      ]
+    },
+    {
+      "id": "search-data",
+      "label": "Search & Data",
+      "count": 18,
+      "topTags": [
+        "databases",
+        "search",
+        "security"
+      ]
+    },
+    {
+      "id": "other",
+      "label": "Other (groups under 5)",
+      "count": 7
+    }
+  ],
+  "suppressedGroups": 2,
+  "topicCounts": [
+    {
+      "tag": "gitops",
+      "count": 74
+    },
+    {
+      "tag": "kubernetes",
+      "count": 70
+    },
+    {
+      "tag": "incident response",
+      "count": 65
+    },
+    {
+      "tag": "platform engineering",
+      "count": 64
+    },
+    {
+      "tag": "supply chain",
+      "count": 62
+    },
+    {
+      "tag": "observability",
+      "count": 58
+    },
+    {
+      "tag": "security",
+      "count": 53
+    },
+    {
+      "tag": "ml infrastructure",
+      "count": 52
+    },
+    {
+      "tag": "opentelemetry",
+      "count": 51
+    },
+    {
+      "tag": "ai sre",
+      "count": 50
+    },
+    {
+      "tag": "databases",
+      "count": 50
+    },
+    {
+      "tag": "ebpf",
+      "count": 49
+    },
+    {
+      "tag": "search",
+      "count": 37
+    },
+    {
+      "tag": "code review",
+      "count": 35
+    },
+    {
+      "tag": "service mesh",
+      "count": 26
+    },
+    {
+      "tag": "developer experience",
+      "count": 23
+    },
+    {
+      "tag": "other",
+      "count": 7
+    }
+  ],
+  "roomOccupancy": [
+    {
+      "slot": "10:00",
+      "sceneRoom": "keynote",
+      "expected": 57,
+      "scannedIn": 50,
+      "capacity": 120
+    },
+    {
+      "slot": "10:00",
+      "sceneRoom": "room-a",
+      "expected": 11,
+      "scannedIn": 11,
+      "capacity": 40
+    },
+    {
+      "slot": "10:00",
+      "sceneRoom": "room-b",
+      "expected": 8,
+      "scannedIn": 8,
+      "capacity": 40
+    },
+    {
+      "slot": "10:00",
+      "sceneRoom": "room-c",
+      "expected": 7,
+      "scannedIn": 7,
+      "capacity": 40
+    },
+    {
+      "slot": "10:00",
+      "sceneRoom": "room-d",
+      "expected": 5,
+      "scannedIn": 5,
+      "capacity": 40
+    },
+    {
+      "slot": "10:00",
+      "sceneRoom": "lounge",
+      "expected": 0,
+      "scannedIn": 22,
+      "capacity": 30
+    },
+    {
+      "slot": "11:00",
+      "sceneRoom": "keynote",
+      "expected": 28,
+      "scannedIn": 24,
+      "capacity": 120
+    },
+    {
+      "slot": "11:00",
+      "sceneRoom": "room-a",
+      "expected": 61,
+      "scannedIn": 40,
+      "capacity": 40
+    },
+    {
+      "slot": "11:00",
+      "sceneRoom": "room-b",
+      "expected": 17,
+      "scannedIn": 16,
+      "capacity": 40
+    },
+    {
+      "slot": "11:00",
+      "sceneRoom": "room-c",
+      "expected": 18,
+      "scannedIn": 17,
+      "capacity": 40
+    },
+    {
+      "slot": "11:00",
+      "sceneRoom": "room-d",
+      "expected": 2,
+      "scannedIn": 2,
+      "capacity": 40
+    },
+    {
+      "slot": "11:00",
+      "sceneRoom": "lounge",
+      "expected": 0,
+      "scannedIn": 19,
+      "capacity": 30
+    },
+    {
+      "slot": "12:00",
+      "sceneRoom": "keynote",
+      "expected": 113,
+      "scannedIn": 90,
+      "capacity": 120
+    },
+    {
+      "slot": "12:00",
+      "sceneRoom": "room-a",
+      "expected": 9,
+      "scannedIn": 8,
+      "capacity": 40
+    },
+    {
+      "slot": "12:00",
+      "sceneRoom": "room-b",
+      "expected": 7,
+      "scannedIn": 6,
+      "capacity": 40
+    },
+    {
+      "slot": "12:00",
+      "sceneRoom": "room-c",
+      "expected": 11,
+      "scannedIn": 8,
+      "capacity": 40
+    },
+    {
+      "slot": "12:00",
+      "sceneRoom": "room-d",
+      "expected": 2,
+      "scannedIn": 2,
+      "capacity": 40
+    },
+    {
+      "slot": "12:00",
+      "sceneRoom": "lounge",
+      "expected": 0,
+      "scannedIn": 17,
+      "capacity": 30
+    },
+    {
+      "slot": "13:00",
+      "sceneRoom": "keynote",
+      "expected": 33,
+      "scannedIn": 30,
+      "capacity": 120
+    },
+    {
+      "slot": "13:00",
+      "sceneRoom": "room-a",
+      "expected": 21,
+      "scannedIn": 15,
+      "capacity": 40
+    },
+    {
+      "slot": "13:00",
+      "sceneRoom": "room-b",
+      "expected": 66,
+      "scannedIn": 40,
+      "capacity": 40
+    },
+    {
+      "slot": "13:00",
+      "sceneRoom": "room-c",
+      "expected": 12,
+      "scannedIn": 9,
+      "capacity": 40
+    },
+    {
+      "slot": "13:00",
+      "sceneRoom": "room-d",
+      "expected": 7,
+      "scannedIn": 5,
+      "capacity": 40
+    },
+    {
+      "slot": "13:00",
+      "sceneRoom": "lounge",
+      "expected": 0,
+      "scannedIn": 27,
+      "capacity": 30
+    },
+    {
+      "slot": "14:00",
+      "sceneRoom": "keynote",
+      "expected": 103,
+      "scannedIn": 82,
+      "capacity": 120
+    },
+    {
+      "slot": "14:00",
+      "sceneRoom": "room-a",
+      "expected": 11,
+      "scannedIn": 11,
+      "capacity": 40
+    },
+    {
+      "slot": "14:00",
+      "sceneRoom": "room-b",
+      "expected": 11,
+      "scannedIn": 7,
+      "capacity": 40
+    },
+    {
+      "slot": "14:00",
+      "sceneRoom": "room-c",
+      "expected": 11,
+      "scannedIn": 9,
+      "capacity": 40
+    },
+    {
+      "slot": "14:00",
+      "sceneRoom": "room-d",
+      "expected": 5,
+      "scannedIn": 4,
+      "capacity": 40
+    },
+    {
+      "slot": "14:00",
+      "sceneRoom": "lounge",
+      "expected": 0,
+      "scannedIn": 20,
+      "capacity": 30
+    },
+    {
+      "slot": "15:00",
+      "sceneRoom": "keynote",
+      "expected": 101,
+      "scannedIn": 80,
+      "capacity": 120
+    },
+    {
+      "slot": "15:00",
+      "sceneRoom": "room-a",
+      "expected": 11,
+      "scannedIn": 9,
+      "capacity": 40
+    },
+    {
+      "slot": "15:00",
+      "sceneRoom": "room-b",
+      "expected": 13,
+      "scannedIn": 9,
+      "capacity": 40
+    },
+    {
+      "slot": "15:00",
+      "sceneRoom": "room-c",
+      "expected": 7,
+      "scannedIn": 5,
+      "capacity": 40
+    },
+    {
+      "slot": "15:00",
+      "sceneRoom": "room-d",
+      "expected": 5,
+      "scannedIn": 4,
+      "capacity": 40
+    },
+    {
+      "slot": "15:00",
+      "sceneRoom": "lounge",
+      "expected": 0,
+      "scannedIn": 23,
+      "capacity": 30
+    },
+    {
+      "slot": "16:00",
+      "sceneRoom": "keynote",
+      "expected": 91,
+      "scannedIn": 73,
+      "capacity": 120
+    },
+    {
+      "slot": "16:00",
+      "sceneRoom": "room-a",
+      "expected": 10,
+      "scannedIn": 10,
+      "capacity": 40
+    },
+    {
+      "slot": "16:00",
+      "sceneRoom": "room-b",
+      "expected": 14,
+      "scannedIn": 13,
+      "capacity": 40
+    },
+    {
+      "slot": "16:00",
+      "sceneRoom": "room-c",
+      "expected": 15,
+      "scannedIn": 14,
+      "capacity": 40
+    },
+    {
+      "slot": "16:00",
+      "sceneRoom": "room-d",
+      "expected": 6,
+      "scannedIn": 6,
+      "capacity": 40
+    },
+    {
+      "slot": "16:00",
+      "sceneRoom": "lounge",
+      "expected": 0,
+      "scannedIn": 27,
+      "capacity": 30
+    }
+  ],
+  "scanTotals": {
+    "allowed": 884,
+    "denied": 37,
+    "byReason": {
+      "room full": 25,
+      "token expired": 6,
+      "not on schedule": 6
+    }
+  },
+  "registrations": {
+    "total": 184,
+    "byVia": {
+      "qr": 95,
+      "github": 23,
+      "google": 30,
+      "linkedin": 36
+    },
+    "returning": 62,
+    "arrivalsPer15Min": [
+      {
+        "from": "08:00",
+        "to": "08:15",
+        "count": 11
+      },
+      {
+        "from": "08:15",
+        "to": "08:30",
+        "count": 13
+      },
+      {
+        "from": "08:30",
+        "to": "08:45",
+        "count": 14
+      },
+      {
+        "from": "08:45",
+        "to": "09:00",
+        "count": 16
+      },
+      {
+        "from": "09:00",
+        "to": "09:15",
+        "count": 19
+      },
+      {
+        "from": "09:15",
+        "to": "09:30",
+        "count": 20
+      },
+      {
+        "from": "09:30",
+        "to": "09:45",
+        "count": 19
+      },
+      {
+        "from": "09:45",
+        "to": "10:00",
+        "count": 16
+      },
+      {
+        "from": "10:00",
+        "to": "10:15",
+        "count": 13
+      },
+      {
+        "from": "10:15",
+        "to": "10:30",
+        "count": 11
+      },
+      {
+        "from": "10:30",
+        "to": "10:45",
+        "count": 10
+      },
+      {
+        "from": "10:45",
+        "to": "11:00",
+        "count": 8
+      },
+      {
+        "from": "11:00",
+        "to": "11:15",
+        "count": 7
+      },
+      {
+        "from": "11:15",
+        "to": "11:30",
+        "count": 7
+      }
+    ]
+  },
+  "goalCounts": {
+    "learn": 82,
+    "build": 64,
+    "meet": 71,
+    "hire": 36
+  },
+  "roleCounts": [
+    {
+      "role": "platform engineer",
+      "count": 26
+    },
+    {
+      "role": "backend developer",
+      "count": 22
+    },
+    {
+      "role": "DevOps engineer",
+      "count": 18
+    },
+    {
+      "role": "security engineer",
+      "count": 18
+    },
+    {
+      "role": "site reliability engineer",
+      "count": 16
+    },
+    {
+      "role": "solutions architect",
+      "count": 12
+    },
+    {
+      "role": "ML engineer",
+      "count": 11
+    },
+    {
+      "role": "QA engineer",
+      "count": 11
+    },
+    {
+      "role": "student",
+      "count": 11
+    },
+    {
+      "role": "engineering manager",
+      "count": 10
+    },
+    {
+      "role": "product manager",
+      "count": 10
+    },
+    {
+      "role": "developer advocate",
+      "count": 8
+    },
+    {
+      "role": "data engineer",
+      "count": 7
+    },
+    {
+      "role": "other",
+      "count": 4
+    }
+  ]
+}

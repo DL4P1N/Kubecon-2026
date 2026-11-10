@@ -6,8 +6,8 @@ import { ensureIndices } from "../es/mappings.js";
 
 /**
  * Demo data for the cluster map: 40 SYNTHETIC attendees who all opted in.
- * They are made-up people (ids `demo-NN`), not real registrations, and expire
- * after 24 hours like every attendee record.
+ * They are made-up people (ids `demo-NN`), not real registrations, and always
+ * expire after 24 hours, even though real profiles are kept by default (synthetic data is never kept).
  *
  * Shape on purpose: three themes of 13, 12 and 11 people, plus 4 attendees
  * with off-topic hobbies. Those 4 are below the minimum of 5, so the demo shows
@@ -59,7 +59,7 @@ export async function seedDemoAttendees(es: EsClient, embedder: Pick<Embedder, "
         display_name: `Demo attendee ${s.id.slice(5)}`,
         interests: s.interests,
         interest_vector: vector,
-        consent: { cluster_map: true, qr_checkin: false },
+        consent: { cluster_map: true, qr_checkin: true },
         created_at: now.toISOString(),
         expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
       },

@@ -1,13 +1,13 @@
 # Cluster map (Module 4)
 
-An organizer view of what attendees are interested in, built only from people
-who opted in (`consent.cluster_map = true`) and shown only in groups of at
-least 5.
+An organizer view of what attendees are interested in, built from every
+registered attendee's interests (it is not an opt-in) and shown only in groups
+of at least 5.
 
 ## How it works
 
 1. `npm run clusters` (the API image runs `node dist/clusters/cli.js`) scrolls
-   through `attendees` for opted-in, unexpired records that have an
+   through `attendees` for unexpired records (every registered attendee) that have an
    `interest_vector`. Only vectors and interest tags are read, never IDs or names.
 2. **k-means runs in the Node job process.** Elasticsearch stores the input
    vectors and the output documents; it does not run the clustering.
@@ -44,7 +44,7 @@ public. This cluster view is the grouped, organizer-keyed one.
 
 ```
 npm run es:init          # indices, if not yet created
-npm run clusters:seed    # 40 synthetic opted-in attendees (ids demo-NN, 24h expiry)
+npm run clusters:seed    # 40 synthetic attendees (ids demo-NN, always 24h expiry)
 npm run clusters         # writes a run
 ```
 

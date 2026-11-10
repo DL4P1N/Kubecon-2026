@@ -1,0 +1,7 @@
+[
+  { "id": "r-lobby", "name": "CCR-LOBBY", "x": 2.5, "y": 19.5 },
+  { "id": "r-stage", "name": "CCR-STAGE", "x": 12, "y": 2 },
+  { "id": "r-hall", "name": "CCR-HALL", "x": 19.5, "y": 12 },
+  { "id": "r-breakout-b", "name": "CCR-BREAKOUT-B", "x": 34, "y": 2 },
+  { "id": "r-lounge", "name": "CCR-LOUNGE", "x": 34, "y": 20 }
+]

@@ -26,9 +26,9 @@ import {
 } from "./queries.js";
 import { DEFAULT_MAX_TALKS, buildSchedule, type ScoredTalk } from "./schedule.js";
 import { facetAggs, parseFacets } from "./facets.js";
+import { expiresAtFor } from "../retentionPolicy.js";
 
 export const SCHEDULES_INDEX = "schedules";
-export const SCHEDULE_TTL_MS = 24 * 60 * 60 * 1000;
 export const ONBOARDING_RESULT_SIZE = 50;
 
 interface EsHit {
@@ -189,7 +189,8 @@ export function createScheduleStore(es: EsClient): ScheduleStore {
         attendee_id: attendeeId,
         talk_ids: talkIds,
         updated_at: now.toISOString(),
-        expires_at: new Date(now.getTime() + SCHEDULE_TTL_MS).toISOString(),
+        // Follows ATTENDEE_RETENTION_HOURS (kept by default; NO_EXPIRY sentinel).
+        expires_at: expiresAtFor(now.getTime()),
       });
     },
     async load(attendeeId, now = new Date()) {

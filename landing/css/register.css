@@ -1,0 +1,261 @@
+/* register.html: the chat sign-up as an app screen. Loaded after css/site.css and scene/venue.css.
+   The panel is the page: full height under the nav, the left ~58% of the wrap; the pixel venue (host shot) stays open on the right.
+   Every selector is scoped under .reg so it wins over the first-draft chat rules in site.css without !important.
+   Pixel motif here: the host's speech bubbles (stepped corners on the 4px grid, stepped tail) and the ticket frame (.pxframe, site.css).
+   Everything else is the dealt system. Motion: a message steps in (opacity + 6px, 160ms), the pending bubble shows a block caret,
+   the ticket arrives in 200ms; all of it rests under reduced motion. */
+
+html:has(.reg) { --foot: 60px; }
+
+/* ------------------------------------------------------------ the venue behind (scene/venue.css owns it; these are zero-specificity fallbacks) */
+:where([data-venue]) { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+:where([data-venue] > img[data-venue-still]) { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 70% 50%; }
+html:has(.reg), html:has(.reg) body { background: transparent; }
+html:has(.reg) { background: var(--venue-bg, #0f1f10); }
+
+/* ------------------------------------------------------------ the screen: nav, the panel, one slim footer line; nothing scrolls */
+main > section.hero.reg {
+  height: calc(100vh - var(--foot)); height: calc(100dvh - var(--foot)); min-height: 0; display: block; overflow: hidden;
+  padding: calc(var(--nav) + var(--s-4)) 0 var(--s-2);
+  background: transparent;
+}
+main > section.hero.reg > .wrap { height: 100%; display: block; }
+.reg .reg__grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gutter); height: 100%; min-height: 0; }
+.reg .reg__panel {
+  grid-column: 1 / span 7; min-height: 0; height: 100%; min-width: 0;
+  display: flex; flex-direction: column; gap: var(--s-3);
+  padding: var(--s-5); background: var(--surface); border: 1px solid var(--line-strong);
+}
+@media (max-width: 1279px) { .reg .reg__panel { grid-column: 1 / span 8; } }
+@media (max-width: 1100px) { .reg .reg__panel { grid-column: 1 / -1; } }
+
+/* the one compact heading line, with the status lamp beside it */
+.reg .reg__head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
+.reg .hero__kicker { margin: 0; flex: none; min-height: 0; }
+.reg h1 [data-reg-verb] { white-space: nowrap; }
+.reg h1 { margin: 0; font-size: 28px; line-height: 1.15; letter-spacing: var(--display-tracking); text-wrap: balance; }
+.reg .reg__via { flex: none; margin: 0; font-size: var(--t-small); line-height: 1.4; color: var(--muted); }
+.reg .reg__via[hidden] { display: none; }
+
+/* ------------------------------------------------------------ the chat column */
+.reg [data-chat] { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; height: auto; gap: var(--s-3); grid-template-rows: none; }
+.reg .chat-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); min-height: 24px; flex: none; padding-bottom: var(--s-3); border-bottom: 1px solid var(--line); }
+.reg .chat-mode { margin: 0; display: inline-flex; align-items: center; gap: var(--s-2); font-size: var(--t-small); line-height: 1.4; color: var(--muted); }
+.reg .chat-mode::before { content: ""; flex: none; width: 8px; height: 8px; background: var(--state-unknown); }
+.reg [data-chat] .chat-mode::after, .reg [data-chat][data-mode] .chat-mode::after { content: none; }
+.reg [data-chat][data-mode="claude"] .chat-mode { color: var(--ink); }
+.reg [data-chat][data-mode="claude"] .chat-mode::before { background: var(--state-ok); }
+.reg [data-chat][data-mode="scripted"] .chat-mode { color: var(--ink); }
+.reg [data-chat][data-mode="scripted"] .chat-mode::before { background: var(--state-warn); }
+.reg .chat-wait { margin: 0; font-size: var(--t-small); line-height: 1.4; color: var(--muted); }
+.reg .chat-wait:empty { display: none; }
+
+/* the log scrolls inside the panel and takes all the height the form and chips leave; the newest message stays in view (chat.js scrolls it) */
+.reg [data-chat-log] {
+  flex: 1 1 0; min-height: 0; margin: 0; padding: var(--s-4) var(--s-3) var(--s-2) 0; list-style: none;
+  overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: var(--s-5); scroll-padding: var(--s-4) 0;
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+}
+.reg [data-chat-log] > :first-child { margin-top: auto; }
+.reg [data-chat-log]::after { content: none; }
+
+/* the host: a speech bubble, paper fill and dark ink like a dialogue box; stepped corners (8px, two steps) and a stepped tail, no radius, no blur */
+.reg {
+  --bubble-paper: #f4f7ee; --bubble-ink: #0f1f10;
+  --bubble-clip: polygon(0 8px, 4px 8px, 4px 4px, 8px 4px, 8px 0, calc(100% - 8px) 0, calc(100% - 8px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 8px, 100% 8px,
+    100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px), calc(100% - 4px) calc(100% - 4px), calc(100% - 8px) calc(100% - 4px), calc(100% - 8px) 100%,
+    8px 100%, 8px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 8px), 0 calc(100% - 8px));
+}
+.reg .chat-msg { display: flex; padding: 0; animation: msg-in 140ms var(--ease, cubic-bezier(.2, .8, .2, 1)) both; }
+.reg .chat-msg p { margin: 0; max-width: none; font-size: 18px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-line; }
+.reg .chat-msg[data-role="assistant"] { flex-direction: column; align-items: flex-start; padding: 0 0 16px; }
+.reg .chat-msg[data-role="assistant"] p {
+  position: static; max-width: 80%; padding: var(--s-3) var(--s-4);
+  background: var(--bubble-paper); color: var(--bubble-ink); box-shadow: none; clip-path: var(--bubble-clip);
+}
+.reg .chat-msg[data-role="assistant"] p::before, .reg .chat-msg[data-role="assistant"] p::after { content: none; }
+.reg .chat-msg[data-role="assistant"]::after {
+  content: ""; display: block; width: 16px; height: 16px; margin: 0 0 -16px 20px; background: var(--bubble-paper);
+  clip-path: polygon(0 0, 100% 0, 100% 4px, 12px 4px, 12px 8px, 8px 8px, 8px 12px, 4px 12px, 4px 100%, 0 100%);
+}
+
+/* the visitor: a plain right-aligned bubble (square, an accent outline, no pixel steps), so the two roles read apart at a glance */
+.reg .chat-msg[data-role="user"] { justify-content: flex-end; }
+.reg .chat-msg[data-role="user"] p {
+  max-width: 80%; padding: var(--s-3) var(--s-4); background: none; border: 1px solid var(--accent); border-radius: var(--r-sm); color: var(--ink); text-align: left;
+}
+
+/* the host is typing: the bubble holds a block caret (the only loop on the page) */
+.reg .chat-msg[data-pending] p { position: relative; min-width: 64px; color: transparent; user-select: none; }
+.reg .chat-msg[data-pending] p::after {
+  content: ""; display: block; position: absolute; left: var(--s-4); top: 14px; width: 10px; height: 20px; margin: 0;
+  background: var(--bubble-ink); animation: caret 1s steps(1) infinite;
+}
+@keyframes caret { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+@keyframes msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ------------------------------------------------------------ the form: pinned at the panel's foot */
+.reg [data-chat-form] { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label label" "input send"; gap: var(--s-2) var(--s-3); align-items: end; }
+.reg [data-chat-form] > label { grid-area: label; font-size: var(--t-small); font-weight: 500; line-height: 1.4; color: var(--ink); }
+.reg [data-chat-form] > [data-chat-input] { grid-area: input; height: 52px; font-size: 18px; }
+.reg [data-chat-form] > button { grid-area: send; height: 52px; min-width: 44px; }
+.reg [data-chat][data-state="waiting"] [data-chat-form] > label { color: var(--muted); }
+.reg [data-chat][data-state="done"] [data-chat-form], .reg [data-chat][data-state="error"] [data-chat-form] { display: none; }
+
+.reg .reg__privacy { flex: none; margin: 0; font-size: var(--t-label); line-height: 1.45; color: var(--ink); max-width: 72ch; }
+
+/* ------------------------------------------------------------ quick replies and topic chips (js/chat.js fills [data-chat-choices]; section[data-ask] says which kind) */
+.reg [data-chat-choices]:not([hidden]) { flex: none; display: grid; gap: var(--s-2); }
+.reg [data-chat-choices] [role="group"] { display: flex; flex-wrap: wrap; gap: var(--s-2); max-height: 156px; overflow-y: auto; overscroll-behavior: contain; padding: 2px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.reg .chat-custom { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); padding: 0 2px; }
+.reg .chat-choices-note { order: 3; margin: 0; font-size: var(--t-small); line-height: 1.4; color: var(--ink); }
+.reg .chat-choices-note:empty { display: none; }
+.reg .chat-chip, .reg [data-chat-custom-add] {
+  appearance: none; display: inline-flex; align-items: center; gap: var(--s-2); min-height: 44px; padding: 0 var(--s-4);
+  background: transparent; color: var(--ink); border: 1px solid color-mix(in oklab, var(--ink) 55%, var(--surface)); border-radius: var(--r-sm);
+  font: 500 var(--t-body)/1.2 var(--font-text); cursor: pointer; text-align: left;
+  transition: background-color 150ms var(--ease), border-color 150ms var(--ease), color 150ms var(--ease), transform 150ms var(--ease);
+}
+.reg .chat-chip::before {
+  content: ""; flex: none; box-sizing: border-box; width: 14px; height: 14px; border: 2px solid currentColor; background: none center / 10px 7px no-repeat;
+}
+.reg .chat-chip[aria-pressed="true"] {
+  background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+}
+.reg .chat-chip[aria-pressed="true"]::before {
+  border-color: var(--accent-ink);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 5' shape-rendering='crispEdges'%3E%3Cpath fill='%230f1f10' d='M0 2h1v1H0zM1 3h1v1H1zM2 4h1v1H2zM3 3h1v1H3zM4 2h1v1H4zM5 1h1v1H5zM6 0h1v1H6z'/%3E%3C/svg%3E");
+}
+.reg .chat-chip[data-custom]:not([aria-pressed="true"]) { border-style: dashed; }
+.reg .chat-chip[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+.reg .chat-chip:focus-visible, .reg [data-chat-custom-add]:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; transition: none; }
+@media (hover: hover) and (pointer: fine) {
+  .reg .chat-chip:not([aria-pressed="true"]):not([aria-disabled="true"]):hover, .reg [data-chat-custom-add]:hover { background: color-mix(in oklab, var(--ink) 14%, var(--surface)); transform: translateY(-1px); }
+  .reg .chat-chip[aria-pressed="true"]:hover { background: color-mix(in oklab, var(--accent) 86%, var(--ink)); transform: translateY(-1px); }
+}
+.reg .chat-chip:not([aria-disabled="true"]):active, .reg [data-chat-custom-add]:active { transform: translateY(1px) scale(.985); transition-duration: 90ms; }
+/* the add-your-own field: chip-sized, inline, dashed like a custom chip; not a second form */
+.reg input[data-chat-custom] {
+  box-sizing: border-box; height: 44px; width: 14em; max-width: 100%; padding: 0 var(--s-4); background: transparent; color: var(--ink);
+  border: 1px dashed color-mix(in oklab, var(--ink) 55%, var(--surface)); border-radius: var(--r-sm); font: 400 var(--t-body)/1.2 var(--font-text);
+}
+.reg input[data-chat-custom]:focus { outline: none; border-style: solid; border-color: var(--action); box-shadow: 0 0 0 3px color-mix(in oklab, var(--action) 30%, transparent); }
+/* one-tap answers (yes or no, confirm): they send on click, so they are buttons, not toggles; the first option is the main action */
+.reg [data-chat][data-ask="yesno"] .chat-chip::before, .reg [data-chat][data-ask="confirm"] .chat-chip::before { display: none; }
+.reg [data-chat][data-ask="yesno"] .chat-chip:first-child, .reg [data-chat][data-ask="confirm"] .chat-chip:first-child { background: var(--action); color: var(--action-ink); border-color: var(--action); }
+@media (hover: hover) and (pointer: fine) {
+  .reg [data-chat][data-ask="yesno"] .chat-chip:first-child:hover, .reg [data-chat][data-ask="confirm"] .chat-chip:first-child:hover { background: color-mix(in oklab, var(--action) 86%, var(--ink)); }
+}
+.reg [data-chat][data-state="waiting"] [data-chat-choices], .reg [data-chat][data-state="done"] [data-chat-choices] { display: none; }
+@media (max-width: 759px) { .reg [data-chat-choices] [role="group"] { max-height: 142px; } .reg .chat-chip { padding: 0 var(--s-3); } .reg input[data-chat-custom] { flex: 1 1 8em; width: auto; } }
+@media (max-width: 759px) and (max-height: 600px) { .reg [data-chat-choices] [role="group"] { max-height: 96px; } }
+@media (prefers-reduced-motion: reduce) { .reg .chat-chip, .reg [data-chat-custom-add] { transition-property: background-color, border-color, color; } .reg .chat-chip:hover, .reg .chat-chip:active, .reg [data-chat-custom-add]:hover, .reg [data-chat-custom-add]:active { transform: none !important; } }
+
+/* ------------------------------------------------------------ error: the plain way back */
+.reg .chat-error { display: none; flex: none; gap: var(--s-3); padding: var(--s-4); border: 1px solid var(--state-down); }
+.reg .chat-error p { margin: 0; font-size: var(--t-body); line-height: 1.5; color: var(--ink); }
+.reg .chat-error .btn { justify-self: start; }
+.reg [data-chat][data-state="error"] .chat-error { display: grid; }
+
+/* ------------------------------------------------------------ error: the plain way back */
+.reg .chat-error { display: none; flex: none; gap: var(--s-3); padding: var(--s-4); border: 1px solid var(--state-down); }
+.reg .chat-error p { margin: 0; font-size: var(--t-body); line-height: 1.5; color: var(--ink); }
+.reg .chat-error .btn { justify-self: start; }
+.reg [data-chat][data-state="error"] .chat-error { display: grid; }
+
+/* ------------------------------------------------------------ done: the ticket replaces the transcript (the host's last line was read out live) */
+.reg [data-chat][data-state="done"] [data-chat-log], .reg [data-chat][data-state="done"] .chat-wait { display: none; }
+.reg [data-chat][data-state="done"] .chat-bar { border-bottom: 0; padding-bottom: 0; }
+.reg:has([data-chat][data-state="done"]) .reg__panel { height: auto; max-height: 100%; align-self: start; }
+.reg [data-chat-ticket]:not([hidden]) {
+  flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; outline: none;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "qr fields" "next next"; gap: var(--s-6) var(--s-7); align-content: start; align-items: start;
+  padding: var(--s-4) 0 0;
+  animation: ticket-in 200ms var(--ease, cubic-bezier(.2, .8, .2, 1)) both;
+}
+@keyframes ticket-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.reg [data-chat-ticket] .pxframe { grid-area: qr; --px-line: var(--accent); --px-fill: #f4f7ee; align-self: start; }
+.reg [data-chat-ticket] .pxframe__in { padding: var(--s-3); }
+.reg [data-chat-ticket] canvas[data-qr] { --qr-ink: #0f1f10; --qr-paper: #f4f7ee; }
+.reg .reg__wifi { grid-column: 1 / -1; grid-row: 1; min-width: 0; }
+.reg .reg__wifi[hidden] { display: none; }
+.reg [data-chat-ticket].is-wifi > :is(.pxframe, [data-ticket-fields]) { display: none; }
+.reg .reg__wifi .wifi { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr; gap: var(--s-2) var(--s-6); align-items: start; }
+.reg .reg__wifi .wifi__qr { grid-column: 1; grid-row: 1 / span 2; }
+.reg .reg__wifi .wifi__name { grid-column: 2; grid-row: 1; width: auto; }
+.reg .reg__wifi .wifi__row { grid-column: 2; grid-row: 2; }
+@media (max-width: 759px) { .reg .reg__wifi .wifi { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; } .reg .reg__wifi .wifi > * { grid-column: 1; grid-row: auto; } }
+.reg [data-ticket-fields] { grid-area: fields; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-5); margin: 0; align-content: start; font-size: var(--t-body); }
+.reg [data-ticket-fields] > div { display: grid; gap: 2px; align-content: start; min-width: 0; }
+.reg [data-ticket-fields] > div:is([data-field="name"], [data-field="interests"]) { grid-column: 1 / -1; }
+.reg [data-ticket-fields] dt { margin: 0; font-size: var(--t-label); font-weight: 500; line-height: 1.4; color: var(--muted); }
+.reg [data-ticket-fields] dd { margin: 0; font-weight: 500; line-height: 1.4; overflow-wrap: anywhere; }
+.reg [data-ticket-fields] > div[data-field="name"] dd { font-size: 28px; line-height: 1.2; letter-spacing: -0.01em; }
+.reg [data-ticket-fields] > div[data-field="expires"] dd { font-size: var(--t-small); line-height: 1.6; }
+.reg [data-ticket-fields] > div[data-field="ticket"] dd { white-space: nowrap; justify-self: start; padding: 2px 10px; background: var(--accent); color: var(--accent-ink); font-size: var(--t-small); }
+.reg [data-ticket-fields] > div[data-field="ticket"][data-source="local"] dd { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--state-warn); }
+.reg [data-ticket-fields] .tk-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0; padding: 0; list-style: none; }
+.reg [data-ticket-fields] .tk-chip { padding: 4px 12px; background: color-mix(in oklab, var(--accent) 14%, var(--surface)); border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent); color: var(--ink); font-size: var(--t-small); line-height: 1.4; font-weight: 500; }
+.reg .reg__next { grid-area: next; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3) var(--s-4); }
+.reg .reg__again { appearance: none; background: none; border: 0; padding: 0 var(--s-2); min-height: 44px; font: inherit; font-size: var(--t-body); color: var(--ink); cursor: pointer; }
+
+/* ------------------------------------------------------------ the footer: one slim line (legal left, the two scene controls right) */
+html:has(.reg) footer.reg-foot { height: var(--foot); background: var(--bg); border-top: 1px solid var(--line); }
+.reg-foot__bar { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
+.reg-foot__legal { font-size: var(--t-small); color: var(--ink); }
+.reg-foot .scene-ctl { position: static; transform: none; left: auto; bottom: auto; }
+
+/* the one short link to what is kept and how to delete it */
+.reg .reg__privacy a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+
+/* short laptop screens (1512x688): the ticket, its Wi-Fi and app links must fit without scrolling */
+@media (min-width: 760px) and (max-height: 760px) {
+  .reg [data-chat-ticket]:not([hidden]) { row-gap: var(--s-3); padding-top: var(--s-2); }
+  .reg [data-ticket-fields] { row-gap: var(--s-3); }
+  .reg .reg__next { row-gap: 0; }
+}
+
+/* ------------------------------------------------------------ narrow: the panel is the whole screen under the nav */
+@media (max-width: 759px) {
+  main > section.hero.reg { padding: calc(var(--nav) + var(--s-2)) 0 0; }
+  main > section.hero.reg > .wrap { width: calc(100% - 16px); }
+  .reg .reg__panel { padding: var(--s-4); gap: var(--s-3); }
+  .reg h1 { font-size: 22px; }
+  .reg .reg__head { flex-direction: column; align-items: flex-start; gap: var(--s-1); }
+  .reg [data-chat][data-ask] .reg__privacy { display: none; }
+  .reg .chat-msg p { font-size: 17px; }
+  .reg .chat-msg[data-role="assistant"] p, .reg .chat-msg[data-role="user"] p { max-width: 88%; }
+  .reg [data-chat-form] > [data-chat-input] { font-size: 16px; }
+  .reg [data-chat-choices] [role="group"] { max-height: 142px; } .reg .chat-chip { padding: 0 var(--s-3); } .reg input[data-chat-custom] { flex: 1 1 8em; width: auto; }
+  .reg [data-chat-ticket]:not([hidden]) { grid-template-columns: minmax(0, 1fr); grid-template-areas: "qr" "fields" "next"; gap: var(--s-4); padding-bottom: var(--s-5);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent); }
+  .reg [data-ticket-fields] { gap: var(--s-3) var(--s-4); }
+  .reg [data-ticket-fields] > div[data-field="name"] dd { font-size: 22px; }
+  .reg [data-ticket-fields] > div[data-field="expires"] dd { white-space: normal; line-height: 1.5; }
+  .reg [data-chat][data-state="done"] .reg__privacy, .reg [data-chat][data-state="done"] .chat-bar { display: none; }
+  .reg [data-chat-ticket] .pxframe__in { padding: var(--s-2); }
+  .reg .reg__next { gap: var(--s-2) var(--s-3); }
+  .reg .reg__again { flex: 1 1 100%; text-align: left; padding: 0; }
+  .reg .reg__next .btn { flex: 1 1 100%; }
+}
+/* the keyboard is up, or the screen is short (Android resizes the page for the keyboard; iOS does not, so register.js sets data-kbd from the visual viewport):
+   the form and the newest message get all the room */
+@media (max-width: 759px) and (max-height: 600px) {
+  html:has(.reg) { --foot: 0px; }
+  footer.reg-foot, .reg .reg__privacy, .reg .reg__via { display: none; }
+  .reg [data-chat-choices] [role="group"] { max-height: 96px; }
+}
+@media (max-width: 759px) {
+  html[data-kbd]:has(.reg) { --foot: 0px; }
+  html[data-kbd] main > section.hero.reg { height: var(--vvh, 100dvh); }
+  html[data-kbd] footer.reg-foot, html[data-kbd] .reg .reg__privacy, html[data-kbd] .reg .reg__via { display: none; }
+}
+@media (max-width: 1100px) and (max-height: 700px) { .reg .reg__panel { padding: var(--s-4); } }
+
+@media (max-width: 759px) { .reg .reg__via[data-signed]:not([hidden]) { display: block; } }
+
+/* ------------------------------------------------------------ reduced motion: nothing moves, the caret rests visible */
+@media (prefers-reduced-motion: reduce) {
+  .reg .chat-msg, .reg [data-chat-ticket]:not([hidden]) { animation: none; opacity: 1; transform: none; }
+  .reg .chat-msg[data-pending] p::after { animation: none; opacity: 1; }
+}

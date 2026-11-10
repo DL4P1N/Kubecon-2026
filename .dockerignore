@@ -6,3 +6,8 @@
 skills
 *.md
 .env*
+landing/.taste-skill
+landing/shots
+landing/node_modules
+landing/test
+web/public/site

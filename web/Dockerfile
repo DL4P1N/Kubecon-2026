@@ -8,6 +8,8 @@ COPY web/package.json web/
 RUN npm ci
 COPY shared shared
 COPY web web
+# Static front door (published under /site/ by web/scripts/sync-site.mjs during the web build).
+COPY landing landing
 COPY data/nav-replay.json data/nav-replay.json
 ARG NAV_ESTIMATOR=off
 ENV NAV_ESTIMATOR=$NAV_ESTIMATOR

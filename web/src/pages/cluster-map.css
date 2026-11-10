@@ -1,8 +1,17 @@
-.cluster-map { max-width: 60rem; }
-.cluster-note { border-left: .25rem solid #92400e; background: #fffbeb; padding: .5rem .75rem; color: #451a03; }
-.cluster-bubbles { display: flex; flex-wrap: wrap; gap: 1rem; list-style: none; padding: 0; align-items: center; }
-.cluster-bubble { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-  border-radius: 50%; padding: .75rem; background: #164e9b; color: #fff; overflow: hidden; }
-.cluster-bubble.other { background: #475569; }
-.cluster-bubble span { font-size: .9rem; }
-.cluster-bubble small { font-size: .75rem; overflow-wrap: anywhere; }
+/* Cluster map: bubble size = group size. Colours cycle teal, amber, coral, green, blue; "Other" is a dashed neutral. Never violet. */
+.cluster-map { max-width: 960px; }
+.cluster-note { padding: var(--s-3) var(--s-4); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--state-warn); color: var(--ink); }
+.cluster-map form { max-width: 480px; }
+.cluster-bubbles { display: flex; flex-wrap: wrap; gap: var(--s-4); list-style: none; padding: 0; margin: var(--s-5) 0; align-items: center; }
+.cluster-bubble {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden;
+  border-radius: 50%; padding: var(--s-3); background: var(--chart-1); color: var(--accent-ink); max-width: 100%;
+}
+.cluster-bubble:nth-child(5n+2) { background: var(--chart-2); }
+.cluster-bubble:nth-child(5n+3) { background: var(--chart-3); }
+.cluster-bubble:nth-child(5n+4) { background: var(--chart-4); }
+.cluster-bubble:nth-child(5n+5) { background: var(--chart-5); }
+.cluster-bubble.other { background: var(--surface); color: var(--ink); border: 2px dashed var(--line-strong); }
+.cluster-bubble strong { font-weight: 600; line-height: 1.2; }
+.cluster-bubble span { font: 500 var(--t-label)/1.3 var(--font-mono); margin-top: var(--s-1); }
+.cluster-bubble small { font-size: var(--t-label); line-height: 1.3; overflow-wrap: anywhere; }

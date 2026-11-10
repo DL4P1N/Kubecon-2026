@@ -1,9 +1,12 @@
-.page-state { margin: 1rem 0; }
-.page-state-empty, .page-state-error { border-left: 4px solid #475569; padding: .5rem .75rem; background: #f8fafc; color: #1f2937; }
-.page-state-error { border-left-color: #991b1b; }
-.page-state-error [role=alert] { color: #991b1b; margin: 0 0 .5rem; }
+/* Loading, empty and error panels: flat surface with a hairline; error and empty get a state edge. */
+.page-state { margin: var(--s-5) 0; max-width: 70ch; }
+.page-state-loading { color: var(--muted); padding: var(--s-4) 0; }
+.page-state-loading::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: var(--s-2); background: var(--accent); vertical-align: 1px; }
+.page-state-empty, .page-state-error { padding: var(--s-4) var(--s-5); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--line-strong); color: var(--ink); }
+.page-state-error { border-left-color: var(--state-down); }
+.page-state-error [role=alert] { margin: 0 0 var(--s-3); padding: 0; border: 0; background: none; color: var(--state-down); }
 .page-state-error [role=alert]:last-child { margin-bottom: 0; }
 .page-state-empty > :first-child { margin-top: 0; }
-.page-state-empty > :last-child { margin-bottom: 0; }
-.page-state button { border: 0; border-radius: .3rem; padding: .65rem 1rem; min-height: 44px; background: #164e9b; color: white; cursor: pointer; }
-.page-state a { color: #164e9b; }
+.page-state-empty > :last-child, .page-state p:last-child { margin-bottom: 0; }
+.page-state button { margin-top: var(--s-2); }
+.page-state a { color: var(--accent); }

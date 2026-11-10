@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en" data-type="software" data-radius="sharp" data-ground="sand" data-buttons="solid" data-motion>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your profile: conferences registered in this browser</title>
+<meta name="description" content="Your kept profile and the conferences you registered for in this browser, with schedule, room finder, ticket and invite links.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Your profile: conferences registered in this browser">
+<meta property="og:description" content="Your profile and the conferences you registered for, kept in this browser.">
+<meta property="og:image" content="share.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0f1f10">
+<meta name="cc-auth-base" content="">
+<meta name="site-kind" content="software">
+<meta name="page-type" content="software">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400..700&family=JetBrains+Mono:wght@400..500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/system.css">
+<link rel="stylesheet" href="assets/ui/cards.css">
+<link rel="stylesheet" href="assets/motion/motion.css">
+<link rel="stylesheet" href="assets/backgrounds/backgrounds.css">
+<link rel="stylesheet" href="assets/layout/layout.css">
+<link rel="stylesheet" href="assets/icons/icon.css">
+<style>
+:root {
+  --p-bg: #0f1f10; --p-surface: #162a17; --p-ink: #ffffff; --p-muted: #9aa39a;
+  --p-accent: #c6f19d; --p-accent-ink: #0f1f10; --p-action: #c6f19d; --p-action-ink: #0f1f10;
+  --p-inv-bg: #ffffff; --p-inv-surface: #ecedec; --p-inv-ink: #0f1f10; --p-inv-muted: #606c60;
+  --p-inv-accent: #0f1f10; --p-inv-accent-ink: #ffffff; --p-inv-action: #0f1f10; --p-inv-action-ink: #ffffff;
+  --font-display: "Host Grotesk", system-ui, sans-serif;
+  --font-text: "Host Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --display-weight: 500;
+  --display-tracking: -0.035em;
+  --display-tracking-xl: -0.04em;
+}
+</style>
+<link rel="stylesheet" href="css/site.css">
+<link rel="stylesheet" href="scene/venue.css">
+<link rel="stylesheet" href="css/profile.css">
+<link rel="stylesheet" href="css/demo.css">
+<script>document.documentElement.classList.add('m-enter');setTimeout(()=>document.documentElement.classList.add('m-enter-done'),700)</script>
+<script src="assets/backgrounds/backgrounds.js"></script>
+</head>
+<body>
+<div data-venue data-venue-mode="background" data-venue-data="data/demo-aggregates.json" aria-hidden="true"><img data-venue-still src="scene/still-overview.png" alt=""></div>
+<header class="nav">
+  <div class="wrap nav__bar">
+    <a class="skip-link" href="#top">Skip to content</a>
+    <a class="nav__logo" href="index.html"><span class="mark" data-mark="stack" aria-hidden="true"></span>Conference Companion</a>
+    <nav class="nav__links" aria-label="Main">
+      <div class="nav__item"><a class="nav__link" href="index.html#conferences">Conferences</a></div>
+      <div class="nav__item"><a class="nav__link" href="profile.html">Profile</a></div>
+      <div class="nav__item">
+        <a class="nav__link" data-app-link="/schedule" href="http://localhost:5173/schedule">App <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <div class="nav__menu">
+          <div class="wrap grid">
+            <div class="menu-col span-3">
+              <p class="t-label">Attendees</p>
+              <a data-app-link="/schedule" href="http://localhost:5173/schedule">Schedule<span>Your talks, no overlaps</span></a>
+              <a data-app-link="/search" href="http://localhost:5173/search">Search<span>Keyword against hybrid</span></a>
+              <a data-app-link="/navigate" href="http://localhost:5173/navigate">Find my room<span>Directions to your next talk</span></a>
+              <a data-app-link="/onboarding" href="http://localhost:5173/onboarding">Onboarding<span>Say what you want to learn</span></a>
+            </div>
+            <div class="menu-col span-3">
+              <p class="t-label">At the venue</p>
+              <a data-app-link="/map" href="http://localhost:5173/map">Interest map<span>Topic counts, in aggregate</span></a>
+              <a data-app-link="/clusters" href="http://localhost:5173/clusters">Clusters<span>Groups of 5 or more</span></a>
+              <a data-app-link="/kiosk" href="http://localhost:5173/kiosk">Kiosk<span>Scan a room QR code</span></a>
+            </div>
+            <div class="menu-col span-3">
+              <p class="t-label">Organizers</p>
+              <a data-app-link="/organizer" href="http://localhost:5173/organizer">Organizer<span>Aggregate interest views</span></a>
+              <a data-app-link="/status" href="http://localhost:5173/status">Status<span>Search and API health</span></a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="nav__item"><a class="nav__link" href="index.html#journey">Journey</a></div>
+      <div class="nav__item"><a class="nav__link" href="index.html#privacy">Privacy</a></div>
+    </nav>
+    <div class="nav__actions">
+      <a class="btn btn--primary" data-c-link="register.html" href="register.html?c=cloud-native-hackathon-slc-2026">Register<span class="nav-long"> for a conference</span></a>
+    </div>
+    <button class="nav__toggle" type="button" aria-expanded="false" aria-label="Menu"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+  </div>
+</header>
+
+<main id="top" data-pf>
+  <section class="section pf" data-venue-shot="lounge" data-venue-side="left" aria-labelledby="pf-h">
+    <div class="wrap pf__stack">
+      <div class="panel">
+        <h1 id="pf-h">Your profile</h1>
+        <div data-pf-profile></div>
+      </div>
+      <div class="panel pf-wide">
+        <h2>Your conferences</h2>
+        <h3 class="pf-sub">Upcoming</h3>
+        <ul class="pf-list" data-pf-upcoming></ul>
+        <p class="pf-note pf-note--list">Open in the app needs the Conference Companion iPhone app.</p>
+        <h3 class="pf-sub">Past</h3>
+        <ul class="pf-list" data-pf-past></ul>
+        <p class="pf-note">This list and your profile are kept in this browser only. The server holds no history, so another browser or cleared site data starts empty.</p>
+        <div class="pf-tools">
+          <button class="pf-quiet" type="button" data-pf-sample>Load sample history</button>
+          <button class="pf-quiet" type="button" data-pf-clear hidden>Clear sample history</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Your character</h2>
+        <div class="pf-char" data-pf-character></div>
+      </div>
+      <div class="panel">
+        <h2>Linked accounts</h2>
+        <div data-pf-linked></div>
+      </div>
+      <div class="panel">
+        <h2>Your data</h2>
+        <p class="pf-lead pf-lead--data">Kept: your name, role, interests, goal and format preferences, and which conferences you registered for. Why: so your next conference recommends talks from the first minute, and so organisers can see interest counts (never individuals; groups under 5 are folded into "other"). How long: until you delete it.</p>
+        <div class="pf-actions">
+          <button class="btn btn--secondary" type="button" data-pf-del-ask>Delete my data</button>
+          <span class="pf-actions" data-pf-del-sure hidden>
+            <button class="btn btn--primary" type="button" data-pf-del-yes>Yes, delete it</button>
+            <button class="btn btn--secondary" type="button" data-pf-del-keep>Keep it</button>
+          </span>
+        </div>
+        <p class="pf-status" role="status" aria-live="polite" data-pf-del-status></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="pf-foot">
+  <div class="wrap pf-foot__bar">
+    <span class="pf-foot__legal">&copy; 2026 Conference Companion</span>
+    <div class="scene-ctl" role="group" aria-label="Scene settings">
+            <button type="button" data-venue-control="pause" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="5" height="18" x="14" y="3" rx="1"/><rect width="5" height="18" x="5" y="3" rx="1"/></svg><span>Pause motion</span></button>
+            <button type="button" data-venue-control="static" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><span>Static view</span></button>
+          </div>
+  </div>
+</footer>
+
+<script type="module" src="assets/system.js"></script>
+<script type="module" src="assets/motion/motion.js"></script>
+<script type="module" src="assets/layout/layout.js"></script>
+<script type="module" src="js/qr.js"></script>
+<script type="module" src="js/companion-api.js"></script>
+<script type="module" src="scene/venue.js"></script>
+<script type="module" src="js/pages.js"></script>
+<script type="module" src="js/profile.js"></script>
+<script type="module" src="js/demo.js"></script>
+</body>
+</html>

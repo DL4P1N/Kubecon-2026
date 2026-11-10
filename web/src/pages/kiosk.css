@@ -1,13 +1,24 @@
-.kiosk input { width: 100%; box-sizing: border-box; }
-.kiosk form button { margin-top: 0.75rem; }
-.kiosk-result-region { margin-top: 1.5rem; }
-.kiosk-result { text-align: center; padding: 1.5rem; border: 6px solid; border-radius: 1rem; }
-.kiosk-icon { display: block; font-size: 6rem; line-height: 1; font-weight: 700; }
-.kiosk-decision { font-size: 2.5rem; font-weight: 700; margin: 0.5rem 0; }
-.kiosk-allow { color: #0b5e1f; border-color: #0b5e1f; background: #e6f4ea; border-style: solid; }
-/* Dashed border and a different icon keep deny distinguishable without colour. */
-.kiosk-deny { color: #8c1d18; border-color: #8c1d18; background: #fce8e6; border-style: dashed; }
-@media (max-width: 600px) {
-  .kiosk-result { padding: 1rem .75rem; }
-  .kiosk-decision { font-size: 2rem; }
+/* Room check-in kiosk: a big, high-contrast scanner screen, readable from a distance. */
+.kiosk { max-width: 880px; }
+.kiosk h1 { font-size: clamp(36px, 4vw + 16px, 60px); }
+.kiosk > p { font-size: var(--t-lead); }
+.kiosk form { margin-top: var(--s-5); }
+.kiosk label { font-size: var(--t-lead); margin-top: var(--s-5); color: var(--ink); }
+.kiosk input { width: 100%; min-height: 56px; font-size: 20px; border-width: 2px; border-color: var(--muted); }
+.kiosk input:focus-visible { border-color: var(--accent); }
+.kiosk form button { margin-top: var(--s-5); min-height: 56px; padding: 0 var(--s-6); font-size: 20px; }
+.kiosk form button[type=button] { background: transparent; color: var(--ink); border: 2px solid var(--ink); }
+.kiosk form button[type=button]:hover:not(:disabled) { background: var(--surface); border-color: var(--accent); color: var(--ink); }
+.kiosk video { max-width: 100%; height: auto; margin-top: var(--s-4); border: 2px solid var(--line-strong); }
+.kiosk-result-region { margin-top: var(--s-6); }
+.kiosk-result { text-align: center; padding: var(--s-6) var(--s-5); border: 8px solid; border-radius: 0; }
+.kiosk-result p { margin-inline: auto; font-size: var(--t-lead); }
+.kiosk-icon { display: block; font-size: 7rem; line-height: 1; font-weight: 700; }
+.kiosk-result .kiosk-decision { font-size: clamp(2.25rem, 5vw, 3.5rem); font-weight: 700; line-height: 1.1; margin: var(--s-2) auto; letter-spacing: -0.02em; }
+/* Granted: solid lime, dark ink. Denied: coral, dashed border and a cross, so the two differ without colour. */
+.kiosk-allow { color: var(--accent-ink); border-color: var(--accent); background: var(--accent); border-style: solid; }
+.kiosk-deny { color: var(--accent-ink); border-color: var(--ink); background: var(--state-down); border-style: dashed; }
+@media (max-width: 760px) {
+  .kiosk-result { padding: var(--s-5) var(--s-3); border-width: 6px; }
+  .kiosk-icon { font-size: 5rem; }
 }

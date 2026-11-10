@@ -12,7 +12,7 @@ import type { SearchFacets, SearchFilterParams } from "./facets.js";
 
 // ---------------------------------------------------------------- common
 
-export type HttpMethod = "GET" | "POST";
+export type HttpMethod = "GET" | "POST" | "DELETE";
 
 export interface RouteDef {
   readonly method: HttpMethod;
@@ -92,6 +92,9 @@ export interface RegisterRequest {
   email: string;
   interests: string[];
   consent: Consent;
+  /** Optional, never stored: conference slug and returning-visitor flag, used only for the live demo stream (GET /api/events). */
+  conference?: string;
+  returning?: boolean;
 }
 
 export interface RegisterResponse {
@@ -312,15 +315,137 @@ export interface InterestClustersResponse {
   minClusterSize: number;
 }
 
+// ---------------------------------------------------------------- room placement (organizers)
+
+/** One talk in a time slot with its estimated demand and a room suggestion. No attendee data. */
+export interface RoomPlacementTalk {
+  talkId: string;
+  title: string;
+  /** Sum of the aggregate counts of this talk's tags that appear in the k-anonymised aggregate. A relative score, not a headcount. */
+  demand: number;
+  /** 1 = highest demand in the slot (ties are ordered by current room capacity, then talk id). */
+  demandRank: number;
+  currentRoom: string;
+  /** Capacity configured for the current room; null when none is configured. */
+  currentCapacity: number | null;
+  /** False when the current room has no configured capacity: no room suggestion is made for this talk. */
+  capacityKnown: boolean;
+  /** Null when capacity is unknown, so only `demandRank` is meaningful. */
+  suggestedRoom: string | null;
+  /** The suggestion differs from the current room. */
+  moved: boolean;
+  /** Demand exceeds the current room's configured capacity (never true when capacity is unknown). */
+  overCapacity: boolean;
+}
+
+export interface RoomPlacementSlot {
+  start: string; // ISO 8601
+  end: string; // ISO 8601
+  /** Highest demand first. */
+  talks: RoomPlacementTalk[];
+}
+
+/** GET /api/rooms/placement (organizer key). Aggregates only; no attendee IDs. */
+export interface RoomPlacementResponse {
+  generatedAt: string; // ISO 8601
+  /** Topics under this many attendees never appear in the aggregate, so they add nothing to demand. */
+  suppressedBelow: number;
+  /** True when at least one room capacity is configured (ROOM_CAPACITIES). */
+  capacitiesConfigured: boolean;
+  slots: RoomPlacementSlot[];
+  /** Talks left out because their start or end time could not be read. */
+  skippedTalks: number;
+}
+
+// ---------------------------------------------------------------- registration chat + live demo stream
+
+export type ChatAsk = "topics" | "goal" | "confirm";
+export type ChatVia = "github" | "google" | "linkedin" | "qr";
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** The profile a finished chat produces. Maps onto RegisterRequest and OnboardingAnswers in the browser. */
+export interface ChatProfile {
+  name: string;
+  role: string;
+  interests: string[];
+  goal: string;
+  formats: string;
+}
+
+/** POST /api/chat (no auth). Stateless: send the whole transcript every turn. */
+export interface ChatRequest {
+  conference: { slug: string; name?: string; topics?: string[] };
+  via?: ChatVia | null;
+  messages: ChatMessage[];
+  /** Profile this browser remembered from an earlier registration (returning visitor). */
+  known?: ChatProfile | null;
+}
+
+export interface ChatResponse {
+  reply: string;
+  done: boolean;
+  /** "claude" when the Claude Code CLI answered, "scripted" for the built-in flow. */
+  mode: "claude" | "scripted";
+  /** Closed question the reply asks, rendered as quick-reply chips; null when none. */
+  ask: ChatAsk | null;
+  options?: string[];
+  /** Options pre-selected (returning visitor's topics). */
+  selected?: string[];
+  /** Present when `done`. */
+  profile?: ChatProfile;
+}
+
+/** One `registered` frame on GET /api/events (text/event-stream). First name only; nothing else about the attendee. */
+export interface RegisteredEvent {
+  label: string;
+  conference: string;
+  returning: boolean;
+  interests: number;
+}
+
+// ---------------------------------------------------------------- sign in with GitHub / Google / LinkedIn
+
+export type AuthProviderId = "github" | "google" | "linkedin";
+
+/** GET /api/auth/providers: which sign-in buttons can work (client id, secret and redirect URI all configured). */
+export interface AuthProvidersResponse {
+  providers: { id: AuthProviderId; enabled: boolean }[];
+}
+
+/** POST /api/auth/:provider/callback (no auth). `code` and `state` are the provider's redirect query parameters. */
+export interface AuthCallbackRequest {
+  code: string;
+  state: string;
+}
+
+/** The linked account as the provider reported it. No tokens: the server keeps nothing. */
+export interface AuthCallbackResponse {
+  provider: AuthProviderId;
+  displayName: string;
+  handle?: string;
+  avatarUrl?: string;
+  /** Same-origin relative path the visitor started from (validated when the flow began). */
+  return: string;
+  /** True when the flow began in the native app (`app=1`). */
+  app: boolean;
+}
+
 // ---------------------------------------------------------------- route table
 
 export const routes = {
   roomOccupancy: { method: "GET", path: "/api/rooms/occupancy" },
+  roomPlacement: { method: "GET", path: "/api/rooms/placement" },
   catalogTopics: { method: "GET", path: "/api/catalog/topics" },
   health: { method: "GET", path: "/healthz" },
   status: { method: "GET", path: "/api/status" },
   register: { method: "POST", path: "/api/register" },
   me: { method: "GET", path: "/api/me" },
+  /** Bearer session token. Deletes the caller's profile, saved schedule and entitlement; 204 with no body, 401 if already gone. */
+  deleteMe: { method: "DELETE", path: "/api/me" },
   onboarding: { method: "POST", path: "/api/onboarding" },
   search: { method: "GET", path: "/api/search" },
   saveSchedule: { method: "POST", path: "/api/schedule" },
@@ -330,6 +455,12 @@ export const routes = {
   accessScan: { method: "POST", path: "/api/access/scan" },
   interestsAggregate: { method: "GET", path: "/api/interests/aggregate" },
   interestsClusters: { method: "GET", path: "/api/interests/clusters" },
+  chat: { method: "POST", path: "/api/chat" },
+  events: { method: "GET", path: "/api/events" },
+  authProviders: { method: "GET", path: "/api/auth/providers" },
+  /** 302 to the provider. Query: `return` (relative path), `app=1`. */
+  authStart: { method: "GET", path: "/api/auth/:provider/start" },
+  authCallback: { method: "POST", path: "/api/auth/:provider/callback" },
 } as const satisfies Record<string, RouteDef>;
 
 export type RouteName = keyof typeof routes;

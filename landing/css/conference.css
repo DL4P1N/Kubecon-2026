@@ -1,0 +1,84 @@
+/* Conference page: what css/site.css and the kit lack. Loaded after site.css and scene/venue.css.
+   The page background is the fixed pixel venue (scene/venue.js). Copy and controls sit on the shared opaque .panel
+   (site.css), its border box on the .wrap left line, so the venue shows through on the right.
+   Pixel flavour lives only in the stepped QR frame (site.css .pxframe) and the 01 / 04 marks. */
+
+/* ------------------------------------------------------------ grounds: transparent; the shared .panel (site.css) carries the copy */
+main > section.section.cc { background: transparent; }
+.cc-hero .hero__panel.panel { grid-column: 1 / -1; width: min(640px, 100%); max-width: 640px; align-self: start; }
+.cc-hero .hero__text { display: block; }
+
+/* HUD marks: a 01 / 04 count in the mono face; the status lamp is site.css's square badge */
+.cc-hud { display: inline-flex; align-items: center; gap: var(--s-3); font: 500 var(--t-label)/1.4 var(--font-mono); color: var(--muted); }
+.cc-hud__n { color: var(--ink); }
+.cc-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-5); margin-bottom: var(--s-5); }
+.cc-bar h2 { margin: 0; }
+.cc-bar .cc-hud { margin-top: var(--s-2); flex: none; }
+
+/* ------------------------------------------------------------ 1 register block */
+/* first screen at laptop height (1512x688): the whole register block, QR included, sits above the fold */
+main > section.hero.cc-hero { padding-top: calc(72px + var(--s-5)); }
+.cc-hero .hero__panel.panel { padding-top: var(--s-5); padding-bottom: var(--s-5); }
+.cc-hero h1 { font-size: calc(var(--ly-h1-quiet) * .8); line-height: 1.06; }
+.cc-hero .hero__lead { font-size: var(--t-body); line-height: 1.45; }
+.cc-reg { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "main main" "qr act"; column-gap: var(--s-5); row-gap: var(--s-4); align-items: start; }
+.cc-reg__main { grid-area: main; display: grid; gap: var(--s-4); align-content: start; min-width: 0; }
+.cc-reg__main > * { margin: 0; }
+.cc-reg__main .hero__kicker { gap: var(--s-4); flex-wrap: wrap; }
+.cc-reg__main .hero__lead { max-width: 62ch; }
+.cc-reg__qr { grid-area: qr; display: grid; gap: var(--s-4); justify-items: start; align-content: start; }
+.cc-reg__qr .t-label { margin: 0; color: var(--muted); }
+.cc-reg__qr .pxframe { --px-line: var(--accent); --px-fill: #f4f7ee; }
+.cc-reg__qr .pxframe__in { padding: var(--s-2); }
+canvas[data-qr] { --qr-ink: #0f1f10; --qr-paper: #f4f7ee; }
+.cc-act { grid-area: act; display: grid; justify-items: start; gap: var(--s-3); min-width: 0; }
+.cc-act .btn-row { margin: 0; }
+.cc-act__or { margin: var(--s-1) 0 0; color: var(--muted); }
+.cc-signin { display: grid; gap: 0; list-style: none; margin: 0; padding: 0; }
+.cc-signin .link { min-height: 44px; gap: var(--s-3); }
+.cc-signin img { display: block; }
+.cc-note, .cc-demo { margin: 0; font-size: var(--t-small); line-height: 1.45; color: var(--muted); }
+.cc-demo { color: var(--ink); max-width: 46ch; }
+.cc-missing { display: grid; gap: var(--s-5); }
+.cc-missing p { margin: 0; font-size: var(--t-lead); line-height: 1.5; max-width: 40ch; }
+[data-missing][hidden], [data-demo-note][hidden] { display: none; }
+/* not found: only the hero's notice and the way back stay */
+html[data-conference-missing] [data-found] { display: none; }
+html[data-conference-missing] main > section:not(.hero) { display: none; }
+html[data-conference-missing] .cc-reg { grid-template-areas: "main main"; }
+
+/* ------------------------------------------------------------ 2 event details */
+.cc-chips { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); list-style: none; margin: var(--s-5) 0 0; padding: 0; }
+.cc-chips li { display: inline-flex; align-items: center; gap: var(--s-2); font-size: var(--t-small); line-height: 1.4; color: var(--ink); }
+.cc-chips li::before { content: ""; width: 8px; height: 8px; background: var(--accent); flex: none; }
+.cc-facts { display: grid; grid-template-columns: minmax(0, 1fr); margin: var(--s-6) 0 0; }
+.cc-facts > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--s-4); align-items: baseline; padding: var(--s-5) 0; border-top: 1px solid var(--line); }
+.cc-facts dt { font-size: var(--t-small); color: var(--muted); line-height: 1.4; }
+.cc-facts dd { margin: 0; font-size: var(--t-lead); line-height: 1.35; color: var(--ink); font-weight: 500; }
+.panel .t-lead { margin: 0; max-width: 46ch; }
+
+/* ------------------------------------------------------------ 3 after you register (word-highlight statement) */
+.statement.cc .mo-wh .mo-w, .statement.cc .mo-wh__text .mo-w { color: var(--ink); }
+.statement.cc .mo-wh strong .mo-w.is-on { color: var(--accent); }
+.statement.cc .mo-wh__text { font-size: clamp(24px, 1.4vw + 14px, 34px); line-height: 1.2; max-width: 30ch; margin: 0; }
+.cc-steps { list-style: none; margin: var(--s-6) 0 0; padding: 0; display: grid; }
+.cc-steps li { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--s-4); align-items: baseline; padding: var(--s-3) 0; border-top: 1px solid var(--line); font-size: var(--t-body); line-height: 1.5; }
+.cc-steps__n { font: 500 var(--t-label)/1.5 var(--font-mono); color: var(--accent); }
+
+/* ------------------------------------------------------------ 4 inside the conference: 2 x 4 tiles in the one panel */
+.cc-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
+.cc-tiles .tile-link { display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: var(--s-3); row-gap: var(--s-1); align-content: start; min-height: 0; padding: var(--s-4); }
+.cc-tiles .tile-link svg { grid-row: 1 / span 2; margin-top: 2px; }
+.cc-tiles .tile-link h3 { font-size: var(--t-body); line-height: 1.3; margin: 0; }
+.cc-tiles .tile-link p { grid-column: 2; margin: 0; font-size: var(--t-small); line-height: 1.4; }
+.cc-tiles .tile-link [data-status-badge] { min-height: 20px; }
+@media (max-width: 639px) { .cc-tiles { grid-template-columns: minmax(0, 1fr); } }
+
+/* ------------------------------------------------------------ narrow screens */
+@media (max-width: 767px) { .cc-reg__qr { display: none; } .cc-reg { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "act"; } }
+@media (max-width: 639px) {
+  .cc-act .btn { width: 100%; }
+  .cc-facts > div, .cc-steps li { grid-template-columns: minmax(0, 1fr); gap: var(--s-1); }
+}
+
+.cc-hero .hero__lead[hidden] { display: none; }

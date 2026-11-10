@@ -180,3 +180,29 @@ it("fetch does not cache HTML (SPA fallback) as a missing /assets/ file but cach
   await mismatch.dispatch("fetch", { request: new Request(`${ORIGIN}/assets/wrong-123.js`) });
   expect(remaining(mismatch.stores, "cc-shell-test")).toEqual([]);
 });
+
+it("never intercepts the static site under /site/ or the /api/events stream, even offline", async () => {
+  const sw = boot(); // fetch always fails: a handled navigation would fall back to the cached SPA shell
+  await sw.dispatch("install").catch(() => {});
+  seed(sw.stores, "cc-shell-test", `${ORIGIN}/index.html`, new Response("<html>spa shell</html>"));
+  const get = (path: string, mode: string = "cors") => ({ request: { url: `${ORIGIN}${path}`, method: "GET", mode, headers: new Headers() } });
+  for (const [path, mode] of [["/site/", "navigate"], ["/site/register.html?c=x", "navigate"], ["/site", "navigate"],
+    ["/site/assets/system.css", "no-cors"], ["/site/js/demo.js", "cors"], ["/api/events", "cors"]] as const) {
+    const event = await sw.dispatch("fetch", get(path, mode));
+    expect(event.responded, path).toBeUndefined();
+  }
+});
+
+it("still serves the SPA shell offline for client routes, and goes to the network first for /", async () => {
+  const offline = boot();
+  seed(offline.stores, "cc-shell-test", `${ORIGIN}/index.html`, new Response("<html>spa shell</html>"));
+  const route = await offline.dispatch("fetch", { request: { url: `${ORIGIN}/schedule`, method: "GET", mode: "navigate", headers: new Headers() } });
+  expect(await (await route.responded).text()).toBe("<html>spa shell</html>");
+
+  // Online, a navigation to / returns whatever the server answers (the 302 to /site/), never a cached shell.
+  const redirect = new Response(null, { status: 302, headers: { location: "/site/" } });
+  const online = boot(async () => redirect);
+  seed(online.stores, "cc-shell-test", `${ORIGIN}/index.html`, new Response("<html>spa shell</html>"));
+  const root = await online.dispatch("fetch", { request: { url: `${ORIGIN}/`, method: "GET", mode: "navigate", headers: new Headers() } });
+  expect(await root.responded).toBe(redirect);
+});

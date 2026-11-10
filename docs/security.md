@@ -30,9 +30,10 @@ Cached aggregate routes are cheap and get the most headroom.
 | `POST /api/schedule` | Bearer session token (HS256) | 120 | none | `maxTalks` 1 to 50, `talkIds` ≤ 100 strings or onboarding answers as above; body ≤ 256 KiB | The caller's own schedule |
 | `GET /api/schedule` | Bearer session token | 120 | none | none | The caller's own schedule |
 | `GET /api/schedule.ics` | Bearer session token | 120 (shares the schedule limit value) | `Cache-Control: private, no-store` | `talkId` one string of 1 to 200 chars | The caller's own schedule as iCalendar |
-| `POST /api/register` | none | 120 (`REGISTER_RATE_LIMIT_PER_MINUTE`) | none | zod: name ≤ 80, email ≤ 254 (never stored), 1 to 20 interests × ≤ 64, consent booleans; unknown fields dropped | The new attendee ID and token, to that caller only |
+| `POST /api/register` | none | 120 (`REGISTER_RATE_LIMIT_PER_MINUTE`) | none | zod: name ≤ 80, email ≤ 254 (never stored), 1 to 20 interests × ≤ 64, optional legacy consent booleans (ignored: stored true/true); unknown fields dropped | The new attendee ID and token, to that caller only |
 | `GET /api/me` | Bearer session token, plus expiry checked against ES | 120 | none | none | The caller's own profile (vector excluded) |
-| `POST /api/access/token` | Bearer session token + `qr_checkin` consent | 300 | none | none | Short-lived QR token (`aud` = access) |
+| `DELETE /api/me` | Bearer session token | 120 (shares the `/api/me` limit value, own counter) | none | none | `204`, no body. Deletes the caller's `entitlements`, `schedules` and `attendees` documents (last, so a 503 can be retried). `401` if the profile is already gone. Never returns or logs the attendee ID |
+| `POST /api/access/token` | Bearer session token (every registered attendee) | 300 | none | none | Short-lived QR token (`aud` = access) |
 | `POST /api/access/scan` | Signed QR token, entitlement checked server-side | 600 | none | zod: token, room (known room catalog) | `allow`/`deny`, room, reason. Never the attendee ID |
 | `GET /api/interests/aggregate` | none (public organizer view) | 300 | 15 s in memory, single-flight, `Cache-Control: public, max-age=15`; ES copy written at most once a minute | none (no input) | Topic counts with k ≥ 5 suppression (small buckets merged into `other`, dropped if still < 5) |
 | `GET /api/interests/clusters` | `x-organizer-key` (constant-time compare; 503 in production if unset) | 120 | 15 s in memory, after authorization | none (no input) | Cluster labels and sizes ≥ `MIN_CLUSTER_SIZE`. Centroids stay server-side |
@@ -42,6 +43,12 @@ Cached aggregate routes are cheap and get the most headroom.
 | `GET /api/suggest` | none | 120 (shared policy, own scope) | 30 s in-memory per-query cache (≤ 500 entries) | `q` one string, 2 to 100 chars | Public talk titles and speakers |
 | `GET /api/catalog/topics` | none | 300 | 30 s in memory (successes only), single-flight, `Cache-Control: public, max-age=30` | none (no input) | Public catalog tags. Never attendee interests |
 | `GET /api/rooms/*` (room occupancy) | covered by #42 review (PR #41) | covered by #42 review | covered by #42 review | covered by #42 review | covered by #42 review |
+| `POST /api/chat` | none | 30 (own scope, shared 429 body); also 1 in-flight Claude turn per IP and 4 in total (beyond that the same shared 429 body, `retry-after: 2`) | `no-store` | hand-validated: body ≤ 32 KiB (413), ≤ 24 messages, user turns ≤ 1000 chars, assistant turns ≤ 2000, `via` enum, conference and known-profile fields capped. Errors name the field only | The next chat reply and, when done, the profile the visitor just typed, to that caller only. Nothing is stored. Message text and profiles are never logged or put on spans (only route and status code) |
+| `GET /api/events` | none | 30 (own scope, shared 429 body); at most 3 concurrent streams per IP (shared 429 body) inside 20 in total (503 `too_many_listeners`) | `no-cache`, `no-transform` (SSE stream) | none (no input) | `registered` frames: label `Guest` (never a name by default; with the demo-only `EVENTS_SHOW_NAMES=on` the sanitised first name, letters and digits only, capped), conference slug, returning flag, interest count. Heartbeat comment every 20 s. Nothing else about the attendee |
+| `GET /api/rooms/placement` | `x-organizer-key` (constant-time compare; 503 in production if unset) | 60 (own scope, shared 429 body) | 15 s in memory, after authorization; `Cache-Control: no-store` | none (no input) | Room suggestions from aggregate interest counts (k-suppressed) and `ROOM_CAPACITIES`. ES errors answer a fixed `502 placement_unavailable`; error text is neither logged nor on spans |
+| `GET /api/auth/providers` | none | 30 (own scope, shared 429 body) | `no-store` | none (no input) | Which providers are enabled (`id`, `enabled`). Never ids, secrets or redirect URIs |
+| `GET /api/auth/:provider/start` | none | 30 (own scope, shared 429 body) | `no-store` | zod: `:provider` ≤ 32 chars then checked against github, google, linkedin (unknown or unconfigured is 404); `return` ≤ 512 chars and must be a same-origin relative path (starts with one `/`, no `//`, no backslash, no scheme or control characters; 400 otherwise); `app` ≤ 8 chars | A 302 to the provider carrying a random one-time `state` (kept in memory 10 minutes, at most 2000 entries) and, for Google, a PKCE challenge. The client id is visible in that URL; the secret never leaves the server |
+| `POST /api/auth/:provider/callback` | none (the one-time `state` is the proof) | 30 (own scope, shared 429 body) | `no-store` | zod: body ≤ 4 KiB, `code` 1 to 2048 chars, `state` 1 to 128 chars; unknown fields dropped. Bad, expired, reused or other-provider state is 400 `invalid_state`; provider failure is a fixed 502 `provider_error` | The linked account as the provider reported it: `provider`, `displayName` (≤ 80), optional `handle` and https `avatarUrl`, the validated `return` path and the `app` flag. No tokens, no email. Codes, tokens and profile fields are never logged or put on spans (only route and status code); nothing is stored |
 | any unknown route | — | — | — | — | Fixed `404 { "error": "not_found" }`. The raw path/query is not echoed (Fastify's default message did echo it) |
 
 ### Error shapes
@@ -67,12 +74,17 @@ status are logged.
   never `allow`) if the lookup errors (`api/src/routes/access.ts`).
 - **k ≥ 5 suppression.** Interest aggregates and clusters never return a
   group under 5 attendees (`api/src/interests/aggregate.ts`,
-  `api/src/routes/clusters.ts`), and only attendees who consented to the
-  cluster map are counted.
-- **24h retention.** Attendee, entitlement and schedule docs carry
-  `expires_at` = registration + 24h. A CronJob deletes expired docs
+  `api/src/routes/clusters.ts`), and every registered attendee is counted
+  (the interest map is not an opt-in; k-anonymity is the protection).
+- **Retention (profiles kept by default).** Attendee profiles, entitlements
+  and schedules are kept so the next conference can recommend talks from the
+  first minute. `ATTENDEE_RETENTION_HOURS` (unset or 0 keeps; e.g. 24 deletes
+  after that long) controls it; when set, docs carry `expires_at` = registration
+  + that period and the CronJob deletes expired docs
   (`deploy/k8s/app/retention-cronjob.yaml`, `docs/retention.md`). `/api/me`
-  and access checks also reject expired attendees.
+  and access checks reject expired attendees. Session tokens, QR tokens, scan
+  logs and room-activity windows stay short-lived. No user-facing delete or
+  export exists yet (see Open items in `docs/retention.md`).
 - **Telemetry attribute allowlist.** Spans go through `withSpan`, which drops
   any attribute that is not on the allowlist, and the OTel collector scrubs
   again (`docs/telemetry-allowlist.md`). Attendee IDs are never logged or put

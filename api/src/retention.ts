@@ -1,21 +1,37 @@
 import type { EsClient } from "./es/client.js";
 import { withSpan } from "./telemetry/span.js";
 import { logs, SeverityNumber } from "@opentelemetry/api";
+import { retentionMsFromEnv } from "./retentionPolicy.js";
 
-export const RETENTION_MS = 24 * 60 * 60 * 1000;
 export const RETENTION_INDICES = ["attendees", "schedules", "entitlements"] as const;
 
-export function retentionQuery(now: Date) {
+/** `retentionMs` is the attendee retention in ms (ATTENDEE_RETENTION_HOURS * 3600000), always positive here. */
+export function retentionQuery(now: Date, retentionMs: number) {
   if (!Number.isFinite(now.getTime())) throw new Error("Invalid retention clock");
+  if (!Number.isFinite(retentionMs) || retentionMs <= 0) throw new Error("Invalid retention period");
   return { query: { bool: { minimum_should_match: 1, should: [
-    { range: { created_at: { lt: new Date(now.getTime() - RETENTION_MS).toISOString() } } },
+    { range: { created_at: { lt: new Date(now.getTime() - retentionMs).toISOString() } } },
     { range: { expires_at: { lte: now.toISOString() } } },
   ] } } };
 }
 
-/** Fixed clock for the whole run; only the three attendee-data aliases are targeted. */
-export async function runRetention(es: EsClient, now = new Date()): Promise<number> {
-  const query = retentionQuery(now);
+export const RETENTION_OFF_MESSAGE = "Retention is off (ATTENDEE_RETENTION_HOURS unset or 0): attendee profiles are kept, nothing deleted";
+
+/**
+ * Fixed clock for the whole run; only the three attendee-data aliases are targeted.
+ * `retentionMs` defaults to ATTENDEE_RETENTION_HOURS; null means retention is off, in which case
+ * the run is a no-op that logs one line and sends no request to Elasticsearch.
+ */
+export async function runRetention(
+  es: EsClient,
+  now = new Date(),
+  retentionMs: number | null = retentionMsFromEnv(),
+): Promise<number> {
+  if (retentionMs === null) {
+    console.log(RETENTION_OFF_MESSAGE);
+    return 0;
+  }
+  const query = retentionQuery(now, retentionMs);
   return withSpan("retention.run", {}, async (span) => {
     let deleted = 0;
     let incomplete = false;

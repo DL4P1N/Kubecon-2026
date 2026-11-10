@@ -64,7 +64,7 @@ export function buildMappings(dims: number, inferenceId: string = resolveInferen
         },
       },
       created_at: { type: "date" },
-      // Attendee-level data is deleted after 24 hours (design doc section 5).
+      // Profiles are kept by default (NO_EXPIRY sentinel); ATTENDEE_RETENTION_HOURS=24 restores timed deletion.
       expires_at: { type: "date" },
     },
     schedules: {
