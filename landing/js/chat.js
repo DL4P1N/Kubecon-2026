@@ -82,7 +82,10 @@ export async function bindChat(section) {
   const slug = params.get("c") || section.dataset.conference || DEFAULT_SLUG;
   const viaParam = params.get("via");
   const via = VIA_VALUES.includes(viaParam) ? viaParam : null;
-  const storeKey = STORE_PREFIX + slug;
+  if (sessionToken()) {
+    location.replace("/schedule");
+    return;
+  }
   let linkedName = "";
   if (via && via !== "qr") {
     try {
@@ -339,15 +342,28 @@ export async function bindChat(section) {
     // On the site this is the real sign-up; preview registration uses its own endpoint.
     const ticket = await completeSignup(conference, profile, { returning: Boolean(s.known) });
     if (ticket.source === "error") {
-      const message = "That account already has a profile. Sign in again from your profile page.";
-      const line = addMessage("assistant", message);
-      s.messages.push({ role: "assistant", content: message });
-      const link = document.createElement("a");
-      link.href = "/site/profile.html";
-      link.textContent = "Back to sign in";
-      line.append(link);
+      const errors = {
+        already_registered: {
+          message: "That account already has a profile. Sign in again from your profile page.",
+          link: "Back to sign in",
+        },
+        identity_claim_invalid: {
+          message: "Your sign-in expired or could not be verified. Sign in again from your profile page, then start again here.",
+          link: "Sign in again",
+        },
+        registration_failed: { message: "Registration could not be completed. Please start again.", link: null },
+      };
+      const failure = errors[ticket.error] ?? errors.registration_failed;
+      const line = addMessage("assistant", failure.message);
+      s.messages.push({ role: "assistant", content: failure.message });
+      if (failure.link) {
+        const link = document.createElement("a");
+        link.href = "/site/profile.html";
+        link.textContent = failure.link;
+        line.append(link);
+      }
       s.ticket = null;
-      s.error = "already_registered";
+      s.error = ticket.error;
       persist();
       lock(true);
       setState("done");
@@ -442,16 +458,19 @@ export async function bindChat(section) {
     for (const m of s.messages) addMessage(m.role, m.content);
     if (saved.mode === "claude" || saved.mode === "scripted") setMode(saved.mode);
     const checked = saved.done ? validateProfile(saved.profile) : null;
-    if (checked?.ok && saved.error === "already_registered") {
+    const savedError = ["already_registered", "identity_claim_invalid", "registration_failed"].includes(saved.error) ? saved.error : null;
+    if (checked?.ok && savedError) {
       s.done = true;
       s.profile = checked.profile;
-      s.error = "already_registered";
-      const line = log.lastElementChild;
-      if (line) {
-        const link = document.createElement("a");
-        link.href = "/site/profile.html";
-        link.textContent = "Back to sign in";
-        line.append(link);
+      s.error = savedError;
+      if (savedError !== "registration_failed") {
+        const line = log.lastElementChild;
+        if (line) {
+          const link = document.createElement("a");
+          link.href = "/site/profile.html";
+          link.textContent = savedError === "already_registered" ? "Back to sign in" : "Sign in again";
+          line.append(link);
+        }
       }
       lock(true);
       setState("done");

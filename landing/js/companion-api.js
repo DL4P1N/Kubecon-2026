@@ -198,11 +198,10 @@ export function toRegisterRequest(profile, conference) {
   let identityClaim;
   try {
     const claim = JSON.parse(sessionStorage.getItem("cc.identity-claim") || "null");
-    if (claim && Date.parse(claim.expiresAt) > Date.now()) identityClaim = claim.token;
-    else sessionStorage.removeItem("cc.identity-claim");
+    if (claim && typeof claim.token === "string") identityClaim = claim.token;
   } catch { /* no browser storage */ }
   return {
-    ...(identityClaim ? { identityClaim } : {}),
+    ...(identityClaim !== undefined ? { identityClaim } : {}),
     name: profile.name,
     email: "",
     interests: profile.interests,
@@ -239,6 +238,10 @@ async function apiCall(path, { method = "POST", body, token, timeout = 8000 } = 
   if (!r.ok) {
     const error = new Error(`${method} ${path} ${r.status}`);
     error.status = r.status;
+    try {
+      const body = await r.json();
+      if (typeof body?.error === "string") error.code = body.error;
+    } catch { /* non-JSON error response */ }
     throw error;
   }
   return r.json();
@@ -265,15 +268,21 @@ export function sessionToken() {
  */
 export async function signUp(conference, profile, { returning = false } = {}) {
   const registration = { ...toRegisterRequest(profile, conference), returning: returning === true };
-  const hasIdentityClaim = typeof registration.identityClaim === "string";
   let reg;
   try {
     reg = await apiCall("/api/register", { body: registration });
     if (typeof reg?.token !== "string" || typeof reg.attendeeId !== "string" || typeof reg.expiresAt !== "string") throw new Error("register_shape");
   } catch (error) {
-    if (hasIdentityClaim && (error?.status === 400 || error?.status === 409)) {
+    if (error?.status === 409) {
       try { sessionStorage.removeItem("cc.identity-claim"); } catch { /* storage unavailable */ }
       return { source: "error", error: "already_registered" };
+    }
+    if (error?.code === "invalid_identity_claim") {
+      try { sessionStorage.removeItem("cc.identity-claim"); } catch { /* storage unavailable */ }
+      return { source: "error", error: "identity_claim_invalid" };
+    }
+    if (Number.isInteger(error?.status) && error.status >= 400 && error.status < 500) {
+      return { source: "error", error: "registration_failed" };
     }
     return localTicket();
   }

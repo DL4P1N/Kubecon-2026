@@ -85,7 +85,8 @@ if (typeof document !== "undefined" && document.querySelector("a[data-via][data-
   });
 }
 
-// Sign-in entry on register.html. Keep the original conference and page return path through OAuth.
+// Sign-in entry on register.html for visitors who already have a profile. A returning account goes back to
+// profile.html; a new account gets a claim and the callback sends it on to register.html?via=<provider>.
 const signIn = typeof document !== "undefined" ? document.querySelector("[data-auth-providers]") : null;
 if (signIn) {
   fetchProviders().then((enabled) => {
@@ -96,7 +97,7 @@ if (signIn) {
     for (const [i, provider] of links.entries()) {
       if (i) label.append(document.createTextNode(" / "));
       const link = document.createElement("a");
-      link.href = startUrl(provider.id, `${location.pathname}${location.search}`);
+      link.href = startUrl(provider.id, "/site/profile.html");
       link.textContent = provider.name;
       label.append(link);
     }

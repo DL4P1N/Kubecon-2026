@@ -142,11 +142,13 @@ describe("POST /api/register and GET /api/me", () => {
   it("rejects an invalid or expired identity claim before writing any document", async () => {
     const invalid = await register({ ...validBody, identityClaim: "invalid.claim.token" });
     expect(invalid.statusCode).toBe(400);
-    expect(invalid.json()).toMatchObject({ error: "invalid_request", message: "identityClaim: expired or invalid, sign in again" });
+    expect(invalid.json()).toMatchObject({ error: "invalid_identity_claim", message: "identityClaim: expired or invalid, sign in again" });
     expect(es.docs.size).toBe(0);
     const claim = await createTokenService({ key: KEY, now }).sign("expired-id", { audience: "identity-claim", ttlSeconds: 1 });
     t += 2_000;
-    expect((await register({ ...validBody, identityClaim: claim.token })).statusCode).toBe(400);
+    const expired = await register({ ...validBody, identityClaim: claim.token });
+    expect(expired.statusCode).toBe(400);
+    expect(expired.json()).toMatchObject({ error: "invalid_identity_claim" });
     expect(es.docs.size).toBe(0);
   });
 

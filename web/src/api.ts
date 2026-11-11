@@ -46,7 +46,7 @@ export function setToken(token: string): void {
 }
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
     this.name = "ApiError";
   }
@@ -68,7 +68,14 @@ async function call<T>(
     headers,
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
   });
-  if (!res.ok) throw new ApiError(`${route.method} ${route.path} failed: ${res.status}`, res.status);
+  if (!res.ok) {
+    let code: string | undefined;
+    try {
+      const body = await res.json() as { error?: unknown };
+      if (typeof body.error === "string") code = body.error;
+    } catch { /* non-JSON error response */ }
+    throw new ApiError(`${route.method} ${route.path} failed: ${res.status}`, res.status, code);
+  }
   return (await res.json()) as T;
 }
 

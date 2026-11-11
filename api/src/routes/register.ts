@@ -174,7 +174,7 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
           try {
             identity = await tokens.verify(body.identityClaim, { audience: "identity-claim" });
           } catch {
-            return reply.code(400).send({ error: "invalid_request", message: "identityClaim: expired or invalid, sign in again" });
+            return reply.code(400).send({ error: "invalid_identity_claim", message: "identityClaim: expired or invalid, sign in again" });
           }
         }
         const id = randomUUID();
