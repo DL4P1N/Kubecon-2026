@@ -21,6 +21,8 @@ export interface Config {
   esUsername: string;
   esPassword: string;
   tokenSigningKey: string;
+  /** IDENTITY_HASH_KEY: HMAC key for the provider-account -> attendee link (identities index). Required when any OAuth provider is configured. */
+  identityHashKey: string;
   otelExporterOtlpEndpoint: string | undefined;
   /** NODE_ENV; "production" turns on strict secret checks. */
   nodeEnv: string;
@@ -66,6 +68,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const chatMode = env.CHAT_MODE ?? "auto";
   if (chatMode !== "auto" && chatMode !== "scripted") throw new Error(`Invalid CHAT_MODE: ${chatMode} (use auto or scripted)`);
   const roomCapacities = parseRoomCapacities(env.ROOM_CAPACITIES);
+  const oauth = loadOAuth(env);
+  const identityHashKey = env.IDENTITY_HASH_KEY?.trim() ?? "";
+  if (Object.keys(oauth).length > 0 && identityHashKey.length < 32) {
+    throw new Error("IDENTITY_HASH_KEY (>=32 chars) is required when an OAuth provider is configured");
+  }
   return {
     port,
     host: env.HOST ?? "0.0.0.0",
@@ -83,7 +90,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     claudeBin: env.CLAUDE_BIN || undefined,
     eventsShowNames: env.EVENTS_SHOW_NAMES === "on",
     roomCapacities,
-    oauth: loadOAuth(env),
+    oauth,
+    identityHashKey,
     attendeeRetentionHours: parseRetentionHours(env.ATTENDEE_RETENTION_HOURS),
   };
 }

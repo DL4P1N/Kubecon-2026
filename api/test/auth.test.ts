@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthCallbackResponse, AuthProvidersResponse } from "@cc/shared";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
-import { createStateStore, sanitizeReturn } from "../src/auth/oauth.js";
-import { fakeEs } from "./helpers.js";
+import { createStateStore, identityId, sanitizeReturn } from "../src/auth/oauth.js";
+import { fakeEs, type FakeHandler } from "./helpers.js";
 
 const SECRET = "test-secret-value";
 const ENV = {
   NODE_ENV: "test",
+  IDENTITY_HASH_KEY: "identity-hash-key-long-enough-for-tests",
   GITHUB_CLIENT_ID: "gh-id", GITHUB_CLIENT_SECRET: SECRET, GITHUB_OAUTH_REDIRECT_URI: "http://localhost:5173/auth/github/callback",
   GOOGLE_CLIENT_ID: "g-id", GOOGLE_CLIENT_SECRET: SECRET, GOOGLE_OAUTH_REDIRECT_URI: "http://localhost:5173/auth/google/callback",
   LINKEDIN_CLIENT_ID: "li-id", LINKEDIN_CLIENT_SECRET: SECRET, LINKEDIN_OAUTH_REDIRECT_URI: "http://localhost:5173/auth/linkedin/callback",
@@ -26,8 +27,8 @@ function fakeFetch(profile: unknown, opts: { tokenStatus?: number } = {}) {
   return { fn: fn as unknown as typeof fetch, calls };
 }
 
-function setup(env: Record<string, string> = ENV, fetchFn?: typeof fetch, now?: () => number) {
-  return buildServer(loadConfig(env as NodeJS.ProcessEnv), { es: fakeEs(() => undefined), runClaude: null, auth: { fetch: fetchFn, now } });
+function setup(env: Record<string, string> = ENV, fetchFn?: typeof fetch, now?: () => number, esHandler: FakeHandler = () => undefined) {
+  return buildServer(loadConfig(env as NodeJS.ProcessEnv), { es: fakeEs(esHandler), runClaude: null, auth: { fetch: fetchFn, now } });
 }
 
 async function start(app: ReturnType<typeof setup>, provider: string, query = "") {
@@ -54,7 +55,7 @@ describe("GET /api/auth/providers", () => {
     expect(all.json<AuthProvidersResponse>().providers).toEqual([
       { id: "github", enabled: true }, { id: "google", enabled: true }, { id: "linkedin", enabled: true },
     ]);
-    const partial = await setup({ NODE_ENV: "test", GITHUB_CLIENT_ID: "x", GITHUB_CLIENT_SECRET: "y", GOOGLE_CLIENT_ID: "x", GOOGLE_CLIENT_SECRET: "y", GOOGLE_OAUTH_REDIRECT_URI: "http://localhost/cb" }).inject({ url: "/api/auth/providers" });
+    const partial = await setup({ NODE_ENV: "test", IDENTITY_HASH_KEY: ENV.IDENTITY_HASH_KEY, GITHUB_CLIENT_ID: "x", GITHUB_CLIENT_SECRET: "y", GOOGLE_CLIENT_ID: "x", GOOGLE_CLIENT_SECRET: "y", GOOGLE_OAUTH_REDIRECT_URI: "http://localhost/cb" }).inject({ url: "/api/auth/providers" });
     expect(partial.json<AuthProvidersResponse>().providers.map((p) => p.enabled)).toEqual([false, true, false]);
     expect(JSON.stringify(all.json())).not.toContain(SECRET);
   });
@@ -83,7 +84,7 @@ describe("GET /api/auth/:provider/start", () => {
   });
 
   it("404s an unknown or unconfigured provider with the shared error shape", async () => {
-    const app = setup({ NODE_ENV: "test", GITHUB_CLIENT_ID: "x", GITHUB_CLIENT_SECRET: "y", GITHUB_OAUTH_REDIRECT_URI: "http://localhost/cb" });
+    const app = setup({ NODE_ENV: "test", IDENTITY_HASH_KEY: ENV.IDENTITY_HASH_KEY, GITHUB_CLIENT_ID: "x", GITHUB_CLIENT_SECRET: "y", GITHUB_OAUTH_REDIRECT_URI: "http://localhost/cb" });
     for (const p of ["myspace", "google"]) {
       const res = await app.inject({ url: `/api/auth/${p}/start` });
       expect(res.statusCode).toBe(404);
@@ -110,14 +111,15 @@ describe("GET /api/auth/:provider/start", () => {
 });
 
 describe("POST /api/auth/:provider/callback", () => {
-  it("github: exchanges the code with the secret, returns the profile and no token", async () => {
-    const f = fakeFetch({ login: "ghopper", name: "Grace Hopper", avatar_url: "https://avatars.example/g.png", email: "g@example.com" });
+  it("github: returns a short-lived claim for a new identity, without the subject or provider token", async () => {
+    const f = fakeFetch({ id: 42, login: "ghopper", name: "Grace Hopper", avatar_url: "https://avatars.example/g.png", email: "g@example.com" });
     const app = setup(ENV, f.fn);
     const { state } = await start(app, "github", "?return=%2Fsite%2Fprofile.html%3Fx%3D1");
     const res = await callback(app, "github", { code: "the-code", state });
     expect(res.statusCode).toBe(200);
-    expect(res.json<AuthCallbackResponse>()).toEqual({ provider: "github", displayName: "Grace Hopper", handle: "ghopper", avatarUrl: "https://avatars.example/g.png", return: "/site/profile.html?x=1", app: false });
-    expect(res.body).not.toMatch(/tok-123|g@example/);
+    expect(res.json<AuthCallbackResponse>()).toMatchObject({ provider: "github", displayName: "Grace Hopper", handle: "ghopper", return: "/site/profile.html?x=1", app: false, claim: { expiresAt: expect.any(String) } });
+    expect(res.json<AuthCallbackResponse>().session).toBeUndefined();
+    expect(res.body).not.toMatch(/tok-123|g@example|42/);
     expect(f.calls[0]!.url).toBe("https://github.com/login/oauth/access_token");
     expect(String(f.calls[0]!.init!.body)).toContain(`client_secret=${SECRET}`);
     expect(String(f.calls[0]!.init!.body)).toContain("code=the-code");
@@ -126,9 +128,9 @@ describe("POST /api/auth/:provider/callback", () => {
   });
 
   it("github falls back to the login when the account has no display name", async () => {
-    const app = setup(ENV, fakeFetch({ login: "octo" }).fn);
+    const app = setup(ENV, fakeFetch({ id: 43, login: "octo" }).fn);
     const { state } = await start(app, "github");
-    expect((await callback(app, "github", { code: "c", state })).json<AuthCallbackResponse>()).toMatchObject({ displayName: "octo", handle: "octo" });
+    expect((await callback(app, "github", { code: "c", state })).json<AuthCallbackResponse>()).toMatchObject({ displayName: "octo", handle: "octo", claim: { token: expect.any(String) } });
   });
 
   it("google: sends the PKCE verifier and reads userinfo; app flag round-trips", async () => {
@@ -136,7 +138,7 @@ describe("POST /api/auth/:provider/callback", () => {
     const app = setup(ENV, f.fn);
     const { state, loc } = await start(app, "google", "?app=1");
     const res = await callback(app, "google", { code: "c", state });
-    expect(res.json<AuthCallbackResponse>()).toEqual({ provider: "google", displayName: "Ada Lovelace", avatarUrl: "https://lh3.example/a.png", return: "/site/profile.html", app: true });
+    expect(res.json<AuthCallbackResponse>()).toMatchObject({ provider: "google", displayName: "Ada Lovelace", avatarUrl: "https://lh3.example/a.png", return: "/site/profile.html", app: true, claim: { token: expect.any(String) } });
     const body = new URLSearchParams(String(f.calls[0]!.init!.body));
     expect(f.calls[0]!.url).toBe("https://oauth2.googleapis.com/token");
     expect(body.get("grant_type")).toBe("authorization_code");
@@ -146,17 +148,116 @@ describe("POST /api/auth/:provider/callback", () => {
   });
 
   it("linkedin: reads OpenID userinfo", async () => {
-    const f = fakeFetch({ name: "Linus T", picture: "http://insecure.example/p.png" });
+    const f = fakeFetch({ name: "Linus T", sub: "urn:li:123", picture: "http://insecure.example/p.png" });
     const app = setup(ENV, f.fn);
     const { state } = await start(app, "linkedin");
     const res = await callback(app, "linkedin", { code: "c", state });
-    expect(res.json<AuthCallbackResponse>()).toEqual({ provider: "linkedin", displayName: "Linus T", return: "/site/profile.html", app: false });
+    expect(res.json<AuthCallbackResponse>()).toMatchObject({ provider: "linkedin", displayName: "Linus T", return: "/site/profile.html", app: false, claim: { token: expect.any(String) } });
     expect(f.calls[0]!.url).toBe("https://www.linkedin.com/oauth/v2/accessToken");
     expect(f.calls[1]!.url).toBe("https://api.linkedin.com/v2/userinfo");
   });
 
+  it("rejects provider profiles without a valid stable subject", async () => {
+    for (const [provider, profile] of [["github", { login: "octo", name: "Octo" }], ["github", { id: 1.5, login: "octo" }], ["google", { name: "Ada" }], ["linkedin", { name: "Linus" }]] as const) {
+      const app = setup(ENV, fakeFetch(profile).fn);
+      const { state } = await start(app, provider);
+      expect((await callback(app, provider, { code: "c", state })).statusCode).toBe(502);
+    }
+  });
+
+  it("returns 503 when identity lookup storage fails", async () => {
+    const app = setup(ENV, fakeFetch({ id: 123, login: "octo" }).fn, undefined, () => { throw new Error("private ES path"); });
+    const { state } = await start(app, "github");
+    const res = await callback(app, "github", { code: "c", state });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ error: "storage_unavailable", message: "could not check sign-in" });
+    expect(res.body).not.toContain("private ES path");
+  });
+  it("returns an attendee session for a live identity and deletes a stale identity before issuing a claim", async () => {
+    const hash = identityId(ENV.IDENTITY_HASH_KEY, "github", "9001");
+    const known = setup(ENV, fakeFetch({ id: 9001, login: "ada" }).fn, undefined, (call) => {
+      if (call.method === "GET" && call.path === `/identities/_doc/${hash}`) return { status: 200, body: { found: true, _source: { attendee_id: "attendee-1" } } };
+      if (call.method === "GET" && call.path.startsWith("/attendees/_doc/")) return { status: 200, body: { found: true, _source: { id: "attendee-1", display_name: "Ada", interests: ["search"], consent: { cluster_map: true, qr_checkin: false }, expires_at: "9999-12-31T23:59:59.999Z" } } };
+      return undefined;
+    });
+    const { state } = await start(known, "github");
+    const res = await callback(known, "github", { code: "c", state });
+    const session = res.json<AuthCallbackResponse>().session?.token;
+    expect(session).toBeTruthy();
+    expect(res.json<AuthCallbackResponse>().claim).toBeUndefined();
+    const me = await known.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${session}` } });
+    expect(me.statusCode).toBe(200);
+    expect(me.json()).toMatchObject({ attendeeId: "attendee-1", name: "Ada", interests: ["search"] });
+
+    const calls: string[] = [];
+    const stale = setup(ENV, fakeFetch({ id: 9001, login: "ada" }).fn, undefined, (call) => {
+      calls.push(`${call.method} ${call.path}`);
+      if (call.method === "GET" && call.path === `/identities/_doc/${hash}`) return { status: 200, body: { found: true, _source: { attendee_id: "missing" } } };
+      return undefined;
+    });
+    const staleState = (await start(stale, "github")).state;
+    const staleRes = await callback(stale, "github", { code: "c", state: staleState });
+    expect(staleRes.json<AuthCallbackResponse>().claim?.token).toBeTruthy();
+    expect(calls).toContain(`DELETE /identities/_doc/${hash}`);
+  });
+
+  it("runs new-account claim -> registration -> cross-device session -> profile deletion -> fresh claim", async () => {
+    const docs = new Map<string, Record<string, unknown>>();
+    const esHandler: FakeHandler = (call) => {
+      const path = call.path.split("?")[0]!;
+      const docMatch = /^\/(\w+)\/(_create|_doc)\/([^/]+)$/.exec(path);
+      if (call.method === "GET" && docMatch) {
+        const key = `${docMatch[1]}/${decodeURIComponent(docMatch[3]!)}`;
+        const source = docs.get(key);
+        return source ? { status: 200, body: { found: true, _source: source } } : { status: 404, body: { found: false } };
+      }
+      if (call.method === "PUT" && docMatch) {
+        const key = `${docMatch[1]}/${decodeURIComponent(docMatch[3]!)}`;
+        if (docMatch[2] === "_create" && docs.has(key)) return { status: 409, body: { error: "version_conflict_engine_exception" } };
+        docs.set(key, call.body as Record<string, unknown>);
+        return { status: 201, body: { result: "created" } };
+      }
+      if (call.method === "DELETE" && docMatch) {
+        docs.delete(`${docMatch[1]}/${decodeURIComponent(docMatch[3]!)}`);
+        return { status: 200, body: { result: "deleted" } };
+      }
+      if (call.method === "POST" && path === "/identities/_delete_by_query") {
+        const attendeeId = (call.body as { query: { term: { attendee_id: string } } }).query.term.attendee_id;
+        for (const [key, source] of docs) if (key.startsWith("identities/") && source.attendee_id === attendeeId) docs.delete(key);
+        return { status: 200, body: { deleted: 1 } };
+      }
+      return { status: 400, body: {} };
+    };
+    const f = fakeFetch({ id: 9002, login: "ada", name: "Ada" });
+    const app = setup(ENV, f.fn, undefined, esHandler);
+    const firstState = (await start(app, "github")).state;
+    const first = await callback(app, "github", { code: "c", state: firstState });
+    const claim = first.json<AuthCallbackResponse>().claim?.token;
+    expect(claim).toBeTruthy();
+    const created = await app.inject({ method: "POST", url: "/api/register", payload: { name: "Ada", interests: ["search"], identityClaim: claim, consent: { clusterMap: true, qrCheckin: false } } });
+    expect(created.statusCode).toBe(201);
+    const attendeeId = created.json<{ attendeeId: string }>().attendeeId;
+    f.calls.length = 0;
+
+    const secondState = (await start(app, "github")).state;
+    const second = await callback(app, "github", { code: "c", state: secondState });
+    const session = second.json<AuthCallbackResponse>().session?.token;
+    expect(session).toBeTruthy();
+    expect(second.json<AuthCallbackResponse>().claim).toBeUndefined();
+    const me = await app.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${session}` } });
+    expect(me.json()).toMatchObject({ attendeeId, name: "Ada", interests: ["search"] });
+
+    await app.inject({ method: "DELETE", url: "/api/me", headers: { authorization: `Bearer ${session}` } });
+    expect([...docs.keys()].some((key) => key.startsWith("identities/"))).toBe(false);
+    f.calls.length = 0;
+    const thirdState = (await start(app, "github")).state;
+    const third = await callback(app, "github", { code: "c", state: thirdState });
+    expect(third.json<AuthCallbackResponse>().claim?.token).toBeTruthy();
+    await app.close();
+  });
+
   it("consumes state: a second use is rejected, and so are a made-up state and another provider's", async () => {
-    const f = fakeFetch({ login: "x" });
+    const f = fakeFetch({ id: 71, login: "x" });
     const app = setup(ENV, f.fn);
     const { state } = await start(app, "github");
     expect((await callback(app, "github", { code: "c", state })).statusCode).toBe(200);
@@ -171,7 +272,7 @@ describe("POST /api/auth/:provider/callback", () => {
 
   it("rejects state after ten minutes", async () => {
     let t = 1_000;
-    const app = setup(ENV, fakeFetch({ login: "x" }).fn, () => t);
+    const app = setup(ENV, fakeFetch({ id: 72, login: "x" }).fn, () => t);
     const { state } = await start(app, "github");
     t += 10 * 60 * 1000 + 1;
     expect((await callback(app, "github", { code: "c", state })).statusCode).toBe(400);
@@ -215,7 +316,7 @@ describe("OAuth browser binding", () => {
   });
 
   it("rejects a callback without the cookie or with another browser's cookie, and burns the state", async () => {
-    const app = setup(ENV, fakeFetch({ login: "ghopper", name: "Grace Hopper" }).fn);
+    const app = setup(ENV, fakeFetch({ id: 44, login: "ghopper", name: "Grace Hopper" }).fn);
     const a = await start(app, "github");
     const b = await start(app, "github");
     expect((await callback(app, "github", { code: "c", state: a.state }, "")).json()).toMatchObject({ error: "invalid_state" });

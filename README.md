@@ -105,7 +105,7 @@ In another terminal:
 npm run dev:web  # http://localhost:5173; /site/ is the landing entry
 ```
 
-The Vite server proxies `/api` and `/otlp`. OAuth linking requires provider client credentials and matching callback URLs; see [sign-in configuration](docs/sign-in.md). Provider links live in the browser and are **not** cross-device account login or profile synchronization. Keep OAuth client secrets on the API, never in `VITE_*` variables or the frontend bundle.
+The Vite server proxies `/api` and `/otlp`. OAuth sign-in requires provider client credentials, a 32-character `IDENTITY_HASH_KEY`, and matching callback URLs; see [sign-in configuration](docs/sign-in.md). The API stores only an HMAC identity link, not a provider subject or email. Keep OAuth client secrets and the HMAC key on the API, never in `VITE_*` variables or the frontend bundle.
 
 ### Checks and guides
 
@@ -129,7 +129,7 @@ npm run test:a11y -w web  # requires the Playwright browser/dependencies
 
 ## Data, privacy, and demo boundaries
 
-- **Storage:** profiles, schedules, entitlements, and aggregate results are Elasticsearch documents on the local Kubernetes volume. Vercel forwards requests to the API; only Elasticsearch writes that volume. Browser-local kept profiles/history are separate from server storage.
+- **Storage:** profiles, schedules, entitlements, HMAC-only identity links, and aggregate results are Elasticsearch documents on the local Kubernetes volume. Vercel forwards requests to the API; only Elasticsearch writes that volume. Browser-local kept profiles/history are separate from server storage.
 - **Retention:** registering keeps the profile for future conferences by default and includes aggregate-interest use; it is not a separate opt-in. A positive `ATTENDEE_RETENTION_HOURS` enables timed retention. `DELETE /api/me` is the profile-deletion endpoint. Read the [current policy and limitations](docs/retention.md), not the older 24-hour demo assumptions.
 - **Access:** signed attendee sessions last eight hours; room QR tokens last about 60 seconds, use a separate audience, and are checked against current entitlements. Organizer access uses a separate key. [Token implementation](api/src/auth/token.ts).
 - **Telemetry:** explicit allowlists exclude attendee identifiers, tokens, precise locations, and free-text answers. The committed privacy evidence is a bounded observation, not a universal audit. Elasticsearch has authenticated, CA-validated TLS; internal app/collector transport is **not** verified end-to-end TLS.

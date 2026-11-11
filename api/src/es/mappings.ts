@@ -14,7 +14,7 @@ import { resolveInferenceId } from "./inference.js";
  */
 export const SCHEMA_VERSION = 2;
 
-export const INDEX_NAMES = ["talks", "attendees", "schedules", "entitlements", "interest_clusters"] as const;
+export const INDEX_NAMES = ["talks", "attendees", "schedules", "entitlements", "interest_clusters", "identities"] as const;
 export type IndexAlias = (typeof INDEX_NAMES)[number];
 
 export function physicalName(alias: IndexAlias, version = SCHEMA_VERSION): string {
@@ -78,6 +78,11 @@ export function buildMappings(dims: number, inferenceId: string = resolveInferen
       pass_type: { type: "keyword" },
       rooms: { type: "keyword" },
       updated_at: { type: "date" },
+      expires_at: { type: "date" },
+    },
+    identities: {
+      attendee_id: { type: "keyword" },
+      created_at: { type: "date" },
       expires_at: { type: "date" },
     },
     interest_clusters: {

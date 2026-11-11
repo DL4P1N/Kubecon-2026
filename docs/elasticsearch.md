@@ -14,12 +14,12 @@ Talk vectors come from Elasticsearch built-in inference through a `semantic_text
 
 ### Privileges for `companion_svc`
 
-Same account as before, plus inference. Not verified against a live cluster (none was available when this was written); #3 (ES security/role setup) should confirm.
+The service account needs the catalog, attendee, schedule, entitlement, aggregate and identity indices, plus inference access. The local runner applies this role from `scripts/es-setup.sh`; run the bootstrap again after adding a new index family.
 
 | Scope | Privileges | Why |
 |---|---|---|
 | cluster | `monitor_inference` | read the endpoint (`GET _inference/<id>` preflight in `es:init`/`seed`) and run inference for `embed()` (`POST _inference/text_embedding/<id>`) |
-| indices `talks*`, `attendees*`, `schedules*`, `entitlements*`, `interest_clusters*` | `create_index`, `manage`, `read`, `write` | create versioned indices, attach the alias, index and search |
+| indices `talks*`, `attendees*`, `schedules*`, `entitlements*`, `interest_clusters*`, `identities*` | `create_index`, `manage`, `read`, `write` | create versioned indices, attach the alias, index and search |
 
 `manage_inference` is only needed to create or change endpoints (for example a custom endpoint), which an admin should do, not the service account. If `semantic_text` indexing or `semantic` queries return a security exception on `cluster:monitor/xpack/inference`, add `monitor_inference` (or as a last resort `manage_inference`) and tell #3.
 

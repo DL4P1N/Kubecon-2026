@@ -108,7 +108,7 @@ export function Schedule() {
     {!online && <p role="status">QR needs a connection. Reconnect to create a fresh check-in code.</p>}
     <p>All session times use your device’s local time zone.</p>
     <p>Room activity reflects recent check-ins, not a headcount.</p>
-    {needsRegistration && <p role="status">Register to build your personal schedule. <Link to="/register">Register now</Link>.</p>}
+    {needsRegistration && <p role="status">Register to build your personal schedule. <Link to="/register">Register now</Link>. <SignInLinks /></p>}
     {error && <p role="alert">{error}</p>}
     {!schedule && !error && !needsRegistration && <p role="status">Loading your schedule…</p>}
     {schedule && schedule.items.length === 0 && <p>No talks scheduled yet. <Link to="/onboarding">Find your talks</Link>.</p>}
@@ -144,4 +144,11 @@ export function Schedule() {
       {access && !validQr && <p role="status">Code expired. Select “Show room QR” to create a new one.</p>}
     </section>
   </section>;
+}
+
+function SignInLinks() {
+  const [providers, setProviders] = useState<string[]>([]);
+  useEffect(() => { api.authProviders().then((r) => setProviders(r.providers.filter((p) => p.enabled).map((p) => p.id))).catch(() => {}); }, []);
+  if (providers.length === 0) return null;
+  return <span> Sign in: {providers.map((p, i) => <span key={p}>{i > 0 ? " / " : ""}<a href={`/api/auth/${p}/start?return=/schedule`}>{p === "github" ? "GitHub" : p === "google" ? "Google" : "LinkedIn"}</a></span>)}</span>;
 }

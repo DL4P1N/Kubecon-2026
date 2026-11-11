@@ -83,6 +83,14 @@ export async function bindChat(section) {
   const viaParam = params.get("via");
   const via = VIA_VALUES.includes(viaParam) ? viaParam : null;
   const storeKey = STORE_PREFIX + slug;
+  let linkedName = "";
+  if (via && via !== "qr") {
+    try {
+      const linked = JSON.parse(localStorage.getItem("cc.linked.v1") ?? "{}");
+      const providerProfile = linked && typeof linked === "object" && !Array.isArray(linked) ? linked[via] : null;
+      if (providerProfile && typeof providerProfile === "object" && typeof providerProfile.displayName === "string") linkedName = providerProfile.displayName;
+    } catch { /* no browser storage or malformed saved profile */ }
+  }
 
   const setState = (v) => { section.dataset.state = v; };
   setState("loading");
@@ -105,13 +113,13 @@ export async function bindChat(section) {
   choices.hidden = true;
 
   const s = {
-    messages: [], local: false, mode: null, done: false, profile: null, ticket: null, busy: false, interacted: false,
+    messages: linkedName ? [{ role: "user", content: linkedName }] : [], local: false, mode: null, done: false, profile: null, ticket: null, error: null, busy: false, interacted: false,
     known: null, // kept profile from this browser, while this conversation is a returning-visitor one
     ask: null, // { kind, options, selected, picked } while chips are showing
   };
   const persist = () =>
     storageSet(storeKey, {
-      messages: s.messages, local: s.local, mode: s.mode, done: s.done, profile: s.profile, ticket: s.ticket,
+      messages: s.messages, local: s.local, mode: s.mode, done: s.done, profile: s.profile, ticket: s.ticket, error: s.error,
       returning: Boolean(s.known), ask: s.ask,
     });
 
@@ -328,11 +336,25 @@ export async function bindChat(section) {
     s.done = true;
     s.profile = profile;
     clearChoices();
-    // On the site this is the real sign-up (register, app session token, personal schedule, check-in token); on the
-    // preview server its own endpoint. Never throws: when the API is unreachable it returns a local "Demo ticket".
+    // On the site this is the real sign-up; preview registration uses its own endpoint.
     const ticket = await completeSignup(conference, profile, { returning: Boolean(s.known) });
+    if (ticket.source === "error") {
+      const message = "That account already has a profile. Sign in again from your profile page.";
+      const line = addMessage("assistant", message);
+      s.messages.push({ role: "assistant", content: message });
+      const link = document.createElement("a");
+      link.href = "/site/profile.html";
+      link.textContent = "Back to sign in";
+      line.append(link);
+      s.ticket = null;
+      s.error = "already_registered";
+      persist();
+      lock(true);
+      setState("done");
+      return;
+    }
     s.ticket = ticket;
-    // Simulated "kept profile": registering always keeps it, in this browser only (no server-side store).
+    // Simulated "kept profile": registering always keeps it, in this browser only.
     saveKept(profile);
     persist();
     showTicket();
@@ -420,6 +442,21 @@ export async function bindChat(section) {
     for (const m of s.messages) addMessage(m.role, m.content);
     if (saved.mode === "claude" || saved.mode === "scripted") setMode(saved.mode);
     const checked = saved.done ? validateProfile(saved.profile) : null;
+    if (checked?.ok && saved.error === "already_registered") {
+      s.done = true;
+      s.profile = checked.profile;
+      s.error = "already_registered";
+      const line = log.lastElementChild;
+      if (line) {
+        const link = document.createElement("a");
+        link.href = "/site/profile.html";
+        link.textContent = "Back to sign in";
+        line.append(link);
+      }
+      lock(true);
+      setState("done");
+      return;
+    }
     if (checked?.ok && saved.ticket && (typeof saved.ticket.token === "string" || (saved.ticket.source === "api" && saved.ticket.token === null))) {
       s.done = true;
       s.profile = checked.profile;
@@ -443,6 +480,7 @@ export async function bindChat(section) {
     return;
   }
   s.known = loadKept();
+  for (const message of s.messages) addMessage(message.role, message.content);
   return turn();
 }
 

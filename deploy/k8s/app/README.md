@@ -41,6 +41,9 @@ remote/shared clusters, not required for kind-loaded images.
 - Create `companion-app-secrets` with keys `ES_USERNAME`, `ES_PASSWORD`, and
   `TOKEN_SIGNING_KEY` from files supplied securely by the credential owner.
   The signing key must be cryptographically random (at least 32 bytes).
+  When OAuth is enabled, also include `IDENTITY_HASH_KEY` (random, at least 32
+  characters) and all three client settings for each enabled provider (omit
+  provider lines below for apps not configured).
   Do not commit credentials or print Secret YAML into the board.
 
 ```sh
@@ -50,7 +53,17 @@ kubectl --context "$CONTEXT" get namespace "$NAMESPACE"
 kubectl --context "$CONTEXT" -n "$NAMESPACE" create secret generic companion-app-secrets \
   --from-file=ES_USERNAME=/secure/path/es-username \
   --from-file=ES_PASSWORD=/secure/path/es-password \
-  --from-file=TOKEN_SIGNING_KEY=/secure/path/token-signing-key
+  --from-file=TOKEN_SIGNING_KEY=/secure/path/token-signing-key \
+  --from-file=IDENTITY_HASH_KEY=/secure/path/identity-hash-key \
+  --from-file=GITHUB_CLIENT_ID=/secure/path/github-client-id \
+  --from-file=GITHUB_CLIENT_SECRET=/secure/path/github-client-secret \
+  --from-file=GITHUB_OAUTH_REDIRECT_URI=/secure/path/github-redirect-uri \
+  --from-file=GOOGLE_CLIENT_ID=/secure/path/google-client-id \
+  --from-file=GOOGLE_CLIENT_SECRET=/secure/path/google-client-secret \
+  --from-file=GOOGLE_OAUTH_REDIRECT_URI=/secure/path/google-redirect-uri \
+  --from-file=LINKEDIN_CLIENT_ID=/secure/path/linkedin-client-id \
+  --from-file=LINKEDIN_CLIENT_SECRET=/secure/path/linkedin-client-secret \
+  --from-file=LINKEDIN_OAUTH_REDIRECT_URI=/secure/path/linkedin-redirect-uri
 ```
 
 Files must not contain trailing newlines. The CA is public trust material;

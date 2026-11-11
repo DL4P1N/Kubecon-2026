@@ -20,6 +20,11 @@ function fakeEs() {
     const u = new URL(url);
     const method = init.method ?? "GET";
     calls.push(`${method} ${u.pathname}`);
+    if (method === "POST" && u.pathname === "/identities/_delete_by_query") {
+      const query = JSON.parse(String(init.body)) as { query?: { term?: { attendee_id?: string } } };
+      for (const [key, value] of docs) if (key.startsWith("identities/") && value.attendee_id === query.query?.term?.attendee_id) docs.delete(key);
+      return new Response(JSON.stringify({ deleted: 1 }), { status: 200 });
+    }
     const m = /^\/(\w+)\/(_create|_doc)\/([^/]+)$/.exec(u.pathname);
     if (!m) return new Response("{}", { status: 400 });
     const [, index, op, id] = m;
@@ -122,6 +127,39 @@ describe("POST /api/register and GET /api/me", () => {
     });
   });
 
+  it("consumes a valid identity claim by creating one identity document for the registered attendee", async () => {
+    const claim = await createTokenService({ key: KEY, now }).sign("provider-hmac-id", { audience: "identity-claim", ttlSeconds: 900 });
+    const res = await register({ ...validBody, identityClaim: claim.token });
+    expect(res.statusCode).toBe(201);
+    const registration = res.json<RegisterResponse>();
+    expect(es.docs.get("identities/provider-hmac-id")).toMatchObject({
+      attendee_id: registration.attendeeId,
+      created_at: new Date(t).toISOString(),
+      expires_at: NO_EXPIRY,
+    });
+  });
+
+  it("rejects an invalid or expired identity claim before writing any document", async () => {
+    const invalid = await register({ ...validBody, identityClaim: "invalid.claim.token" });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json()).toMatchObject({ error: "invalid_request", message: "identityClaim: expired or invalid, sign in again" });
+    expect(es.docs.size).toBe(0);
+    const claim = await createTokenService({ key: KEY, now }).sign("expired-id", { audience: "identity-claim", ttlSeconds: 1 });
+    t += 2_000;
+    expect((await register({ ...validBody, identityClaim: claim.token })).statusCode).toBe(400);
+    expect(es.docs.size).toBe(0);
+  });
+
+  it("rejects a replayed identity claim and cleans up the losing attendee", async () => {
+    const claim = await createTokenService({ key: KEY, now }).sign("single-use-identity", { audience: "identity-claim", ttlSeconds: 900 });
+    expect((await register({ ...validBody, identityClaim: claim.token })).statusCode).toBe(201);
+    const replay = await register({ ...validBody, identityClaim: claim.token });
+    expect(replay.statusCode).toBe(409);
+    expect(replay.json()).toMatchObject({ error: "already_registered" });
+    expect([...es.docs.keys()].filter((key) => key.startsWith("attendees/"))).toHaveLength(1);
+    expect(es.docs.has("identities/single-use-identity")).toBe(true);
+  });
+
   it("accepts a body with no consent field and stores true/true", async () => {
     const { consent: _omitted, ...noConsent } = validBody;
     const res = await register(noConsent);
@@ -169,6 +207,15 @@ describe("POST /api/register and GET /api/me", () => {
       expect((await del(ada.token)).statusCode).toBe(404);
       expect((await me(ada.token)).statusCode).toBe(401);
       expect((await me(bob.token)).statusCode).toBe(200);
+    });
+
+    it("deletes every identity link for the attendee during profile erasure", async () => {
+      const ada = (await register()).json() as RegisterResponse;
+      es.docs.set("identities/one", { attendee_id: ada.attendeeId, created_at: new Date(t).toISOString(), expires_at: NO_EXPIRY });
+      es.docs.set("identities/two", { attendee_id: ada.attendeeId, created_at: new Date(t).toISOString(), expires_at: NO_EXPIRY });
+      expect((await del(ada.token)).statusCode).toBe(204);
+      expect(es.docs.has("identities/one")).toBe(false);
+      expect(es.docs.has("identities/two")).toBe(false);
     });
 
     it("answers 401 without a token or with a bad token and deletes nothing", async () => {

@@ -60,6 +60,8 @@ export const registerBodySchema = z.object({
   // Optional and never stored: only feed the live demo stream (GET /api/events).
   conference: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/).optional(),
   returning: z.boolean().optional(),
+  // From the sign-in callback; links the new profile to the provider account.
+  identityClaim: z.string().max(2048).optional(),
 });
 
 export type RegisterBody = z.infer<typeof registerBodySchema>;
@@ -167,6 +169,14 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
           });
         }
         const body = parsed.data;
+        let identity: string | null = null;
+        if (body.identityClaim !== undefined) {
+          try {
+            identity = await tokens.verify(body.identityClaim, { audience: "identity-claim" });
+          } catch {
+            return reply.code(400).send({ error: "invalid_request", message: "identityClaim: expired or invalid, sign in again" });
+          }
+        }
         const id = randomUUID();
         const t = now();
         const createdAt = new Date(t).toISOString();
@@ -195,16 +205,26 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
           expires_at: expiresAt,
         };
 
+        let identityCreated = false;
+        let duplicate = false;
         try {
           await es.request("PUT", `/attendees/_create/${id}?refresh=wait_for`, attendee);
           await es.request("PUT", `/entitlements/_doc/${id}?refresh=wait_for`, entitlement);
+          if (identity !== null) {
+            const r = await es.request("PUT", `/identities/_create/${identity}?refresh=wait_for`, { attendee_id: id, created_at: createdAt, expires_at: expiresAt }, [409]);
+            if (r.status === 409) duplicate = true;
+            else identityCreated = true;
+          }
+          if (duplicate) throw new Error("duplicate");
         } catch {
           // Best-effort cleanup so a failed registration leaves no half-written
           // attendee. Errors are not logged: they contain the doc path.
           await Promise.allSettled([
             es.request("DELETE", `/attendees/_doc/${id}`, undefined, [404]),
             es.request("DELETE", `/entitlements/_doc/${id}`, undefined, [404]),
+            ...(identityCreated && identity !== null ? [es.request("DELETE", `/identities/_doc/${identity}`, undefined, [404])] : []),
           ]);
+          if (duplicate) return reply.code(409).send({ error: "already_registered", message: "this account already has a profile, sign in again" });
           return reply.code(503).send({ error: "storage_unavailable", message: "could not store registration" });
         }
 
@@ -235,6 +255,7 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
       try {
         await es.request("DELETE", `/entitlements/_doc/${enc}?refresh=wait_for`, undefined, [404]);
         await es.request("DELETE", `/schedules/_doc/${enc}?refresh=wait_for`, undefined, [404]);
+        await es.request("POST", "/identities/_delete_by_query?refresh=true&conflicts=proceed", { query: { term: { attendee_id: id } } });
         const r = await es.request("DELETE", `/attendees/_doc/${enc}?refresh=wait_for`, undefined, [404]);
         profileExisted = r.status !== 404;
       } catch {

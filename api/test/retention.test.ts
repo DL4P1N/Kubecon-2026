@@ -20,11 +20,12 @@ it("deletes old or expired documents and keeps new documents at a fixed clock", 
     remaining.set(path, kept);
     return { status: 200, body: { deleted: docs.length - kept.length, failures: [] } };
   });
-  expect(await runRetention({ request } as unknown as EsClient, now, DAY)).toBe(6);
+  expect(await runRetention({ request } as unknown as EsClient, now, DAY)).toBe(8);
   expect(request.mock.calls.map((call) => call[1])).toEqual([
     "/attendees/_delete_by_query?refresh=true&conflicts=proceed",
     "/schedules/_delete_by_query?refresh=true&conflicts=proceed",
     "/entitlements/_delete_by_query?refresh=true&conflicts=proceed",
+    "/identities/_delete_by_query?refresh=true&conflicts=proceed",
   ]);
   for (const kept of remaining.values()) expect(kept.map((doc) => doc.id)).toEqual(["new", "boundary", "valid"]);
 });
@@ -32,13 +33,13 @@ it("deletes old or expired documents and keeps new documents at a fixed clock", 
 it("reports incomplete deletion as failure", async () => {
   const es = { request: vi.fn().mockResolvedValue({ status: 200, body: { deleted: 0, failures: [{}] } }) };
   await expect(runRetention(es as unknown as EsClient, now, DAY)).rejects.toThrow("incomplete");
-  expect(es.request).toHaveBeenCalledTimes(3);
+  expect(es.request).toHaveBeenCalledTimes(4);
 });
 it("continues later indices after a request error", async () => {
   const request = vi.fn().mockRejectedValueOnce(new Error("unavailable"))
     .mockResolvedValue({ status: 200, body: { deleted: 2 } });
   await expect(runRetention({ request } as unknown as EsClient, now, DAY)).rejects.toThrow("incomplete");
-  expect(request).toHaveBeenCalledTimes(3);
+  expect(request).toHaveBeenCalledTimes(4);
 });
 it("rejects an invalid clock before issuing deletion requests", () => {
   expect(() => retentionQuery(new Date("invalid"), DAY)).toThrow("Invalid retention clock");
@@ -67,8 +68,8 @@ it("with retention off (null) logs one line and deletes only expired documents, 
     const deleted = docs.filter((d) => Date.parse(d.expires_at) <= Date.parse(rule)).length;
     return { status: 200, body: { deleted, failures: [] } };
   });
-  expect(await runRetention({ request } as unknown as EsClient, now, null)).toBe(3);
-  expect(request).toHaveBeenCalledTimes(3);
+  expect(await runRetention({ request } as unknown as EsClient, now, null)).toBe(4);
+  expect(request).toHaveBeenCalledTimes(4);
   expect(JSON.stringify(request.mock.calls[0]![2])).not.toContain("created_at");
   expect(log).toHaveBeenCalledTimes(1);
   expect(log.mock.calls[0]![0]).toMatch(/Retention is off/);
@@ -81,14 +82,14 @@ it("defaults to off when ATTENDEE_RETENTION_HOURS is unset or 0, still deleting 
   expect(await runRetention({ request } as unknown as EsClient, now)).toBe(0);
   vi.stubEnv("ATTENDEE_RETENTION_HOURS", "0");
   expect(await runRetention({ request } as unknown as EsClient, now)).toBe(0);
-  expect(request).toHaveBeenCalledTimes(6);
+  expect(request).toHaveBeenCalledTimes(8);
 });
 
-it("ATTENDEE_RETENTION_HOURS=24 purges attendees, schedules and entitlements older than 24 hours", async () => {
+it("ATTENDEE_RETENTION_HOURS=24 purges attendees, schedules, entitlements and identities older than 24 hours", async () => {
   vi.stubEnv("ATTENDEE_RETENTION_HOURS", "24");
   const request = vi.fn(async () => ({ status: 200, body: { deleted: 1, failures: [] } }));
-  expect(await runRetention({ request } as unknown as EsClient, now)).toBe(3);
-  expect(request).toHaveBeenCalledTimes(3);
+  expect(await runRetention({ request } as unknown as EsClient, now)).toBe(4);
+  expect(request).toHaveBeenCalledTimes(4);
   const body = (request.mock.calls[0] as unknown[])[2] as ReturnType<typeof retentionQuery>;
   expect(body.query.bool.should[0]).toEqual({ range: { created_at: { lt: "2026-11-08T12:00:00.000Z" } } });
   expect(body.query.bool.should[1]).toEqual({ range: { expires_at: { lte: "2026-11-09T12:00:00.000Z" } } });

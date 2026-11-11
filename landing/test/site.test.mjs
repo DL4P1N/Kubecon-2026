@@ -126,6 +126,18 @@ test("signUp: register -> app token in sessionStorage 'cc.token' -> onboarding -
   });
 });
 
+test("signUp: sends the temporary identity claim and treats a rejected claim as sign-in required, not a demo ticket", async () => {
+  await onSite(realApi({ "POST /api/register": () => json({ error: "already_registered" }, 409) }), async (calls) => {
+    const claim = { token: "claim.jwt", expiresAt: "2030-01-01T00:00:00Z" };
+    sessionStorage.setItem("cc.identity-claim", JSON.stringify(claim));
+    const result = await signUp({ slug: "cn-2026" }, validProfile());
+    assert.equal(calls[0].body.identityClaim, "claim.jwt");
+    assert.deepEqual(result, { source: "error", error: "already_registered" });
+    assert.equal(sessionStorage.getItem("cc.identity-claim"), null);
+    assert.equal(sessionStorage.getItem(TOKEN_KEY), null);
+  });
+});
+
 test("signUp: storeToken resets the offline session when the token changes, like the React app", async () => {
   await onSite(realApi(), async () => {
     sessionStorage.setItem("cc.offline-session", "old");

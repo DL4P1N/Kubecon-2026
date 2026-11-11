@@ -81,6 +81,26 @@ if (typeof document !== "undefined" && document.querySelector("a[data-via][data-
       new MutationObserver(apply).observe(a, { attributes: true, attributeFilter: ["href"] }); // pages.js sets the href again once the conference loads
     }
     const note = document.querySelector(".cc-note");
-    if (any && note) note.textContent = "Where sign-in is set up, it saves your name from that provider in this browser. The other buttons are demos.";
+    if (any && note) note.textContent = "Sign in with an enabled provider to link this account to your conference profile across devices.";
+  });
+}
+
+// Sign-in entry on register.html. Keep the original conference and page return path through OAuth.
+const signIn = typeof document !== "undefined" ? document.querySelector("[data-auth-providers]") : null;
+if (signIn) {
+  fetchProviders().then((enabled) => {
+    const links = PROVIDERS.filter(({ id }) => enabled[id]);
+    if (!links.length) return;
+    const label = document.createElement("p");
+    label.textContent = "Already have a profile? Sign in with ";
+    for (const [i, provider] of links.entries()) {
+      if (i) label.append(document.createTextNode(" / "));
+      const link = document.createElement("a");
+      link.href = startUrl(provider.id, `${location.pathname}${location.search}`);
+      link.textContent = provider.name;
+      label.append(link);
+    }
+    signIn.replaceChildren(label);
+    signIn.hidden = false;
   });
 }

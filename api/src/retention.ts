@@ -3,7 +3,7 @@ import { withSpan } from "./telemetry/span.js";
 import { logs, SeverityNumber } from "@opentelemetry/api";
 import { retentionMsFromEnv } from "./retentionPolicy.js";
 
-export const RETENTION_INDICES = ["attendees", "schedules", "entitlements"] as const;
+export const RETENTION_INDICES = ["attendees", "schedules", "entitlements", "identities"] as const;
 
 /**
  * `retentionMs` is the attendee retention in ms (ATTENDEE_RETENTION_HOURS * 3600000), positive, or
