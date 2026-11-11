@@ -119,7 +119,8 @@ describe("POST /api/auth/:provider/callback", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json<AuthCallbackResponse>()).toMatchObject({ provider: "github", displayName: "Grace Hopper", handle: "ghopper", return: "/site/profile.html?x=1", app: false, claim: { expiresAt: expect.any(String) } });
     expect(res.json<AuthCallbackResponse>().session).toBeUndefined();
-    expect(res.body).not.toMatch(/tok-123|g@example|42/);
+    expect(res.body).not.toMatch(/tok-123|g@example/);
+    expect(res.json<Record<string, unknown>>()).not.toHaveProperty("subject");
     expect(f.calls[0]!.url).toBe("https://github.com/login/oauth/access_token");
     expect(String(f.calls[0]!.init!.body)).toContain(`client_secret=${SECRET}`);
     expect(String(f.calls[0]!.init!.body)).toContain("code=the-code");

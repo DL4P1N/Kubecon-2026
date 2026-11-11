@@ -81,6 +81,7 @@ export async function bindChat(section) {
   const params = new URLSearchParams(location.search);
   const slug = params.get("c") || section.dataset.conference || DEFAULT_SLUG;
   const viaParam = params.get("via");
+  const storeKey = STORE_PREFIX + slug;
   const via = VIA_VALUES.includes(viaParam) ? viaParam : null;
   if (sessionToken()) {
     location.replace("/schedule");
