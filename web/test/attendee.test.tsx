@@ -4,9 +4,9 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { App } from "../src/App.js";
 import { Onboarding } from "../src/pages/Onboarding.js";
 import { Register } from "../src/pages/Register.js";
-import { api, getToken, setToken } from "../src/api.js";
+import { api, ApiError, getToken, setToken } from "../src/api.js";
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); sessionStorage.clear(); });
 beforeEach(() => { vi.spyOn(api, "catalogTopics").mockResolvedValue({ topics: ["kubernetes"] }); });
 const talk = { id: "talk-1", title: "Secure Kubernetes", speaker: "Speaker", abstract: "", track: "Security",
   room: "A", start: "2026-11-09T10:00:00Z", end: "2026-11-09T11:00:00Z", tags: ["kubernetes"] };
@@ -42,6 +42,35 @@ describe("attendee journey", () => {
     expect(register).toHaveBeenCalledWith({ name: "Demo", email: "demo@example.com", interests: ["kubernetes"],
       consent: { clusterMap: optIn, qrCheckin: false } });
     expect(getToken()).toBe("signed");
+  });
+  it("sends and then clears a sign-in identity claim", async () => {
+    vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "keyword", tookMs: 1, hits: [] });
+    const register = vi.spyOn(api, "register").mockResolvedValue({ attendeeId: "fake", token: "signed", expiresAt: "" });
+    sessionStorage.setItem("cc.identity-claim", JSON.stringify({ token: "claim.jwt", expiresAt: "2030-01-01T00:00:00Z" }));
+    renderRegisterForm();
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Demo" } });
+    fireEvent.click(await screen.findByLabelText("kubernetes"));
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    await screen.findByRole("heading", { name: "Onboarding" });
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({ identityClaim: "claim.jwt" }));
+    expect(sessionStorage.getItem("cc.identity-claim")).toBeNull();
+  });
+  it("explains a duplicate profile and an expired claim without ending in a generic failure", async () => {
+    vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "keyword", tookMs: 1, hits: [] });
+    sessionStorage.setItem("cc.identity-claim", JSON.stringify({ token: "claim.jwt", expiresAt: "2030-01-01T00:00:00Z" }));
+    const register = vi.spyOn(api, "register").mockRejectedValueOnce(new ApiError("POST /api/register failed: 409", 409, "already_registered"));
+    renderRegisterForm();
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Demo" } });
+    fireEvent.click(await screen.findByLabelText("kubernetes"));
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    expect((await screen.findByRole("alert")).textContent).toMatch(/already has a profile/i);
+    expect(sessionStorage.getItem("cc.identity-claim")).toBeNull();
+
+    register.mockRejectedValueOnce(new ApiError("POST /api/register failed: 400", 400, "invalid_identity_claim"));
+    sessionStorage.setItem("cc.identity-claim", JSON.stringify({ token: "stale.jwt", expiresAt: "2030-01-01T00:00:00Z" }));
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    expect((await screen.findByRole("alert")).textContent).toMatch(/sign-in expired/i);
+    expect(sessionStorage.getItem("cc.identity-claim")).toBeNull();
   });
   it("sends ranked matches for the server to de-overlap and shows what it skipped", async () => {
     const overlap = { ...talk, id: "overlap", title: "Overlapping talk" };

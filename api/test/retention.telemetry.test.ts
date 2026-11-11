@@ -22,9 +22,9 @@ it("exports the count on a retention span and correlated log without document da
     await tracer.forceFlush();
     await logger.forceFlush();
     const span = spanExporter.getFinishedSpans().find((span) => span.name === "retention.run")!;
-    expect(span.attributes).toEqual({ "retention.deleted": 6 });
+    expect(span.attributes).toEqual({ "retention.deleted": 8 });
     const [record] = logExporter.getFinishedLogRecords();
-    expect(record!.attributes).toEqual({ "retention.deleted": 6 });
+    expect(record!.attributes).toEqual({ "retention.deleted": 8 });
     expect(record!.spanContext?.traceId).toBe(span.spanContext().traceId);
     expect(record!.body).toBe("Retention cleanup");
     for (const key of Object.keys(span.attributes)) expect(SPAN_ATTRIBUTE_ALLOWLIST).toContain(key);

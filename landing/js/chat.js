@@ -81,8 +81,20 @@ export async function bindChat(section) {
   const params = new URLSearchParams(location.search);
   const slug = params.get("c") || section.dataset.conference || DEFAULT_SLUG;
   const viaParam = params.get("via");
-  const via = VIA_VALUES.includes(viaParam) ? viaParam : null;
   const storeKey = STORE_PREFIX + slug;
+  const via = VIA_VALUES.includes(viaParam) ? viaParam : null;
+  if (sessionToken()) {
+    location.replace("/schedule");
+    return;
+  }
+  let linkedName = "";
+  if (via && via !== "qr") {
+    try {
+      const linked = JSON.parse(localStorage.getItem("cc.linked.v1") ?? "{}");
+      const providerProfile = linked && typeof linked === "object" && !Array.isArray(linked) ? linked[via] : null;
+      if (providerProfile && typeof providerProfile === "object" && typeof providerProfile.displayName === "string") linkedName = providerProfile.displayName;
+    } catch { /* no browser storage or malformed saved profile */ }
+  }
 
   const setState = (v) => { section.dataset.state = v; };
   setState("loading");
@@ -105,13 +117,13 @@ export async function bindChat(section) {
   choices.hidden = true;
 
   const s = {
-    messages: [], local: false, mode: null, done: false, profile: null, ticket: null, busy: false, interacted: false,
+    messages: linkedName ? [{ role: "user", content: linkedName }] : [], local: false, mode: null, done: false, profile: null, ticket: null, error: null, busy: false, interacted: false,
     known: null, // kept profile from this browser, while this conversation is a returning-visitor one
     ask: null, // { kind, options, selected, picked } while chips are showing
   };
   const persist = () =>
     storageSet(storeKey, {
-      messages: s.messages, local: s.local, mode: s.mode, done: s.done, profile: s.profile, ticket: s.ticket,
+      messages: s.messages, local: s.local, mode: s.mode, done: s.done, profile: s.profile, ticket: s.ticket, error: s.error,
       returning: Boolean(s.known), ask: s.ask,
     });
 
@@ -328,11 +340,38 @@ export async function bindChat(section) {
     s.done = true;
     s.profile = profile;
     clearChoices();
-    // On the site this is the real sign-up (register, app session token, personal schedule, check-in token); on the
-    // preview server its own endpoint. Never throws: when the API is unreachable it returns a local "Demo ticket".
+    // On the site this is the real sign-up; preview registration uses its own endpoint.
     const ticket = await completeSignup(conference, profile, { returning: Boolean(s.known) });
+    if (ticket.source === "error") {
+      const errors = {
+        already_registered: {
+          message: "That account already has a profile. Sign in again from your profile page.",
+          link: "Back to sign in",
+        },
+        identity_claim_invalid: {
+          message: "Your sign-in expired or could not be verified. Sign in again from your profile page, then start again here.",
+          link: "Sign in again",
+        },
+        registration_failed: { message: "Registration could not be completed. Please start again.", link: null },
+      };
+      const failure = errors[ticket.error] ?? errors.registration_failed;
+      const line = addMessage("assistant", failure.message);
+      s.messages.push({ role: "assistant", content: failure.message });
+      if (failure.link) {
+        const link = document.createElement("a");
+        link.href = "/site/profile.html";
+        link.textContent = failure.link;
+        line.append(link);
+      }
+      s.ticket = null;
+      s.error = ticket.error;
+      persist();
+      lock(true);
+      setState("done");
+      return;
+    }
     s.ticket = ticket;
-    // Simulated "kept profile": registering always keeps it, in this browser only (no server-side store).
+    // Simulated "kept profile": registering always keeps it, in this browser only.
     saveKept(profile);
     persist();
     showTicket();
@@ -420,6 +459,24 @@ export async function bindChat(section) {
     for (const m of s.messages) addMessage(m.role, m.content);
     if (saved.mode === "claude" || saved.mode === "scripted") setMode(saved.mode);
     const checked = saved.done ? validateProfile(saved.profile) : null;
+    const savedError = ["already_registered", "identity_claim_invalid", "registration_failed"].includes(saved.error) ? saved.error : null;
+    if (checked?.ok && savedError) {
+      s.done = true;
+      s.profile = checked.profile;
+      s.error = savedError;
+      if (savedError !== "registration_failed") {
+        const line = log.lastElementChild;
+        if (line) {
+          const link = document.createElement("a");
+          link.href = "/site/profile.html";
+          link.textContent = savedError === "already_registered" ? "Back to sign in" : "Sign in again";
+          line.append(link);
+        }
+      }
+      lock(true);
+      setState("done");
+      return;
+    }
     if (checked?.ok && saved.ticket && (typeof saved.ticket.token === "string" || (saved.ticket.source === "api" && saved.ticket.token === null))) {
       s.done = true;
       s.profile = checked.profile;
@@ -443,6 +500,7 @@ export async function bindChat(section) {
     return;
   }
   s.known = loadKept();
+  for (const message of s.messages) addMessage(message.role, message.content);
   return turn();
 }
 

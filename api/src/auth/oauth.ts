@@ -1,12 +1,11 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { AuthProviderId, AuthCallbackResponse } from "@cc/shared";
 import type { OAuthProviderConfig } from "../config.js";
 
 /**
- * Pure helpers for "sign in with GitHub / Google / LinkedIn" (routes/auth.ts). The only goal is to learn
- * a display name (and handle/avatar) to link to the visitor's browser profile: no email scope is
- * requested, provider access tokens are used once for the profile fetch and then dropped, and nothing
- * here logs a code, token or profile field.
+ * Pure OAuth helpers. Provider tokens are used only to fetch display fields and a stable subject;
+ * callers HMAC the subject before persistence. No email scope is requested, and nothing here logs
+ * codes, tokens, subjects, or profile fields.
  */
 
 export const DEFAULT_RETURN = "/site/profile.html";
@@ -191,7 +190,7 @@ export async function fetchProfile(
   code: string,
   verifier: string,
   fetchFn: typeof fetch,
-): Promise<Pick<AuthCallbackResponse, "provider" | "displayName" | "handle" | "avatarUrl">> {
+): Promise<Pick<AuthCallbackResponse, "provider" | "displayName" | "handle" | "avatarUrl"> & { subject: string }> {
   const spec = SPECS[provider];
   try {
     const form = new URLSearchParams({
@@ -223,12 +222,20 @@ export async function fetchProfile(
       const handle = str(p.login, 80);
       const displayName = str(p.name, 80) ?? handle;
       if (!displayName) throw new ProviderError();
-      return { provider, displayName, ...(handle ? { handle } : {}), ...(httpsUrl(p.avatar_url) ? { avatarUrl: httpsUrl(p.avatar_url)! } : {}) };
+      if (typeof p.id !== "number" || !Number.isInteger(p.id) || p.id <= 0) throw new ProviderError();
+      return { provider, subject: String(p.id), displayName, ...(handle ? { handle } : {}), ...(httpsUrl(p.avatar_url) ? { avatarUrl: httpsUrl(p.avatar_url)! } : {}) };
     }
     const displayName = str(p.name, 80) ?? str([p.given_name, p.family_name].filter(Boolean).join(" "), 80);
     if (!displayName) throw new ProviderError();
-    return { provider, displayName, ...(httpsUrl(p.picture) ? { avatarUrl: httpsUrl(p.picture)! } : {}) };
+    const subject = str(p.sub, 256);
+    if (!subject) throw new ProviderError();
+    return { provider, subject, displayName, ...(httpsUrl(p.picture) ? { avatarUrl: httpsUrl(p.picture)! } : {}) };
   } catch (err) {
     throw err instanceof ProviderError ? err : new ProviderError();
   }
+}
+
+/** Stable, non-reversible account key: hex HMAC-SHA256 over provider and provider subject. Only this is stored. */
+export function identityId(key: string, provider: AuthProviderId, subject: string): string {
+  return createHmac("sha256", key).update(`${provider}:${subject}`).digest("hex");
 }

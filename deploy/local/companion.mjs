@@ -189,6 +189,7 @@ function oauthFromEnv() {
     if (present.length === keys.length) for (const k of keys) out[k] = process.env[k];
     else if (present.length > 0) throw new Error(`Incomplete ${provider} OAuth settings: export all of ${keys.join(', ')} or none.`);
   }
+  if (process.env.IDENTITY_HASH_KEY) out.IDENTITY_HASH_KEY = process.env.IDENTITY_HASH_KEY;
   return out;
 }
 
@@ -232,6 +233,13 @@ async function up() {
   await prepare();
   const creds = JSON.parse(await readFile(files.credentials, 'utf8'));
   const cert = await readFile(files.cert, 'utf8');
+  if (Object.keys(oauth).length > 0 && !oauth.IDENTITY_HASH_KEY) {
+    if (!creds.identityHashKey) {
+      creds.identityHashKey = randomBytes(48).toString('base64url');
+      await privateWrite(files.credentials, `${JSON.stringify(creds, null, 2)}\n`);
+    }
+    oauth.IDENTITY_HASH_KEY = creds.identityHashKey;
+  }
   apply([{ apiVersion: 'v1', kind: 'Namespace', metadata: { name: namespace } }]);
 
   apply([

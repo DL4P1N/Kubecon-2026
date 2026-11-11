@@ -421,7 +421,7 @@ export function scriptedTurn(ctx = {}) {
   const ask = (kind, extra) => askFields(kind, { conferenceTopics: topics, returning, ...extra });
   const label = viaLabel(ctx.via);
   const first = messages.every((m) => m?.role !== "user");
-  const ack = first && label ? (ctx.via === "qr" ? "You scanned the registration QR code. " : `You're signed in with ${label} (demo sign-in). `) : "";
+  const ack = first && label ? (ctx.via === "qr" ? "You scanned the registration QR code. " : `You're signed in with ${label}. `) : "";
 
   if (result) {
     const checked = validateKnown(result);

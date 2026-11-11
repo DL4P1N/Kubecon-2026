@@ -33,14 +33,14 @@ not only on `expires_at`), so announce it before doing it.
 
 `DELETE /api/me` with the attendee's session token (`Authorization: Bearer
 <token>`) deletes everything stored under that attendee ID: the profile in
-`attendees`, the saved schedule in `schedules` and the room entitlement in
-`entitlements` (these are the only per-attendee documents). It answers `204`
-with no body. The profile is deleted last, so a `503` (storage error) leaves
-the account intact and the same call can be retried. Once the profile is gone
-the token grants nothing: `GET /api/me`, `POST /api/access/token` and a second
-`DELETE /api/me` answer `401` (the second call also removes any stray schedule
-document). A QR door token already issued stops working at once because the
-scan checks the entitlement, which is gone.
+`attendees`, the saved schedule in `schedules`, the room entitlement in
+`entitlements`, and any provider identity links in `identities`. It answers
+`204` with no body. The profile is deleted last, so a `503` (storage error)
+leaves the account intact and the same call can be retried. Once the profile is
+gone the token grants nothing: `GET /api/me`, `POST /api/access/token` and a
+second `DELETE /api/me` answer `401` (the second call also removes any stray
+schedule document). A QR door token already issued stops working at once
+because the scan checks the entitlement, which is gone.
 
 Aggregates are not edited by the request. The interest counts and clusters are
 recomputed by the existing jobs, so the attendee drops out of the counts on the
@@ -53,13 +53,14 @@ attendee ID is never logged, put on a span or returned.
 After building, run `npm run retention` (it reads `ATTENDEE_RETENTION_HOURS`
 from the environment, like the API; set it on the CronJob's ConfigMap
 `companion-app-config`, otherwise the job stays off). The API image also
-supports `node dist/retention-cli.js`. The job targets only `attendees`,
-`schedules`, and `entitlements`; talk catalogs and aggregate interest clusters
-are kept. With a positive setting it deletes documents whose `created_at` is
-older than that many hours or whose `expires_at` has passed. The latter supports
-the existing strict schedule and entitlement mappings, which have no
-`created_at` field. Missing timestamps do not match; writers must always supply
-an expiry or creation timestamp.
+`schedules`, `entitlements`, and `identities`; talk catalogs and aggregate interest clusters
+are kept. Identity link `expires_at` matches its attendee profile; without a
+timed retention setting, identities are kept alongside their profiles. With a
+positive setting the job deletes documents whose `created_at` is older than
+that many hours or whose `expires_at` has passed. The latter supports the
+existing strict schedule and entitlement mappings, which have no `created_at`
+field. Missing timestamps do not match; writers must always supply an expiry
+or creation timestamp.
 
 The CronJob runs hourly (and, while retention is off, only removes already-expired documents), so cleanup can lag expiry by up to one hour. It uses
 the app's Elasticsearch credentials and fails on conflicts, partial failures
@@ -82,10 +83,6 @@ expired attendee fixture or receipt of its telemetry in Dash0.
 
 ## Open items
 
-- No account system links a returning visitor to their kept profile. The
-  site's returning-visitor flow uses browser storage, so "recommend from the
-  first minute" does not yet work across devices or after clearing the browser;
-  a kept profile is not reachable by its owner.
 - No export endpoint exists: an attendee cannot download what is stored about
   them.
 - Operators handling EU residents (or other jurisdictions with access and

@@ -11,7 +11,7 @@ request() {
     --user "elastic:$ELASTIC_PASSWORD" -H 'Content-Type: application/json' "$@"
 }
 request -X PUT "$ES_URL/_security/role/companion_app" --data-binary @- <<'JSON'
-{"cluster":["monitor_inference"],"indices":[{"names":["talks","talks-v*","attendees","attendees-v*","schedules","schedules-v*","entitlements","entitlements-v*","interest_clusters","interest_clusters-v*"],"privileges":["create_index","manage","read","write"],"allow_restricted_indices":false}]}
+{"cluster":["monitor_inference"],"indices":[{"names":["talks","talks-v*","attendees","attendees-v*","schedules","schedules-v*","entitlements","entitlements-v*","interest_clusters","interest_clusters-v*","identities","identities-v*"],"privileges":["create_index","manage","read","write"],"allow_restricted_indices":false}]}
 JSON
 # JSON encoding prevents password characters from corrupting the request.
 node -e 'process.stdout.write(JSON.stringify({password:process.env.ES_PASSWORD,roles:["companion_app"]}))' |

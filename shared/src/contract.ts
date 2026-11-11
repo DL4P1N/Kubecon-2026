@@ -95,6 +95,8 @@ export interface RegisterRequest {
   /** Optional, never stored: conference slug and returning-visitor flag, used only for the live demo stream (GET /api/events). */
   conference?: string;
   returning?: boolean;
+  /** From the sign-in callback `claim`: links the new profile to the signed-in provider account. */
+  identityClaim?: string;
 }
 
 export interface RegisterResponse {
@@ -422,8 +424,13 @@ export interface AuthCallbackRequest {
   state: string;
 }
 
-/** The linked account as the provider reported it. No tokens: the server keeps nothing. */
-export interface AuthCallbackResponse {
+/**
+ * The linked account as the provider reported it, plus exactly one of:
+ * `session` (this account already has a profile: a normal attendee token) or
+ * `claim` (new account: a 15-minute token that POST /api/register consumes as `identityClaim`).
+ * The provider's own tokens and subject id are never returned; the server stores only an HMAC of the account.
+ */
+interface AuthCallbackResponseBase {
   provider: AuthProviderId;
   displayName: string;
   handle?: string;
@@ -433,6 +440,11 @@ export interface AuthCallbackResponse {
   /** True when the flow began in the native app (`app=1`). */
   app: boolean;
 }
+
+export type AuthCallbackResponse = AuthCallbackResponseBase & (
+  | { session: { token: string; expiresAt: string }; claim?: never }
+  | { claim: { token: string; expiresAt: string }; session?: never }
+);
 
 // ---------------------------------------------------------------- route table
 

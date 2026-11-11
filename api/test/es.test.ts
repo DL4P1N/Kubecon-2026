@@ -92,6 +92,11 @@ describe("mappings", () => {
     const m = buildMappings(128);
     expect(Object.keys(m).sort()).toEqual([...INDEX_NAMES].sort());
     for (const a of INDEX_NAMES) expect(indexBody(a, 128).mappings.dynamic).toBe("strict");
+    expect(m.identities).toEqual({
+      attendee_id: { type: "keyword" },
+      created_at: { type: "date" },
+      expires_at: { type: "date" },
+    });
     expect(m.attendees.interest_vector).toMatchObject({ type: "dense_vector", dims: 128, similarity: "cosine" });
   });
 

@@ -1,8 +1,21 @@
 import { useState, type FormEvent } from "react";
-import { api, setToken } from "../api.js";
+import { api, ApiError, setToken } from "../api.js";
 import { useNavigate } from "react-router-dom";
 import { TopicChoices } from "./TopicChoices.js";
 import "./attendee.css";
+const CLAIM_KEY = "cc.identity-claim";
+
+function readIdentityClaim(): string | null {
+  try {
+    const claim = JSON.parse(sessionStorage.getItem(CLAIM_KEY) ?? "null");
+    return claim && typeof claim.token === "string" ? claim.token : null;
+  } catch { return null; }
+}
+
+function clearIdentityClaim(): void {
+  try { sessionStorage.removeItem(CLAIM_KEY); } catch { /* storage unavailable */ }
+}
+
 
 export function Register() {
   const [name, setName] = useState("");
@@ -22,18 +35,29 @@ export function Register() {
       return;
     }
     setPending(true);
+    const identityClaim = readIdentityClaim();
     setStatus("");
     try {
       const res = await api.register({
+        ...(identityClaim !== null ? { identityClaim } : {}),
         name: name.trim(),
         email: email.trim(),
         interests,
         consent: { clusterMap, qrCheckin },
       });
+      clearIdentityClaim();
       setToken(res.token);
       navigate("/onboarding");
     } catch (err) {
-      setStatus("Registration failed. Please try again.");
+      if (err instanceof ApiError && err.status === 409) {
+        clearIdentityClaim();
+        setStatus("That account already has a profile. Return to My schedule and sign in again.");
+      } else if (err instanceof ApiError && err.code === "invalid_identity_claim") {
+        clearIdentityClaim();
+        setStatus("Your sign-in expired or could not be verified. Return to My schedule and sign in again.");
+      } else {
+        setStatus("Registration failed. Please try again.");
+      }
     } finally {
       setPending(false);
     }

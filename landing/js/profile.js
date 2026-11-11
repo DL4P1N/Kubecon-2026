@@ -431,7 +431,7 @@ async function start() {
       }
       list.append(li);
     }
-    box.replaceChildren(list, el("p", "pf-note", "Unlink only forgets the link in this browser. It does not sign you out of the provider."));
+    box.replaceChildren(list, el("p", "pf-note", "Unlink only hides the provider details in this browser. The account remains linked to your profile on the server until you delete your profile."));
   }
 
   // ---- delete my data (inline confirm, no dialog)

@@ -194,20 +194,19 @@ if (section) {
     });
   }
 
-  // ---------------------------------------------------------------- how the visitor arrived: said plainly, never as a verified account
+  // ---------------------------------------------------------------- OAuth identity: display provider-supplied name; the server verifies the link.
   const VIA = { github: "GitHub", google: "Google", linkedin: "LinkedIn" };
   const viaEl = $("[data-reg-via]");
   const via = params.get("via");
   const linkedVia = via && VIA[via] ? readLinked()[via] : null;
   if (viaEl && linkedVia) {
-    // a real sign-in (cc.linked.v1): say so above the chat; the chat itself still asks its own questions
-    viaEl.textContent = `Signed in as ${linkedVia.displayName} via ${providerName(via)}. Tell the host what to call you.`;
+    viaEl.textContent = `Signed in as ${linkedVia.displayName} via ${providerName(via)}. We will start with this name; tell the host if you want to change it.`;
     viaEl.setAttribute("data-signed", "");
     viaEl.hidden = false;
   } else if (viaEl && via && (VIA[via] || via === "qr")) {
     viaEl.textContent = via === "qr"
       ? "You opened this page from a QR code."
-      : `You came from the ${VIA[via]} sign-in button. That button is a demo: nothing was checked and no account was linked.`;
+      : `You came from the ${VIA[via]} sign-in button, but no verified account was found.`;
     viaEl.hidden = false;
   }
 

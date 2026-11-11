@@ -2,12 +2,18 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { routes, type AuthCallbackResponse, type AuthProvidersResponse } from "@cc/shared";
 import type { Config } from "../config.js";
+import type { TokenService } from "../auth/token.js";
+import type { EsClient } from "../es/client.js";
 import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor, type RouteLimit } from "../http/rateLimit.js";
 import { withSpan } from "../telemetry/span.js";
-import { PROVIDER_IDS, buildAuthorizeUrl, clearNonceCookie, createStateStore, fetchProfile, isProviderId, nonceCookie, nonceMatches, sanitizeReturn } from "../auth/oauth.js";
+import { PROVIDER_IDS, buildAuthorizeUrl, clearNonceCookie, createStateStore, fetchProfile, identityId, isProviderId, nonceCookie, nonceMatches, sanitizeReturn } from "../auth/oauth.js";
 
 export interface AuthRouteOptions {
   oauth: Config["oauth"];
+  es: EsClient;
+  tokens: TokenService;
+  /** HMAC key for the account link (config.identityHashKey). */
+  identityHashKey: string;
   rateLimit?: RouteLimit;
   /** Injected in tests; defaults to the global fetch. */
   fetch?: typeof fetch;
@@ -21,19 +27,39 @@ const callbackBody = z.object({ code: z.string().min(1).max(2048), state: z.stri
 const notFound = { error: "not_found", message: "unknown or disabled sign-in provider" };
 
 /**
- * Sign in with GitHub / Google / LinkedIn, only to link an account to the visitor's browser profile.
+ * Sign in with GitHub / Google / LinkedIn; an account maps to one attendee profile across devices.
  *
  * GET  /api/auth/providers            which providers are configured
  * GET  /api/auth/:provider/start      302 to the provider, with a one-time `state` kept in memory for 10 minutes,
  *                                     and an HttpOnly SameSite=Lax cookie holding a nonce bound to that state
- * POST /api/auth/:provider/callback   {code,state} + the nonce cookie -> exchanges the code with the secret, returns the profile
+ * POST /api/auth/:provider/callback   {code,state} + the nonce cookie -> exchanges the code with the secret, returns the profile and
+ *                                     either an attendee `session` (known account) or an `identityClaim` (new account)
  *
- * No tokens are returned or stored, and no code, token or profile field is logged or put on a span
+ * Stored: only an HMAC of (provider, provider subject) -> attendee ID in `identities`. No provider tokens are returned or stored, and no code, token or profile field is logged or put on a span
  * (spans carry only the allowlisted route and status code).
  */
 export const authRoutes: FastifyPluginAsync<AuthRouteOptions> = async (app, opts) => {
   const fetchFn = opts.fetch ?? fetch;
   const states = createStateStore({ now: opts.now });
+  const now = opts.now ?? Date.now;
+
+  /** Attendee ID for a known account with a live profile; null for a new account. Drops a link whose profile is gone. */
+  async function resolveLinkedAttendee(id: string): Promise<string | null> {
+    const ident = await opts.es.request<{ found?: boolean; _source?: { attendee_id?: string } }>("GET", `/identities/_doc/${id}`, undefined, [404]);
+
+    if (!ident.body?.found) return null;
+    const attendeeId = ident.body._source?.attendee_id;
+    if (!attendeeId) {
+      await opts.es.request("DELETE", `/identities/_doc/${id}`, undefined, [404]);
+      return null;
+    }
+    const att = await opts.es.request<{ found?: boolean; _source?: { expires_at?: string } }>(
+      "GET", `/attendees/_doc/${encodeURIComponent(attendeeId)}?_source_excludes=interest_vector`, undefined, [404]);
+    const exp = att.body?.found ? att.body._source?.expires_at : undefined;
+    if (exp && Date.parse(exp) > now()) return attendeeId;
+    await opts.es.request("DELETE", `/identities/_doc/${id}`, undefined, [404]);
+    return null;
+  }
   const limit = limitFor(opts.rateLimit ?? DEFAULT_RATE_LIMITS.auth);
   await applyRateLimit(app);
 
@@ -86,7 +112,18 @@ export const authRoutes: FastifyPluginAsync<AuthRouteOptions> = async (app, opts
       if (!pending || !nonceMatches(pending.nonce, req.headers.cookie)) return fail(400, { error: "invalid_state", message: "sign-in expired or already used, start again" });
       try {
         const profile = await fetchProfile(provider, cfg, body.code, pending.verifier, fetchFn);
-        const out: AuthCallbackResponse = { ...profile, return: pending.return, app: pending.app };
+        const { subject, ...shown } = profile;
+        const id = identityId(opts.identityHashKey, provider, subject);
+        let linked: string | null;
+        try {
+          linked = await resolveLinkedAttendee(id);
+        } catch {
+          return fail(503, { error: "storage_unavailable", message: "could not check sign-in" });
+        }
+        const base = { ...shown, return: pending.return, app: pending.app };
+        const out: AuthCallbackResponse = linked !== null
+          ? { ...base, session: await opts.tokens.sign(linked) }
+          : { ...base, claim: await opts.tokens.sign(id, { audience: "identity-claim", ttlSeconds: 900 }) };
         span.setAttribute("http.response.status_code", 200);
         reply.header("cache-control", "no-store");
         reply.header("set-cookie", clearNonceCookie());

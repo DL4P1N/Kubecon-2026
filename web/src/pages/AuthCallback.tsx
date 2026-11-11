@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import type { AuthCallbackResponse } from "@cc/shared";
-import { api } from "../api.js";
+import { api, setToken } from "../api.js";
 import { siteNavigation } from "../App.js";
 import { ErrorState, LoadingState } from "../components/PageState.js";
 
 const LINKED_KEY = "cc.linked.v1";
 const PROFILE_PATH = "/site/profile.html";
+const CLAIM_KEY = "cc.identity-claim";
 
-/** Merges the linked account into localStorage `cc.linked.v1` (browser only; the server keeps nothing). */
+/** Merges the provider display profile into browser localStorage; server identity linking uses only an HMAC. */
 export function storeLinked(r: AuthCallbackResponse): void {
   try {
     const raw = localStorage.getItem(LINKED_KEY);
@@ -38,8 +39,8 @@ function postCallbackOnce(provider: string, code: string, state: string): Promis
 }
 
 /**
- * OAuth redirect target: /auth/:provider/callback?code=&state=. Posts the code to the API (which holds
- * the client secret), stores the returned profile in this browser, then goes back to where sign-in began.
+ * OAuth callback target. Exchanges the code, stores the returned session or short-lived registration claim,
+ * and resumes at the validated return path.
  */
 export function AuthCallback() {
   const { provider = "" } = useParams();
@@ -59,14 +60,20 @@ export function AuthCallback() {
     (async () => {
       try {
         const linked = await postCallbackOnce(provider, code, state);
-        if (cancelled) return;
+        if (linked.session) {
+          setToken(linked.session.token);
+          try { sessionStorage.removeItem(CLAIM_KEY); } catch { /* no browser storage */ }
+        }
+        if (linked.claim) {
+          try { sessionStorage.setItem(CLAIM_KEY, JSON.stringify(linked.claim)); } catch { /* registration can still proceed without link */ }
+        }
         storeLinked(linked);
         if (linked.app) {
           const url = `confcompanion://linked?provider=${encodeURIComponent(linked.provider)}&name=${encodeURIComponent(linked.displayName)}`;
           setAppLink(url);
           siteNavigation.replace(url);
         } else {
-          siteNavigation.replace(linked.return);
+          siteNavigation.replace(linked.claim && linked.return === PROFILE_PATH ? `/site/register.html?via=${encodeURIComponent(linked.provider)}` : linked.return);
         }
       } catch {
         if (!cancelled) setFailed(true);

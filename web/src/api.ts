@@ -3,6 +3,7 @@ import { offlineExpiry, offlineSession, resetOfflineSession } from "./offline.js
 import type {
   AccessTokenResponse,
   AuthCallbackResponse,
+  AuthProvidersResponse,
   RoomOccupancyResponse,
   RoomPlacementResponse,
   CatalogTopicsResponse,
@@ -45,7 +46,7 @@ export function setToken(token: string): void {
 }
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
     this.name = "ApiError";
   }
@@ -67,7 +68,14 @@ async function call<T>(
     headers,
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
   });
-  if (!res.ok) throw new ApiError(`${route.method} ${route.path} failed: ${res.status}`, res.status);
+  if (!res.ok) {
+    let code: string | undefined;
+    try {
+      const body = await res.json() as { error?: unknown };
+      if (typeof body.error === "string") code = body.error;
+    } catch { /* non-JSON error response */ }
+    throw new ApiError(`${route.method} ${route.path} failed: ${res.status}`, res.status, code);
+  }
   return (await res.json()) as T;
 }
 
@@ -89,7 +97,7 @@ async function scanRoom(body: ScanRequest): Promise<ScanResponse> {
   throw new Error(`${routes.accessScan.method} ${routes.accessScan.path} failed: ${res.status}`);
 }
 
-/** Finishes a sign-in: the provider's code and our one-time state in, the linked profile out. No session token is sent. */
+/** Finishes OAuth: receives display fields plus either a session or a one-time identity claim. */
 async function authCallback(provider: string, body: { code: string; state: string }): Promise<AuthCallbackResponse> {
   const path = routes.authCallback.path.replace(":provider", encodeURIComponent(provider));
   const res = await fetch(path, {
@@ -103,6 +111,11 @@ async function authCallback(provider: string, body: { code: string; state: strin
 
 export const api = {
   authCallback,
+  authProviders: async (): Promise<AuthProvidersResponse> => {
+    const res = await fetch("/api/auth/providers", { headers: { accept: "application/json" } });
+    if (!res.ok) throw new ApiError(`GET /api/auth/providers failed: ${res.status}`, res.status);
+    return (await res.json()) as AuthProvidersResponse;
+  },
   roomOccupancy: () => call<RoomOccupancyResponse>(routes.roomOccupancy),
   catalogTopics: () => call<CatalogTopicsResponse>(routes.catalogTopics),
   status: () => call<StatusResponse>(routes.status),
