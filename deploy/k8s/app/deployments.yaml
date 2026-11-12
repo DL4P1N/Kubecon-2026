@@ -74,8 +74,7 @@ spec:
             - name: tmp
               mountPath: /tmp
       volumes:
-        # CA that signed the database server certificate (Supabase root CA). Optional so a
-        # database with a publicly trusted certificate needs no ConfigMap.
+        # Optional private CA for the external database. Publicly trusted roots need no ConfigMap.
         - name: database-ca
           configMap:
             name: companion-database-ca

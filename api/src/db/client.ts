@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import pg from "pg";
 
 /**
- * The only database handle the API uses. Production wraps a `pg` Pool (Supabase
- * or any Postgres 15+ with pgvector); tests wrap an in-process PGlite. Callers
+ * The only database handle the API uses. Production wraps a `pg` Pool
+ * (PostgreSQL 15+ with pgvector); tests wrap an in-process PGlite. Callers
  * pass `$1`-style parameters and never build SQL from user text.
  */
 export interface Db {
@@ -47,9 +47,9 @@ export function isUniqueViolation(err: unknown): boolean {
 }
 
 export interface PgDbOptions {
-  /** Pool size. The Supabase session pooler allows few connections; the default keeps one API pod well under it. */
+  /** Maximum pool size. Choose a value compatible with the database's connection limit. */
   max?: number;
-  /** PEM file of the CA that signed the server certificate (Supabase publishes its own root CA). When set it is the only trust root for this connection. */
+  /** PEM file of the CA that signed the server certificate. When set, it is the only trust root for this connection. */
   caFile?: string;
 }
 

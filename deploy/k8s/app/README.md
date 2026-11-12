@@ -1,25 +1,32 @@
 # Application deployment
 
-One replica each of the API, web and collector, plus CronJobs, as Kubernetes manifests. The data lives in an
-external Postgres (Supabase), not in the cluster. This is a personal-demo deployment, not a high-availability one.
-The toghouse homelab adds TLS, secrets and the tunnel in [`../overlays/toghouse`](../overlays/toghouse), which Argo CD syncs.
+The Kustomize base contains the API and web Deployments and Services plus app configuration. Separate manifests provide
+optional CronJobs and one-shot Jobs. It does not provision a database, ingress controller, TLS issuer, secret manager,
+container registry, storage, or cluster nodes. Those are operator-supplied Kubernetes/environment dependencies. No
+specific distribution, node topology, or hosting provider is required.
 
 ## Prerequisites
 
-- A Postgres database with `pgvector` and `pg_trgm` (see [docs/database.md](../../../docs/database.md)). The API creates
-  the schema itself on start.
-- A namespace and the Secret `companion-app-secrets` with these keys (the toghouse overlay builds it from Vault
-  `kv/apps/conference-companion/app` through external-secrets; never commit values):
+- A Kubernetes cluster supporting the standard `apps/v1`, `batch/v1` and core APIs used by the manifests.
+- A reachable PostgreSQL database with `pgvector` and `pg_trgm`. The API creates its schema on startup. The database
+  may be managed inside or outside the cluster.
+- A namespace and a Kubernetes Secret named `companion-app-secrets` with:
 
   | Key | Meaning |
   | --- | --- |
-  | `DATABASE_URL` | Postgres connection string with the password URL-encoded; on Supabase use the session pooler |
-  | `TOKEN_SIGNING_KEY` | random, at least 32 bytes; the API refuses to start in production with a missing or placeholder key |
-  | `IDENTITY_HASH_KEY` | random, at least 32 characters; required when any OAuth provider is configured |
-  | `<PROVIDER>_CLIENT_ID`, `_CLIENT_SECRET`, `_OAUTH_REDIRECT_URI` | for `GITHUB`, `GOOGLE`, `LINKEDIN`; a provider missing any of the three is disabled |
+  | `DATABASE_URL` | PostgreSQL connection string; URL-encode the password |
+  | `TOKEN_SIGNING_KEY` | Random, at least 32 bytes; required in production |
+  | `IDENTITY_HASH_KEY` | Random, at least 32 characters; required when an OAuth provider is configured |
+  | `<PROVIDER>_CLIENT_ID`, `_CLIENT_SECRET`, `_OAUTH_REDIRECT_URI` | Optional OAuth settings for `GITHUB`, `GOOGLE`, `LINKEDIN`; incomplete providers are disabled |
 
-- A ConfigMap `companion-database-ca` with the CA that signed the database certificate (key `supabase-ca.crt` for
-  Supabase). It is optional: omit it, and unset `DATABASE_CA_FILE`, for a database with a publicly trusted certificate.
+- If the database certificate chains to a private CA, a ConfigMap named `companion-database-ca` with key
+  `database-ca.crt` and `DATABASE_CA_FILE=/etc/database/database-ca.crt` in `companion-app-config`. The base works
+  without this ConfigMap when the database certificate chains to system roots.
+- An image registry reachable by the cluster. Configure public images or provide an `imagePullSecret`.
+- To expose the app publicly, an operator-managed ingress, Gateway, load balancer, or tunnel that routes to the `web`
+  Service. Supply any DNS, TLS certificates, and ingress controller independently.
+
+Create the app Secret from protected files; never commit secret values:
 
 ```sh
 kubectl -n "$NAMESPACE" create secret generic companion-app-secrets \
@@ -32,19 +39,22 @@ Files must not contain trailing newlines.
 
 ## Build and publish
 
-Run from the repository root. Use an immutable commit tag and build for the node architecture, not the laptop's. The
-API image is Debian based (onnxruntime ships no musl build) and contains the embedding model, so a pod never downloads it.
+Build for the Linux platforms supported by the target cluster and native dependencies. The API image uses Debian/glibc
+because ONNX Runtime does not ship musl binaries; it includes the embedding model and does not download it at runtime.
 
 ```sh
 export IMAGE_BASE=ghcr.io/<owner>/conference-companion
 export IMAGE_TAG="$(git rev-parse HEAD)"
-docker buildx build --platform linux/amd64 -f api/Dockerfile -t "$IMAGE_BASE-api:$IMAGE_TAG" --push .
-docker buildx build --platform linux/amd64 -f web/Dockerfile -t "$IMAGE_BASE-web:$IMAGE_TAG" --push .
+: "${TARGET_PLATFORMS:?Set to the target cluster's Linux platform(s)}"
+docker buildx build --platform "$TARGET_PLATFORMS" -f api/Dockerfile -t "$IMAGE_BASE-api:$IMAGE_TAG" --push .
+docker buildx build --platform "$TARGET_PLATFORMS" -f web/Dockerfile -t "$IMAGE_BASE-web:$IMAGE_TAG" --push .
 ```
 
-The base manifests reference `cc-api:local` and `cc-web:local`; set each image's `newName`/`newTag` in a Kustomization
-(see the toghouse overlay) rather than editing the base. The packages must be public, or the cluster needs an
-imagePullSecret.
+The base uses local placeholder image names. Set `newName`/`newTag` in a Kustomize overlay in this repository rather
+than editing the base. Keep environment-specific ingress, TLS, registry and secret-provider configuration in that
+overlay. The application and deployment manifests are maintained in this repository; updating app code or image tags
+does not require changes to a separate infrastructure repository. A cluster may reconcile this repository with GitOps
+or an operator may apply the rendered manifests.
 
 ```sh
 kubectl kustomize deploy/k8s/app > /tmp/companion-app-release.yaml
@@ -64,8 +74,8 @@ curl --fail http://127.0.0.1:8080/healthz
 loads the embedding model before it listens, so its startup probe allows about two minutes. Both workloads run
 non-root with dropped capabilities, no API token mount and read-only root filesystems.
 
-Only ClusterIP Services are created: there is no ingress here. Public access is the Cloudflare tunnel in the toghouse
-overlay. See [../tls/README.md](../tls/README.md) for pod-to-pod TLS.
+The Services are `ClusterIP`; the cluster operator supplies public routing. This keeps the application manifests
+independent of any one ingress, DNS, TLS, or secrets implementation.
 
 ## Seed the catalog
 

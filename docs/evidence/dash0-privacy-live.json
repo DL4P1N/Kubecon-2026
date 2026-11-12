@@ -1,6 +1,6 @@
 {
   "task": 75,
-  "release": "9c047d7 (deployed main, served via the team tunnel https://conference-companion-ecan4.vercel.app)",
+  "release": "9c047d7 (deployed main)",
   "flow": {
     "attendee": "synthetic, name 'SYNTHETIC PRIVACY 75'; ID prefix a61ff32c (full ID and tokens kept only in a local scratch file, never committed)",
     "canary": "zebracanary7741 (in onboarding freeText, schedule freeText and both search queries)",

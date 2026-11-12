@@ -17,9 +17,9 @@ export interface OAuthProviderConfig {
 export interface Config {
   port: number;
   host: string;
-  /** DATABASE_URL: Postgres connection string (Supabase session pooler or any Postgres with pgvector). Required in production; contains the password, never log it. */
+  /** DATABASE_URL: Postgres connection string (PostgreSQL 15+ with pgvector). Required in production; contains the password, never log it. */
   databaseUrl: string;
-  /** DATABASE_CA_FILE: PEM CA for the database server certificate (Supabase root CA); unset uses the system roots. */
+  /** DATABASE_CA_FILE: PEM CA for the database server certificate; unset uses the system roots. */
   databaseCaFile: string | undefined;
   tokenSigningKey: string;
   /** IDENTITY_HASH_KEY: HMAC key for the provider-account -> attendee link (identities table). Required when any OAuth provider is configured. */

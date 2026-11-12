@@ -16,7 +16,6 @@ struct ScheduledTalk: Identifiable, Hashable {
 }
 
 enum ScheduleService {
-    static let defaultServer = "https://conference-companion-ecan4.vercel.app"
 
     // MARK: Wire shapes (shared/src/contract.ts: ScheduleResponse)
 
@@ -47,7 +46,7 @@ enum ScheduleService {
     /// GET <base>/api/schedule with the bearer session token.
     static func loadSchedule(base: String, token: String) async throws -> [ScheduledTalk] {
         var text = base.trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.isEmpty { text = defaultServer }
+        guard !text.isEmpty else { throw Failure() }
         if !text.contains("://") { text = "https://" + text }
         while text.hasSuffix("/") { text.removeLast() }
         guard let root = URL(string: text), root.host() != nil else { throw Failure() }

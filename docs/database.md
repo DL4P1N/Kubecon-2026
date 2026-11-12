@@ -1,21 +1,18 @@
 # Database, talk catalog and seeding
 
-Code lives in `api/src/db/` and `api/src/embed/`. The API stores everything in one Postgres database with
-the `pgvector` extension: Supabase's free tier in the toghouse deployment, or the compose Postgres locally.
-This replaced Elasticsearch; see [Why](#why-postgres) for the footprint reasons.
+Code lives in `api/src/db/` and `api/src/embed/`. The API stores application data in PostgreSQL with `pgvector` and
+`pg_trgm`; the same database can be provided by a managed service or run in the cluster. Local development uses the
+PostgreSQL service in Docker Compose. This replaced Elasticsearch; see [Why](#why-postgres).
 
 ## Requirements
 
-- **Postgres 15+ with `pgvector` and `pg_trgm`.** Supabase has both (`vector` is enabled by default; the API
-  runs `create extension if not exists` for each on start).
-- **Connection.** `DATABASE_URL` is a standard connection string. On Supabase use the **session pooler**
-  (`aws-0-<region>.pooler.supabase.com:5432`, user `postgres.<project-ref>`): the direct `db.<ref>.supabase.co`
-  host is IPv6 only, and the toghouse cluster has IPv4 only. The password in the URL must be URL-encoded.
-- **TLS, always verified.** Any non-local host connects with certificate verification on. Supabase signs with its
-  own root CA, not a public one: set `DATABASE_CA_FILE` to `deploy/k8s/overlays/toghouse/supabase-ca.crt` (Supabase's
-  published "Supabase Root 2021 CA", valid until 2031-04-26). There is no flag that skips verification.
-- **Free-tier limits.** A free Supabase project pauses after about a week without activity (the API then answers
-  503 until you restore it in the dashboard) and holds 500 MB. This app uses a few MB.
+- **PostgreSQL 15+ with `pgvector` and `pg_trgm`.** The API enables the extensions on startup; the database role must
+  be permitted to create them, or they must already exist.
+- **Connection.** `DATABASE_URL` is a standard connection string. URL-encode the password. The database must be
+  reachable from the API workload.
+- **TLS, always verified.** Non-local database connections verify the server certificate. For a private CA, set
+  `DATABASE_CA_FILE` to a PEM CA file mounted into the API container. There is no flag that disables verification.
+
 
 ## Commands
 
@@ -69,6 +66,5 @@ Both produce 384-dimension vectors, which the schema fixes. Changing the model m
 
 ## Why Postgres
 
-Elasticsearch needed about 2.5 GB of RAM on the single worker, a 4 Gi pod request, and a Platinum/trial licence for
-its built-in E5 inference and RRF fusion (the 30-day trial lapses). Postgres on Supabase moves the data off the
-cluster (api about 0.6 GB, web, cloudflared remain) and needs no licence.
+PostgreSQL provides the full-text, trigram and vector operators the application uses, with no additional search
+service required. The API runs multilingual-e5-small locally and stores 384-dimensional vectors in `pgvector`.

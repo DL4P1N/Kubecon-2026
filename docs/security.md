@@ -94,11 +94,10 @@ status are logged.
   on spans. **Raw URL in telemetry/logs: fixed by #40** (drop `url.path` from
   exported attributes, keep `http.route`, and request-serializer
   hardening).
-- **Database access.** The API connects with one `DATABASE_URL` (a Supabase pooler login in the toghouse
-  deployment) and verifies the server certificate against a pinned CA (`docs/database.md`).
-- **TLS.** In-cluster API TLS is an opt-in overlay (#24,
-  `deploy/k8s/tls`, `API_TLS_CERT_FILE`/`API_TLS_KEY_FILE`, TLS ≥ 1.2).
-  Ingress TLS is in `deploy/k8s/tls-ingress`.
+- **Database access.** The API connects with `DATABASE_URL` and verifies the database certificate against system
+  roots or a configured private CA (`docs/database.md`).
+- **TLS.** In-cluster API TLS and ingress TLS are optional environment-level configuration. The application base does
+  not require a specific ingress controller or certificate issuer.
 
 ## Tests
 

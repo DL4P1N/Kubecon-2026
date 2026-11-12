@@ -165,9 +165,7 @@ are not claimed.
 
 ## Radar
 
-- Cluster: new local kind cluster `conference-companion` (Kubernetes v1.37.0, arm64),
-  kubeconfig `~/.kube/conference-companion`, namespace `conference-companion`.
-  The human chose a new cluster over `toghouse`, which was never modified.
+- Cluster: an isolated local kind cluster named `conference-companion`.
 - Radar OSS 1.20.2 runs locally against that kubeconfig (`--namespace-scope --mcp-read-only
   --disable-exec --disable-local-terminal`), UI on `127.0.0.1:9280`. The MCP endpoint
   `/mcp-readonly` initialised and listed 28 read-only tools. Radar's dashboard showed

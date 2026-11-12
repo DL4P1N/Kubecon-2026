@@ -38,7 +38,7 @@ struct SettingsView: View {
     private var serverSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionTitle("Server URL")
-            TextField("http://192.168.1.20:8080", text: $serverURL)
+            TextField("https://your-app.example", text: $serverURL)
                 .font(.mono(.body))
                 .keyboardType(.URL)
                 .textContentType(.URL)
@@ -51,7 +51,7 @@ struct SettingsView: View {
                 Text("Using \(server.host) (\(server.url.scheme ?? "http")).")
                     .font(.mono(.footnote, weight: .semibold)).foregroundStyle(Theme.accent)
             } else if hasText {
-                Text("Not a usable address. Use http:// or https:// and a host, for example http://192.168.1.20:8080.")
+                Text("Not a usable address. Enter the HTTPS origin configured for your deployment.")
                     .font(.mono(.footnote, weight: .semibold)).foregroundStyle(Theme.down)
             } else {
                 Text("Empty: local Demo tickets and the bundled catalogue.")
