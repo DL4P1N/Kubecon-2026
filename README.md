@@ -25,6 +25,10 @@ The [native iOS companion](ios/README.md) is a separate Xcode build. Indoor posi
 
 ## Architecture
 
+![Deployment diagram: clients reach Cloudflare, a named tunnel leads to cloudflared, web (nginx) and api (Fastify) in the conference-companion namespace on the toghouse kubeadm cluster, the api queries Supabase Postgres with pgvector over TLS, telemetry stays in an in-cluster OpenTelemetry collector, and Argo CD, ghcr.io, cert-manager, external-secrets and Vault handle delivery and secrets](docs/architecture.png)
+
+Source: [docs/architecture.drawio](docs/architecture.drawio) (edit in draw.io, then re-export the PNG).
+
 ```
 browser -> Cloudflare -> cloudflared (toghouse) -> nginx (web) -> Fastify API -> Postgres (Supabase)
                                                           \-> OpenTelemetry collector
