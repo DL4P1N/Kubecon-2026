@@ -5,6 +5,8 @@ server {
   ssl_protocols TLSv1.2 TLSv1.3;
   root /usr/share/nginx/html;
   index index.html;
+  # Relative Location headers: the listen port (8080) is internal and must not leak into redirects.
+  absolute_redirect off;
 
   proxy_ssl_verify on;
   proxy_ssl_trusted_certificate /etc/companion-tls/ca.crt;

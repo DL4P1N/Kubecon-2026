@@ -2,6 +2,8 @@ server {
   listen 8080;
   root /usr/share/nginx/html;
   index index.html;
+  # Relative Location headers: the listen port (8080) is internal and must not leak into redirects.
+  absolute_redirect off;
 
   # Server-Sent Events (live demo feed): never buffer, keep the stream open.
   location = /api/events {
