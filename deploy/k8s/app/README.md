@@ -82,7 +82,7 @@ The registry owner must grant push permission, and the cluster must be able to
 pull the package (public package or namespace imagePullSecret).
 
 ```sh
-export IMAGE_BASE=ghcr.io/ecan0/conference-companion
+export IMAGE_BASE=ghcr.io/dl4p1n/conference-companion
 export IMAGE_TAG="$(git rev-parse HEAD)"
 # Authenticate using your registry credential manager; never paste a token here.
 docker buildx build --platform linux/amd64,linux/arm64 \
