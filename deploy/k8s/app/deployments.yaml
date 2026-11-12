@@ -43,12 +43,13 @@ spec:
             capabilities:
               drop: [ALL]
           resources:
+            # Observed about 520 MB at idle (Node plus the in-process e5 model); the limit leaves ~45% headroom for a burst of searches.
             requests:
-              cpu: 100m
+              cpu: 50m
               memory: 512Mi
             limits:
-              cpu: "1"
-              memory: 1Gi
+              cpu: 500m
+              memory: 768Mi
           startupProbe:
             httpGet:
               path: /healthz
@@ -126,12 +127,13 @@ spec:
             capabilities:
               drop: [ALL]
           resources:
+            # nginx serving static files uses about 6 MB at idle.
             requests:
-              cpu: 50m
-              memory: 32Mi
+              cpu: 10m
+              memory: 16Mi
             limits:
-              cpu: 500m
-              memory: 128Mi
+              cpu: 200m
+              memory: 64Mi
           startupProbe:
             httpGet:
               path: /index.html
