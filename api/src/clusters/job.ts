@@ -8,7 +8,7 @@ import { buildClusters, finalize, type BuildOptions, type ClusterInput, type Clu
  *
  * 1. Page through attendees who opted in to the cluster map, are unexpired
  *    and have an interest_vector.
- * 2. Run k-means IN NODE (this process), not in Elasticsearch.
+ * 2. Run k-means IN NODE (this process), not in the database.
  * 3. Pool clusters under 5 members into "other" (suppressed if still under 5).
  * 4. Write the clusters to `interest_clusters` tagged with a run_id, with the
  *    run marker row, in ONE transaction: readers find a run through its marker,

@@ -17,12 +17,12 @@ Attendees type on phones and misspell ("kuberentes", "opentelementry"). Two chan
 
 Returns up to 8 completions: `{ suggestions: [{ text, kind: "title" | "speaker" }] }`.
 
-- Query: `bool.should` of a `bool_prefix` multi_match (finishes the last word) and a fuzzy `best_fields` multi_match (forgives typos in whole words) over `title^2` and `speaker`. It works on the existing analyzed fields: **no mapping change, no `SCHEMA_VERSION` bump, no reindex.** A `search_as_you_type` subfield would be faster at scale but needs a mapping change; the catalog is small, so it is not worth the risk on the live index.
+- Query: one SQL statement over `title` and `speaker`: a word-prefix match (finishes the last word) plus `pg_trgm` `word_similarity` for typed words of 4+ letters (forgives typos in whole words). No schema change is needed; the catalog is small enough that the trigram index on `title` is optional.
 - A speaker is suggested only when a typed word starts one of their name's words, once even if they have several talks.
-- Fewer than 2 characters: `200` with an empty list and no Elasticsearch call. More than 100: `400`. A repeated `q`: `400`.
+- Fewer than 2 characters: `200` with an empty list and no database call. More than 100: `400`. A repeated `q`: `400`.
 - Public and cheap to abuse, so: 30 s in-memory cache (500 entries, key = lower-cased trimmed query), `Cache-Control: public, max-age=30`, and a per-client rate limit of 120/min (people firing several requests while typing; cached hits count).
 - Privacy: the typed text is never logged and never on a span. The span `search.suggest` carries only the allowlisted `http.request.method`, `http.route` (the route template), `http.response.status_code` and `search.hits`. No new telemetry attribute.
-- Elasticsearch overload/inference warm-up is `503` + `Retry-After: 5`; other failures `502`.
+- An unreachable database is `503` + `Retry-After: 5`; other failures `502`.
 
 ## 3. Search box
 
@@ -35,4 +35,4 @@ Returns up to 8 completions: `{ suggestions: [{ text, kind: "title" | "speaker" 
 
 ## Tests
 
-Faked Elasticsearch only (`api/test/suggest.test.ts`, `queries.test.ts`, `search.routes.test.ts`, `web/test/suggest.test.tsx`). The suggest tests use a small stand-in that applies the two clauses (including an edit-distance check) to show that a misspelled query reaches the right talk through the request; real fuzzy matching is Elasticsearch's. Not verified: live behaviour on the cluster, and an axe run for the new combobox (CI runs axe).
+Real SQL on an in-process Postgres (`api/test/suggest.test.ts`, `search.routes.test.ts`, `web/test/suggest.test.tsx`). Typo tolerance is `pg_trgm` word similarity. Not verified: an axe run for the combobox (CI runs axe).

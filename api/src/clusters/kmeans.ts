@@ -1,7 +1,7 @@
 /**
  * Plain k-means (Lloyd's algorithm) with k-means++ seeding, in Node.
- * This runs in the batch job process, NOT inside Elasticsearch: ES only stores
- * the input vectors and the resulting cluster documents.
+ * This runs in the batch job process, NOT inside the database: Postgres only stores
+ * the input vectors and the resulting cluster rows.
  *
  * Deterministic for a given seed so runs and tests are reproducible.
  */

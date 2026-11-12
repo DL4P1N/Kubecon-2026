@@ -69,7 +69,7 @@ export interface StatusResponse {
   generatedAt: string; // ISO 8601
   windowSeconds: number;
   api: { up: true; version: string };
-  elasticsearch: { reachable: boolean };
+  database: { reachable: boolean };
   search: {
     keyword: SearchLatencyStat;
     hybrid: SearchLatencyStat & { state: HybridState };
@@ -142,7 +142,7 @@ export interface OnboardingResponse {
   };
   /** Ranked talks for the generated query (level and time filters applied). */
   hits?: SearchHit[];
-  /** Elasticsearch request body, only when `?debug=1`. */
+  /** The executed SQL (placeholders only, no parameter values), only when `?debug=1`. */
   debug?: unknown;
 }
 
@@ -177,7 +177,7 @@ export interface SearchHit {
 export interface SearchQuery extends SearchFilterParams {
   q: string;
   mode?: SearchMode;
-  /** `1` returns the Elasticsearch request body in `debug`. */
+  /** `1` returns the executed SQL plan in `debug`. */
   debug?: "0" | "1";
   /** Page size, 1-50 (default 10). */
   size?: number;
@@ -190,7 +190,7 @@ export interface SearchResponse {
   hits: SearchHit[];
   /** Track/level/day counts for this query and its filters (optional: older servers omit it). */
   facets?: SearchFacets;
-  /** Elasticsearch request body, only when `?debug=1`. */
+  /** The executed SQL (placeholders only, no parameter values), only when `?debug=1`. */
   debug?: unknown;
 }
 

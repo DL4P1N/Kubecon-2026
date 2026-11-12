@@ -6,7 +6,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-di
 
 /**
  * "Room full? Similar talks now": loads up to three talks running at the same
- * time in other rooms, ranked by meaning (Elasticsearch semantic search), each
+ * time in other rooms, ranked by meaning (embedding similarity), each
  * with the tags it shares with the talk being replaced.
  */
 export function Alternatives({ talk, load = fetchAlternatives }: { talk: Talk; load?: typeof fetchAlternatives }) {

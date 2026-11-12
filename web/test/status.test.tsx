@@ -14,7 +14,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.replaceState(n
 
 const base: StatusResponse = {
   status: "ok", generatedAt: "2026-11-09T12:00:00Z", windowSeconds: 300,
-  api: { up: true, version: "0.1.0" }, elasticsearch: { reachable: true },
+  api: { up: true, version: "0.1.0" }, database: { reachable: true },
   search: { keyword: { samples: 4, p95Ms: 12 }, hybrid: { samples: 3, p95Ms: 240, state: "ready" } },
   errorRate: { requests: 40, serverErrors: 0, ratio: 0 },
 };
@@ -80,7 +80,7 @@ it.each([503, 502])("search falls back to keyword results without an error when 
     return { q, mode, tookMs: 3, hits: [{ talk, score: 1 }], debug: { query: "keyword-debug" } };
   });
   render(<Search />);
-  fireEvent.click(screen.getByLabelText("Include Elasticsearch query details"));
+  fireEvent.click(screen.getByLabelText("Include query details"));
   fireEvent.change(screen.getByLabelText("Query"), { target: { value: "secure supply chain" } });
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
   expect(await screen.findByText(/Hybrid search is warming up, so keyword results are shown here/)).toBeTruthy();
@@ -88,8 +88,8 @@ it.each([503, 502])("search falls back to keyword results without an error when 
   const hybrid = screen.getByRole("region", { name: "Hybrid" });
   expect(within(hybrid).getByText(talk.title)).toBeTruthy();
   // The keyword query details must not be shown under the Hybrid heading.
-  expect(within(hybrid).queryByText(/Elasticsearch query/)).toBeNull();
-  expect(within(screen.getByRole("region", { name: "Keyword" })).getByText(/Elasticsearch query/)).toBeTruthy();
+  expect(within(hybrid).queryByText(/SQL query/)).toBeNull();
+  expect(within(screen.getByRole("region", { name: "Keyword" })).getByText(/SQL query/)).toBeTruthy();
 });
 
 it("search still shows an error when keyword fails too, or hybrid fails with a non-ES error", async () => {

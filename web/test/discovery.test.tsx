@@ -15,7 +15,7 @@ it("compares both methods and displays the server query", async () => {
     hits: mode === "hybrid" ? [{ talk, score: 1 }] : [], debug: { query: { match_all: {} } } }));
   render(<Search />);
   fireEvent.change(screen.getByLabelText("Query"), { target: { value: "secure my supply chain" } });
-  fireEvent.click(screen.getByLabelText("Include Elasticsearch query details"));
+  fireEvent.click(screen.getByLabelText("Include query details"));
   fireEvent.click(screen.getByRole("button", { name: "Search" }));
   await screen.findByText("Comparison ready.");
   expect(search).toHaveBeenCalledWith("secure my supply chain", "keyword", true, {});

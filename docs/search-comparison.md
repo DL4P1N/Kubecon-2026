@@ -1,5 +1,7 @@
 # Hybrid vs keyword search: measured
 
+> **Historical record (Elasticsearch).** Everything below was measured on the earlier Elasticsearch backend (the request bodies, `rrf` retrievers and `es:init` commands no longer exist). Search now runs on Postgres; its measurements and method are in [evidence/search-eval-pg.md](evidence/search-eval-pg.md), and the design is in [database.md](database.md#search).
+
 Track evidence for the Elasticsearch track (design doc section 7): compare hybrid and keyword search on paraphrased attendee questions, with the query shown. Everything below was measured on the live index; nothing here is a hypothesis.
 
 ## Measured result (task #36)

@@ -24,7 +24,7 @@ function meter() {
 /** Search latency in seconds, by search.mode (hybrid | keyword). */
 export function recordSearchLatency(seconds: number, mode: string): void {
   searchDuration ??= meter().createHistogram("companion.search.duration", {
-    description: "Search request latency (API side, including Elasticsearch)",
+    description: "Search request latency (API side, including the database query)",
     unit: "s",
     // Same boundaries as http.server.request.duration. The SDK default
     // (0, 5, 10, ... 10000) is meant for milliseconds and would put every

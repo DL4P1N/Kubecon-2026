@@ -94,7 +94,7 @@ describe("GET /api/status", () => {
     expect(res.statusCode).toBe(200);
     expect(body.status).toBe("ok");
     expect(body.api).toEqual({ up: true, version: "0.1.0" });
-    expect(body.elasticsearch.reachable).toBe(true);
+    expect(body.database.reachable).toBe(true);
     expect(body.search.hybrid.state).toBe("unknown");
     expect(body.search.keyword).toEqual({ samples: 0, p95Ms: null });
     expect(spans.find((s) => s.name === "status")?.set).toEqual({ "http.response.status_code": 200 });
@@ -137,7 +137,7 @@ describe("GET /api/status", () => {
     world.dbUp = false;
     const { body } = await getStatus(app);
     expect(body.status).toBe("down");
-    expect(body.elasticsearch.reachable).toBe(false);
+    expect(body.database.reachable).toBe(false);
   });
 
   it("caches for 10 seconds and refreshes afterwards", async () => {

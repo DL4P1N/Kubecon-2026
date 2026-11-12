@@ -5,7 +5,7 @@ export const ALTERNATIVES_PATH = "/api/talks/:id/alternatives";
 
 export interface AlternativeTalk {
   talk: Talk;
-  /** Semantic similarity score from Elasticsearch (relative, not a percentage). */
+  /** Cosine similarity of the two talks' embeddings (relative, not a percentage). */
   score: number;
   /** Tags this talk shares with the one being replaced: a readable "why". */
   sharedTags: string[];

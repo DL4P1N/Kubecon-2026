@@ -62,7 +62,7 @@ export function resolveChatRunner(config: Pick<Config, "chatMode" | "claudeBin">
 
 /**
  * Builds the Fastify app. Search, onboarding and schedule are real
- * (Elasticsearch, see routes/search.ts), as are registration and /api/me
+ * (Postgres, see routes/search.ts), as are registration and /api/me
  * (routes/register.ts); the remaining /api routes are STUBS
  * returning contract-shaped mock data until their tasks land.
  */

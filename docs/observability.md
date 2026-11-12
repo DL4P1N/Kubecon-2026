@@ -6,7 +6,7 @@ attribute allowlist (`docs/telemetry-allowlist.md`) and forwards to Dash0.
 Dash0 credentials live only in the collector's env / K8s Secret.
 
 ```
-browser (companion-web) --traceparent--> api (companion-api) --fetch--> Elasticsearch
+browser (companion-web) --traceparent--> api (companion-api) --SQL--> Postgres
       |  OTLP/HTTP via /otlp proxy             |  OTLP/HTTP :4318
       +---------------> otel-collector <-------+ ---> Dash0
 ```
@@ -27,7 +27,7 @@ npm run dev:web
 
 Open http://localhost:5173, run a search, and look for one trace id in the
 collector's debug output with spans from `companion-web` (fetch GET),
-`companion-api` (GET /api/search, fastify handler) and the outgoing ES call.
+`companion-api` (GET /api/search, fastify handler) and the `search.hybrid` span around the query (the `pg` driver is not auto-instrumented).
 
 Telemetry is off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set, so `npm test`
 and a plain `npm run dev:api` never try to export.
@@ -37,7 +37,7 @@ and a plain `npm run dev:api` never try to export.
 | File | What |
 | --- | --- |
 | `instrument.ts` | Preloaded with `node --import` (start/dev scripts, Dockerfile CMD) so instrumentation patches modules before the app loads. |
-| `sdk.ts` | `NodeSDK` with resource `service.name=companion-api`, OTLP/HTTP exporters for traces, metrics, logs. Instrumentations: `http` (server spans + `http.server.request.duration`), `@fastify/otel` (route/handler spans, sets `http.route`), `undici` (outgoing `fetch`, i.e. the ES client), `pino` (log correlation + OTLP log sending). `shutdownTelemetry()` flushes on SIGTERM. `startTelemetry(serviceName?)` is also callable directly from CLIs. |
+| `sdk.ts` | `NodeSDK` with resource `service.name=companion-api`, OTLP/HTTP exporters for traces, metrics, logs. Instrumentations: `http` (server spans + `http.server.request.duration`), `@fastify/otel` (route/handler spans, sets `http.route`), `undici` (outgoing `fetch`), `pino` (log correlation + OTLP log sending). The `pg` driver is not instrumented; database time shows up inside the custom spans. `shutdownTelemetry()` flushes on SIGTERM. `startTelemetry(serviceName?)` is also callable directly from CLIs. |
 | `span.ts` | `withSpan(name, attrs, fn)`: custom spans whose attributes (at start and via `span.setAttribute`) are filtered through the allowlist, so `attendee.id` is dropped before export. Errors record `error.type` only, never the message. `setSpanRunner(fake)` swaps the implementation in tests. |
 | `metrics.ts` | `recordSearchLatency(seconds, mode)` / `timeSearch(mode, fn)` (already wrapped around `runSearch` in `api/src/search/service.ts`) -> histogram `companion.search.duration` (s, by `search.mode`); `recordAccessScan(decision, room)` -> counter `access.scans` (by `access.decision`, `room.id`; PromQL name `access_scans_total`). |
 | `logger.ts` | `loggerOptions` for `Fastify({ logger })`: pino JSON to stdout, request serializer emits only method, path without query, route and status; redacts `authorization`, cookies, bodies, tokens and `attendeeId`. A `logMethod` hook strips query strings from message text (e.g. Fastify's 404 "Route GET:/x?q=... not found") and replaces error messages with the error type; the `err` serializer keeps only type and codes. |
@@ -51,7 +51,7 @@ import { timeSearch, recordAccessScan } from "./telemetry/metrics.js";
 
 const res = await timeSearch(mode, () =>
   withSpan("search.hybrid", { "search.mode": mode }, async (span) => {
-    const r = await es.request("POST", "/talks/_search", body);
+    const r = await runQuery(db, sql, params);
     span.setAttribute("search.hits", hits.length);
     return r;
   }),
@@ -128,4 +128,4 @@ token in the browser bundle.
 ## Runtime requirements
 
 The OTel JS 3.x / 0.301 packages and `@fastify/otel` need Node >= 22.15, so
-the API and web build images use `node:22-alpine`.
+the API and web build images use Node 22 (the API on Debian slim, the web image on alpine).

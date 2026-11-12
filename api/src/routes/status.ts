@@ -69,7 +69,7 @@ function addStatusRoute(app: FastifyInstance, deps: StatusRouteDeps): void {
       generatedAt: new Date(now()).toISOString(),
       windowSeconds: WINDOW_SECONDS,
       api: { up: true, version: deps.version },
-      elasticsearch: { reachable },
+      database: { reachable },
       search: {
         keyword: deps.tracker.searchStat("keyword"),
         hybrid: { ...deps.tracker.searchStat("hybrid"), state: hybridState },

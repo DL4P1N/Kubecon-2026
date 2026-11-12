@@ -246,7 +246,7 @@ export function Organizer() {
           <table className="status-table">
             <caption>Live values from the API</caption>
             <tbody>
-              <tr><th scope="row">Elasticsearch</th><td>{status.elasticsearch.reachable ? "Reachable" : "Not reachable"}</td></tr>
+              <tr><th scope="row">Database</th><td>{status.database.reachable ? "Reachable" : "Not reachable"}</td></tr>
               <tr><th scope="row">Hybrid search</th><td>{status.search.hybrid.state.replace("_", " ")}</td></tr>
               <tr><th scope="row">Server errors</th><td>{(status.errorRate.ratio * 100).toFixed(1)}% of {status.errorRate.requests} requests</td></tr>
             </tbody>
