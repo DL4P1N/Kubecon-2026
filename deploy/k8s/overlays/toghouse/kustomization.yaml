@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# toghouse kubeadm cluster: cert-manager PKI, Vault via external-secrets, and a
+# Cloudflare named tunnel as the only public path. Frontend stays on Vercel.
+namespace: conference-companion
+resources:
+  - namespace.yaml
+  - ../../elasticsearch
+  - ../../tls
+  - pki.yaml
+  - secrets.yaml
+  - cloudflared.yaml
+images:
+  - name: cc-api
+    newName: ghcr.io/ecan0/conference-companion-api
+    newTag: 84521d2583f8e672704945770aeeb8b37f2bce56
+  - name: cc-web
+    newName: ghcr.io/ecan0/conference-companion-web
+    newTag: 84521d2583f8e672704945770aeeb8b37f2bce56
+patches:
+  - path: es-tls-patch.yaml
+    target: {kind: StatefulSet, name: elasticsearch}
+  - path: api-trust-patch.yaml
+    target: {kind: Deployment, name: api}
+  # Hops from the API: web nginx, cloudflared, the Vercel->Cloudflare egress.
+  - target: {kind: ConfigMap, name: companion-app-config}
+    patch: |-
+      - op: replace
+        path: /data/TRUST_PROXY
+        value: "3"
+  - path: collector-patch.yaml
+    target: {kind: Deployment, name: otel-collector}
+configMapGenerator:
+  - name: companion-collector-local-config
+    files:
+      - local.yaml=collector-local.yaml

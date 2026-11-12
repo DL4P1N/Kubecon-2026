@@ -1,0 +1,16 @@
+# The unused otlphttp/dash0 exporter is still parsed, so its variables get inert
+# literals instead of requiring a dash0-credentials Secret.
+- op: replace
+  path: /spec/template/spec/containers/0/args
+  value: ["--config=/conf/config.yaml", "--config=/tls-config/tls.yaml", "--config=/local-config/local.yaml"]
+- op: replace
+  path: /spec/template/spec/containers/0/env
+  value:
+    - {name: DASH0_OTLP_ENDPOINT, value: "http://127.0.0.1:4318"}
+    - {name: DASH0_AUTH_TOKEN, value: unused}
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value: {name: local-config, mountPath: /local-config, readOnly: true}
+- op: add
+  path: /spec/template/spec/volumes/-
+  value: {name: local-config, configMap: {name: companion-collector-local-config}}

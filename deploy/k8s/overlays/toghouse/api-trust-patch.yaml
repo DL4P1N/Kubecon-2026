@@ -1,0 +1,17 @@
+# One CA signs every transport certificate and the Elasticsearch certificate, so
+# the API trusts exactly that CA. The standalone ES CA Secret is not used.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - {name: NODE_EXTRA_CA_CERTS, value: /etc/companion-tls/ca.crt}
+          volumeMounts:
+            - {name: es-ca, mountPath: /etc/elasticsearch, $patch: delete}
+      volumes:
+        - {name: es-ca, $patch: delete}

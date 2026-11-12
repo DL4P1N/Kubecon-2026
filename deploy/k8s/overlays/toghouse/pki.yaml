@@ -1,0 +1,86 @@
+# Internal transport PKI. cert-manager renews every leaf automatically; pods read
+# the Secrets at start, so API/web/collector/ES must restart to pick up a renewal
+# (the 90-day leaf lifetime renews at day 60).
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: companion-selfsigned
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: companion-ca
+spec:
+  isCA: true
+  commonName: Conference Companion internal CA
+  secretName: companion-ca
+  duration: 87600h
+  privateKey: {algorithm: ECDSA, size: 256}
+  issuerRef: {name: companion-selfsigned, kind: Issuer}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: companion-ca
+spec:
+  ca:
+    secretName: companion-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: companion-api
+spec:
+  secretName: companion-api-tls
+  commonName: api
+  dnsNames: [api, api.conference-companion, api.conference-companion.svc, api.conference-companion.svc.cluster.local]
+  duration: 2160h
+  renewBefore: 720h
+  usages: [server auth]
+  privateKey: {algorithm: ECDSA, size: 256}
+  issuerRef: {name: companion-ca, kind: Issuer}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: companion-collector
+spec:
+  secretName: companion-collector-tls
+  commonName: otel-collector
+  dnsNames: [otel-collector, otel-collector.conference-companion, otel-collector.conference-companion.svc, otel-collector.conference-companion.svc.cluster.local]
+  duration: 2160h
+  renewBefore: 720h
+  usages: [server auth]
+  privateKey: {algorithm: ECDSA, size: 256}
+  issuerRef: {name: companion-ca, kind: Issuer}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: companion-web
+spec:
+  secretName: companion-web-tls
+  commonName: web
+  dnsNames: [web, web.conference-companion, web.conference-companion.svc, web.conference-companion.svc.cluster.local]
+  duration: 2160h
+  renewBefore: 720h
+  usages: [server auth]
+  privateKey: {algorithm: ECDSA, size: 256}
+  issuerRef: {name: companion-ca, kind: Issuer}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: elasticsearch
+spec:
+  secretName: elasticsearch-tls
+  commonName: elasticsearch
+  dnsNames: [elasticsearch, elasticsearch.conference-companion, elasticsearch.conference-companion.svc, elasticsearch.conference-companion.svc.cluster.local, localhost]
+  duration: 2160h
+  renewBefore: 720h
+  # Elasticsearch authenticates peers over transport TLS with the same leaf.
+  usages: [server auth, client auth]
+  privateKey: {algorithm: ECDSA, size: 256, encoding: PKCS8}
+  issuerRef: {name: companion-ca, kind: Issuer}
