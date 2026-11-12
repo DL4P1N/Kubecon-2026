@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { AuthProviderId, AuthCallbackResponse } from "@cc/shared";
 import type { OAuthProviderConfig } from "../config.js";
 
@@ -18,10 +18,9 @@ interface ProviderSpec {
   tokenUrl: string;
   profileUrl: string;
   scope: string;
-  pkce: boolean;
 }
 
-export const PROVIDER_IDS = ["github", "google", "linkedin"] as const satisfies readonly AuthProviderId[];
+export const PROVIDER_IDS = ["github"] as const satisfies readonly AuthProviderId[];
 
 const SPECS: Record<AuthProviderId, ProviderSpec> = {
   github: {
@@ -29,22 +28,6 @@ const SPECS: Record<AuthProviderId, ProviderSpec> = {
     tokenUrl: "https://github.com/login/oauth/access_token",
     profileUrl: "https://api.github.com/user",
     scope: "read:user",
-    pkce: false,
-  },
-  google: {
-    authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-    tokenUrl: "https://oauth2.googleapis.com/token",
-    profileUrl: "https://openidconnect.googleapis.com/v1/userinfo",
-    scope: "openid profile",
-    pkce: true,
-  },
-  linkedin: {
-    // PKCE is not offered for LinkedIn's confidential-client flow, so `state` is the CSRF guard there.
-    authorizeUrl: "https://www.linkedin.com/oauth/v2/authorization",
-    tokenUrl: "https://www.linkedin.com/oauth/v2/accessToken",
-    profileUrl: "https://api.linkedin.com/v2/userinfo",
-    scope: "openid profile",
-    pkce: false,
   },
 };
 
@@ -74,8 +57,6 @@ export interface PendingState {
   provider: AuthProviderId;
   return: string;
   app: boolean;
-  /** PKCE code verifier (Google); never leaves the server. */
-  verifier: string;
   /** Random value also set as an HttpOnly cookie at start; the callback must present it (browser binding). */
   nonce: string;
 }
@@ -112,14 +93,13 @@ export function createStateStore(opts: { ttlMs?: number; max?: number; now?: () 
     for (const [k, v] of entries) if (v.expires <= t) entries.delete(k);
   };
   return {
-    create(value: Omit<PendingState, "verifier" | "nonce">): { state: string; verifier: string; nonce: string } {
+    create(value: Omit<PendingState, "nonce">): { state: string; nonce: string } {
       sweep();
       while (entries.size >= max) entries.delete(entries.keys().next().value as string);
       const state = randomBytes(24).toString("base64url");
-      const verifier = randomBytes(32).toString("base64url");
       const nonce = randomBytes(24).toString("base64url");
-      entries.set(state, { expires: now() + ttl, value: { ...value, verifier, nonce } });
-      return { state, verifier, nonce };
+      entries.set(state, { expires: now() + ttl, value: { ...value, nonce } });
+      return { state, nonce };
     },
     /** Single use: a state is gone after the first lookup, valid or not. */
     consume(state: string, provider: AuthProviderId): PendingState | null {
@@ -134,18 +114,13 @@ export function createStateStore(opts: { ttlMs?: number; max?: number; now?: () 
   };
 }
 
-export function buildAuthorizeUrl(provider: AuthProviderId, cfg: OAuthProviderConfig, state: string, verifier: string): string {
+export function buildAuthorizeUrl(provider: AuthProviderId, cfg: OAuthProviderConfig, state: string): string {
   const spec = SPECS[provider];
   const u = new URL(spec.authorizeUrl);
   u.searchParams.set("client_id", cfg.clientId);
   u.searchParams.set("redirect_uri", cfg.redirectUri);
   u.searchParams.set("scope", spec.scope);
   u.searchParams.set("state", state);
-  if (provider !== "github") u.searchParams.set("response_type", "code");
-  if (spec.pkce) {
-    u.searchParams.set("code_challenge", createHash("sha256").update(verifier).digest("base64url"));
-    u.searchParams.set("code_challenge_method", "S256");
-  }
   return u.toString();
 }
 
@@ -188,7 +163,6 @@ export async function fetchProfile(
   provider: AuthProviderId,
   cfg: OAuthProviderConfig,
   code: string,
-  verifier: string,
   fetchFn: typeof fetch,
 ): Promise<Pick<AuthCallbackResponse, "provider" | "displayName" | "handle" | "avatarUrl"> & { subject: string }> {
   const spec = SPECS[provider];
@@ -199,8 +173,6 @@ export async function fetchProfile(
       client_secret: cfg.clientSecret,
       redirect_uri: cfg.redirectUri,
     });
-    if (provider !== "github") form.set("grant_type", "authorization_code");
-    if (spec.pkce) form.set("code_verifier", verifier);
     const tokenRes = await fetchFn(spec.tokenUrl, {
       method: "POST",
       headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
@@ -218,18 +190,11 @@ export async function fetchProfile(
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     const p = await json(profileRes);
-    if (provider === "github") {
-      const handle = str(p.login, 80);
-      const displayName = str(p.name, 80) ?? handle;
-      if (!displayName) throw new ProviderError();
-      if (typeof p.id !== "number" || !Number.isInteger(p.id) || p.id <= 0) throw new ProviderError();
-      return { provider, subject: String(p.id), displayName, ...(handle ? { handle } : {}), ...(httpsUrl(p.avatar_url) ? { avatarUrl: httpsUrl(p.avatar_url)! } : {}) };
-    }
-    const displayName = str(p.name, 80) ?? str([p.given_name, p.family_name].filter(Boolean).join(" "), 80);
+    const handle = str(p.login, 80);
+    const displayName = str(p.name, 80) ?? handle;
     if (!displayName) throw new ProviderError();
-    const subject = str(p.sub, 256);
-    if (!subject) throw new ProviderError();
-    return { provider, subject, displayName, ...(httpsUrl(p.picture) ? { avatarUrl: httpsUrl(p.picture)! } : {}) };
+    if (typeof p.id !== "number" || !Number.isInteger(p.id) || p.id <= 0) throw new ProviderError();
+    return { provider, subject: String(p.id), displayName, ...(handle ? { handle } : {}), ...(httpsUrl(p.avatar_url) ? { avatarUrl: httpsUrl(p.avatar_url)! } : {}) };
   } catch (err) {
     throw err instanceof ProviderError ? err : new ProviderError();
   }

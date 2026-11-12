@@ -2,7 +2,7 @@ import Foundation
 
 /// Optional account linking through the server's own sign-in. No client ids or secrets live in the app.
 enum AuthService {
-    static let providers = [("github", "GitHub"), ("google", "Google"), ("linkedin", "LinkedIn")]
+    static let providers = [("github", "GitHub")]
 
     private struct ProviderList: Decodable {
         struct Item: Decodable { let id: String; let enabled: Bool }

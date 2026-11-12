@@ -5,7 +5,7 @@
  */
 import { parseRetentionHours } from "./retentionPolicy.js";
 
-export type OAuthProviderId = "github" | "google" | "linkedin";
+export type OAuthProviderId = "github";
 
 /** One provider's OAuth app settings; present only when id, secret and redirect URI are all set. */
 export interface OAuthProviderConfig {
@@ -41,7 +41,7 @@ export interface Config {
   eventsShowNames: boolean;
   /** ROOM_CAPACITIES: JSON map of room name to seats. Rooms not listed have unknown capacity (never guessed). */
   roomCapacities: Record<string, number>;
-  /** {GITHUB,GOOGLE,LINKEDIN}_CLIENT_ID / _CLIENT_SECRET / _OAUTH_REDIRECT_URI; a provider missing any of the three is disabled. Secrets never leave the server. */
+  /** GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET / GITHUB_OAUTH_REDIRECT_URI; GitHub is disabled unless all three are set. Secrets never leave the server. */
   oauth: Partial<Record<OAuthProviderId, OAuthProviderConfig>>;
   /** ATTENDEE_RETENTION_HOURS: 0 or unset keeps attendee profiles indefinitely; a positive value restores timed deletion. */
   attendeeRetentionHours: number;
@@ -126,13 +126,8 @@ function positiveInt(raw: string | undefined, fallback: number, name: string): n
 }
 
 function loadOAuth(env: NodeJS.ProcessEnv): Partial<Record<OAuthProviderId, OAuthProviderConfig>> {
-  const out: Partial<Record<OAuthProviderId, OAuthProviderConfig>> = {};
-  for (const id of ["github", "google", "linkedin"] as const) {
-    const prefix = id.toUpperCase();
-    const clientId = env[`${prefix}_CLIENT_ID`]?.trim();
-    const clientSecret = env[`${prefix}_CLIENT_SECRET`]?.trim();
-    const redirectUri = env[`${prefix}_OAUTH_REDIRECT_URI`]?.trim();
-    if (clientId && clientSecret && redirectUri) out[id] = { clientId, clientSecret, redirectUri };
-  }
-  return out;
+  const clientId = env.GITHUB_CLIENT_ID?.trim();
+  const clientSecret = env.GITHUB_CLIENT_SECRET?.trim();
+  const redirectUri = env.GITHUB_OAUTH_REDIRECT_URI?.trim();
+  return clientId && clientSecret && redirectUri ? { github: { clientId, clientSecret, redirectUri } } : {};
 }

@@ -1,10 +1,9 @@
 /**
- * In-process mirror of docs/telemetry-allowlist.md and the collector's
- * `transform/allowlist` processor (deploy/k8s/otel-collector/configmap.yaml,
- * deploy/compose/otel-config.yaml). Keep all four in sync.
+ * In-process mirror of docs/telemetry-allowlist.md; keep the two in sync (and any
+ * collector you run yourself).
  *
- * The collector is the enforcement point; these constants let our own code
- * (withSpan, metrics) drop unreviewed keys before they ever leave the process.
+ * These constants let our own code (withSpan, metrics) drop unreviewed keys before
+ * they ever leave the process.
  * Never add identifiers (attendee.id), locations, tokens, or free text.
  */
 export const RESOURCE_ATTRIBUTE_ALLOWLIST = [

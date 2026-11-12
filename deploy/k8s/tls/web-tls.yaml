@@ -9,7 +9,6 @@ spec:
         - name: web
           env:
             - { name: API_UPSTREAM, value: "https://api:3000" }
-            - { name: OTLP_UPSTREAM, value: "https://otel-collector:4318" }
           startupProbe:
             httpGet:
               scheme: HTTPS

@@ -195,7 +195,7 @@ if (section) {
   }
 
   // ---------------------------------------------------------------- OAuth identity: display provider-supplied name; the server verifies the link.
-  const VIA = { github: "GitHub", google: "Google", linkedin: "LinkedIn" };
+  const VIA = { github: "GitHub" };
   const viaEl = $("[data-reg-via]");
   const via = params.get("via");
   const linkedVia = via && VIA[via] ? readLinked()[via] : null;

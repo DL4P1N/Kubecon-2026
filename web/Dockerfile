@@ -16,8 +16,8 @@ ENV NAV_ESTIMATOR=$NAV_ESTIMATOR
 RUN npm run build -w shared && npm run build -w web
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine
-# API_UPSTREAM / OTLP_UPSTREAM are substituted into the template at container start.
-ENV API_UPSTREAM=http://api:3000 OTLP_UPSTREAM=http://otel-collector:4318
+# API_UPSTREAM is substituted into the template at container start.
+ENV API_UPSTREAM=http://api:3000
 COPY web/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/web/dist /usr/share/nginx/html
 EXPOSE 8080

@@ -27,10 +27,8 @@ it("registers all four callbacks and exports only values and allowlisted templat
     expect(record).toHaveBeenCalledTimes(1);
   }
   expect(flush).toHaveBeenCalledTimes(4);
-  // This exact attribute is already permitted in both deployed collectors.
-  for (const file of ["../../deploy/compose/otel-config.yaml", "../../deploy/k8s/otel-collector/configmap.yaml"]) {
-    expect(readFileSync(new URL(file, import.meta.url), "utf8")).toContain('"http.route"');
-  }
+  // This exact attribute is already permitted by the API's in-process metric allowlist.
+  expect(readFileSync("../api/src/telemetry/allowlist.ts", "utf8")).toContain('"http.route"');
   const clsOptions = createHistogram.mock.calls.find(([name]) => name.endsWith(".cls"));
   expect(clsOptions).toBeDefined();
 });

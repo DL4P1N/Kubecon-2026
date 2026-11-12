@@ -57,14 +57,10 @@ describe("attendee journey", () => {
   });
   it("prefills the linked provider name and offers only enabled sign-in providers", async () => {
     localStorage.setItem("cc.linked.v1", JSON.stringify({ github: { displayName: "Ada Lovelace" } }));
-    vi.spyOn(api, "authProviders").mockResolvedValue({ providers: [
-      { id: "github", enabled: true }, { id: "google", enabled: false }, { id: "linkedin", enabled: true },
-    ] });
+    vi.spyOn(api, "authProviders").mockResolvedValue({ providers: [{ id: "github", enabled: true }] });
     renderRegisterForm();
     expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Ada Lovelace");
     expect((await screen.findByRole("link", { name: "Sign in with GitHub" })).getAttribute("href")).toBe("/api/auth/github/start?return=/schedule");
-    expect(screen.getByRole("link", { name: "Sign in with LinkedIn" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Sign in with Google" })).toBeNull();
     localStorage.clear();
   });
   it("explains a duplicate profile and an expired claim without ending in a generic failure", async () => {

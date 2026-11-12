@@ -20,9 +20,9 @@ export const LIMITS = Object.freeze({
   maxTags: 6,
 });
 
-export const VIA_VALUES = Object.freeze(["github", "google", "linkedin", "qr"]);
+export const VIA_VALUES = Object.freeze(["github", "qr"]);
 
-const VIA_LABELS = { github: "GitHub", google: "Google", linkedin: "LinkedIn", qr: "the QR code" };
+const VIA_LABELS = { github: "GitHub", qr: "the QR code" };
 
 // Zero-width, bidi-control and C0/C1 control characters.
 const INVISIBLE_RE = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁩﻿]/g;

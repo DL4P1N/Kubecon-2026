@@ -49,7 +49,7 @@ back and never throw into the page.
 </section>
 ```
 
-- Reads `c` (conference slug) and `via` (`github|google|linkedin|qr`, anything else = none) from the URL query.
+- Reads `c` (conference slug) and `via` (`github|qr`, anything else = none) from the URL query.
   `?c=` wins over `data-conference`; with neither it uses `cloud-native-hackathon-slc-2026`.
 - Appends `<li class="chat-msg" data-role="assistant|user"><p>text</p></li>` to `[data-chat-log]`. While a reply is
   pending there is `<li class="chat-msg" data-role="assistant" data-pending><p>…</p></li>`, which is reused (attribute

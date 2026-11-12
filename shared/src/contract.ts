@@ -362,7 +362,7 @@ export interface RoomPlacementResponse {
 // ---------------------------------------------------------------- registration chat + live demo stream
 
 export type ChatAsk = "topics" | "goal" | "confirm";
-export type ChatVia = "github" | "google" | "linkedin" | "qr";
+export type ChatVia = "github" | "qr";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -409,9 +409,9 @@ export interface RegisteredEvent {
   interests: number;
 }
 
-// ---------------------------------------------------------------- sign in with GitHub / Google / LinkedIn
+// ---------------------------------------------------------------- sign in with GitHub
 
-export type AuthProviderId = "github" | "google" | "linkedin";
+export type AuthProviderId = "github";
 
 /** GET /api/auth/providers: which sign-in buttons can work (client id, secret and redirect URI all configured). */
 export interface AuthProvidersResponse {

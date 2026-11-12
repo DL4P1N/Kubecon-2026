@@ -26,11 +26,7 @@ const caKey = join(output, "ca.key");
 run(openssl, ["req", "-x509", "-newkey", "rsa:3072", "-nodes", "-days", "7", "-sha256",
   "-subj", "/CN=Conference Companion demo transport CA", "-keyout", caKey, "-out", ca,
   "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign"]);
-// The API trusts this CA for its collector connection; the database uses its own pinned CA (DATABASE_CA_FILE).
-const bundle = join(output, "ca-bundle.crt");
-writeFileSync(bundle, readFileSync(ca));
-
-for (const [service, secret] of [["api", "companion-api-tls"], ["otel-collector", "companion-collector-tls"], ["web", "companion-web-tls"]]) {
+for (const [service, secret] of [["api", "companion-api-tls"], ["web", "companion-web-tls"]]) {
   const key = join(output, `${service}.key`);
   const csr = join(output, `${service}.csr`);
   const cert = join(output, `${service}.crt`);
@@ -43,7 +39,7 @@ for (const [service, secret] of [["api", "companion-api-tls"], ["otel-collector"
     "-days", "7", "-sha256", "-extfile", extensions]);
   run(openssl, ["verify", "-CAfile", ca, cert]);
   const manifest = run("kubectl", [...kubectlArgs, "create", "secret", "generic", secret, "--type=kubernetes.io/tls",
-    `--from-file=tls.crt=${cert}`, `--from-file=tls.key=${key}`, `--from-file=ca.crt=${ca}`, `--from-file=ca-bundle.crt=${bundle}`,
+    `--from-file=tls.crt=${cert}`, `--from-file=tls.key=${key}`, `--from-file=ca.crt=${ca}`,
     "--dry-run=client", "-o", "json"]);
   run("kubectl", [...kubectlArgs, "apply", "-f", "-"], manifest);
   console.log(`Provisioned ${secret}`);

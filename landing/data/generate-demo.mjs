@@ -134,7 +134,7 @@ const ROLES = [
 ];
 const GOALS = [['learn', 35], ['build', 25], ['meet', 25], ['hire', 15]];
 const FORMATS = [['talks', 40], ['workshops', 20], ['lightning talks', 20], ['no preference', 20]];
-const REGISTERED_VIA = [['qr', 55], ['github', 20], ['google', 15], ['linkedin', 10]];
+const REGISTERED_VIA = [['qr', 60], ['github', 40]];
 
 // Arrivals per 15-minute bucket, 08:00 to 11:30 local.
 const ARRIVAL_WEIGHTS = [8, 10, 12, 14, 18, 20, 18, 14, 10, 8, 6, 4, 3, 2];
@@ -508,7 +508,7 @@ function aggregate(attendees) {
     byReason,
   };
 
-  const byVia = { qr: 0, github: 0, google: 0, linkedin: 0 };
+  const byVia = { qr: 0, github: 0 };
   for (const a of attendees) byVia[a.registeredVia]++;
   const arrivalsPer15Min = ARRIVAL_WEIGHTS.map((_, b) => {
     const from = 8 * 60 + b * 15;

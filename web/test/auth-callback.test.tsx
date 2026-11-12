@@ -30,8 +30,8 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("/auth/:provider/callback", () => {
-  it("posts code and state, stores the linked account (merged) and goes back to the return path", async () => {
-    localStorage.setItem("cc.linked.v1", JSON.stringify({ google: { displayName: "Ada", linkedAt: "2026-01-01T00:00:00.000Z" } }));
+  it("posts code and state, replaces the linked account for this provider and goes back to the return path", async () => {
+    localStorage.setItem("cc.linked.v1", JSON.stringify({ github: { displayName: "Ada", linkedAt: "2026-01-01T00:00:00.000Z" } }));
     const fetchMock = reply(200, { provider: "github", displayName: "Grace Hopper", handle: "ghopper", avatarUrl: "https://a.example/x.png", return: "/site/profile.html", app: false, session: { token: "session-token", expiresAt: "2026-11-11T20:00:00.000Z" } });
     vi.stubGlobal("fetch", fetchMock);
     const replace = vi.spyOn(siteNavigation, "replace").mockImplementation(() => {});
@@ -41,8 +41,7 @@ describe("/auth/:provider/callback", () => {
     expect(url).toBe("/api/auth/github/callback");
     expect(JSON.parse(init.body as string)).toEqual({ code: "abc", state: "xyz" });
     const stored = JSON.parse(localStorage.getItem("cc.linked.v1")!);
-    expect(stored.google.displayName).toBe("Ada");
-    expect(stored.github).toMatchObject({ displayName: "Grace Hopper", handle: "ghopper", avatarUrl: "https://a.example/x.png" });
+        expect(stored.github).toMatchObject({ displayName: "Grace Hopper", handle: "ghopper", avatarUrl: "https://a.example/x.png" });
     expect(Number.isNaN(Date.parse(stored.github.linkedAt))).toBe(false);
   });
 
@@ -55,9 +54,9 @@ describe("/auth/:provider/callback", () => {
   });
 
   it("stores a returning attendee session token and follows the requested path", async () => {
-    vi.stubGlobal("fetch", reply(200, { provider: "google", displayName: "Ada", return: "/schedule", app: false, session: { token: "attendee-session", expiresAt: "2026-11-11T20:00:00.000Z" } }));
+    vi.stubGlobal("fetch", reply(200, { provider: "github", displayName: "Ada", return: "/schedule", app: false, session: { token: "attendee-session", expiresAt: "2026-11-11T20:00:00.000Z" } }));
     const replace = vi.spyOn(siteNavigation, "replace").mockImplementation(() => {});
-    renderAt("/auth/google/callback?code=abc&state=session");
+    renderAt("/auth/github/callback?code=abc&state=session");
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/schedule"));
     expect(sessionStorage.getItem("cc.token")).toBe("attendee-session");
   });
@@ -73,10 +72,10 @@ describe("/auth/:provider/callback", () => {
   });
 
   it("finishes in the native app when the flow began there, and keeps a fallback link", async () => {
-    vi.stubGlobal("fetch", reply(200, { provider: "google", displayName: "Ada L", return: "/site/profile.html", app: true, claim: { token: "native-claim", expiresAt: "2026-11-11T12:15:00.000Z" } }));
+    vi.stubGlobal("fetch", reply(200, { provider: "github", displayName: "Ada L", return: "/site/profile.html", app: true, claim: { token: "native-claim", expiresAt: "2026-11-11T12:15:00.000Z" } }));
     const replace = vi.spyOn(siteNavigation, "replace").mockImplementation(() => {});
-    renderAt("/auth/google/callback?code=abc&state=xyz");
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("confcompanion://linked?provider=google&name=Ada%20L"));
+    renderAt("/auth/github/callback?code=abc&state=xyz");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("confcompanion://linked?provider=github&name=Ada%20L"));
     expect(screen.getByRole("link", { name: "Back to your profile" }).getAttribute("href")).toBe("/site/profile.html");
   });
 

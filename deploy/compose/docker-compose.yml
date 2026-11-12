@@ -10,16 +10,5 @@ services:
       - pg-data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:54322:5432"
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.116.1
-    command: ["--config=/conf/config.yaml"]
-    environment:
-      DASH0_OTLP_ENDPOINT: ${DASH0_OTLP_ENDPOINT:-https://example.invalid/api/otlp}
-      DASH0_AUTH_TOKEN: ${DASH0_AUTH_TOKEN:-local-debug-only}
-    volumes:
-      - ./otel-config.yaml:/conf/config.yaml:ro
-    ports:
-      - "4317:4317"
-      - "4318:4318"
 volumes:
   pg-data: {}

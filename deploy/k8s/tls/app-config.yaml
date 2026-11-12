@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: companion-app-config
-data:
-  # Also makes standalone instrumented jobs fail closed until they mount the CA.
-  OTEL_EXPORTER_OTLP_ENDPOINT: https://otel-collector:4318

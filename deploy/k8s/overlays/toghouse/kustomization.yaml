@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# toghouse kubeadm cluster: cert-manager PKI between pods, Vault via external-secrets, and a
-# Cloudflare named tunnel as the only public path. Data lives in Supabase (DATABASE_URL), not in the cluster.
+# Environment-specific additions: internal TLS, Vault-backed secrets and a public tunnel.
+# The application connects to the configured PostgreSQL database through DATABASE_URL.
 namespace: conference-companion
 resources:
   - namespace.yaml
@@ -17,9 +17,7 @@ images:
     newName: ghcr.io/dl4p1n/conference-companion-web
     newTag: 99f440e8cb3766f992ec8032d69fdf99d01485c7
 patches:
-  - path: api-trust-patch.yaml
-    target: {kind: Deployment, name: api}
-  # Trusted hops from the API: web nginx, then cloudflared (Cloudflare appends the client address to X-Forwarded-For).
+  # This environment trusts two proxies: the web Service and its public tunnel.
   - target: {kind: ConfigMap, name: companion-app-config}
     patch: |-
       - op: replace
@@ -28,13 +26,8 @@ patches:
       - op: add
         path: /data/DATABASE_CA_FILE
         value: /etc/database/database-ca.crt
-  - path: collector-patch.yaml
-    target: {kind: Deployment, name: otel-collector}
 configMapGenerator:
-  - name: companion-collector-local-config
-    files:
-      - local.yaml=collector-local.yaml
-  # Supabase publishes its own root CA; the API connects with certificate verification on and this CA as the trust root.
+  # This environment uses a private root CA for its external PostgreSQL service.
   - name: companion-database-ca
     files:
       - database-ca.crt=supabase-ca.crt

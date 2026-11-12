@@ -15,7 +15,7 @@ struct DeepLinkTicket: Equatable {
 enum DeepLink {
     static let scheme = "confcompanion"
     static let knownHosts: Set<String> = ["ticket", "linked"]
-    static let providerIDs: [String] = ["github", "google", "linkedin"]
+    static let providerIDs: [String] = ["github"]
 
     static let nameLimit = 80
     static let roleLimit = 80
@@ -57,7 +57,7 @@ enum DeepLink {
         )
     }
 
-    /// `confcompanion://linked?provider=<github|google|linkedin>&name=<display name>`. nil for any other provider or host.
+    /// `confcompanion://linked?provider=github&name=<display name>`. nil for any other provider or host.
     static func parseLinked(_ url: URL, now: Date = .now) -> LinkedAccount? {
         guard let items = queryItems(url, host: "linked") else { return nil }
         let provider = value("provider", in: items, limit: 20).lowercased()
