@@ -9,7 +9,7 @@ const talk = { id: "mobile-demo", title: "Synthetic mobile layout: Kubernetes se
   abstract: "Synthetic fixture for a viewport test.", room: "Demo Room A", track: "Security",
   start: "2026-11-09T20:00:00Z", end: "2026-11-09T20:30:00Z", tags: ["kubernetes"] };
 const status = { status: "ok", generatedAt: new Date().toISOString(), windowSeconds: 300,
-  api: { up: true, version: "demo" }, elasticsearch: { reachable: true },
+  api: { up: true, version: "demo" }, database: { reachable: true },
   search: { keyword: { samples: 5, p95Ms: 25 }, hybrid: { state: "ready", samples: 5, p95Ms: 120 } },
   errorRate: { requests: 20, serverErrors: 0, ratio: 0 } };
 
