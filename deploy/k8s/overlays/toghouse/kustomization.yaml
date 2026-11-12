@@ -22,12 +22,12 @@ patches:
     target: {kind: StatefulSet, name: elasticsearch}
   - path: api-trust-patch.yaml
     target: {kind: Deployment, name: api}
-  # Hops from the API: web nginx, cloudflared, the Vercel->Cloudflare egress.
+  # Trusted hops from the API: web nginx, then cloudflared (Cloudflare appends the client address to X-Forwarded-For).
   - target: {kind: ConfigMap, name: companion-app-config}
     patch: |-
       - op: replace
         path: /data/TRUST_PROXY
-        value: "3"
+        value: "2"
   - path: collector-patch.yaml
     target: {kind: Deployment, name: otel-collector}
 configMapGenerator:

@@ -32,7 +32,7 @@ npm run dev:web                                                                 
 
 (`npm run dev:api` does not load `.env`; use the line above, or export the variables first.)
 
-The redirect URIs must point at `/auth/<provider>/callback` on the site's origin. For the current production alias they are `https://conference-companion-ecan4.vercel.app/auth/<provider>/callback`; register the same value in each provider app and set it as that provider's `*_OAUTH_REDIRECT_URI`. Provider-app creation is a manual operator task. Google consent must be External/In production for any Google account to sign in; LinkedIn must enable Sign In with LinkedIn using OpenID Connect.
+The redirect URIs must point at `/auth/<provider>/callback` on the site's origin. For the toghouse deployment the origin is `https://conference-companion.ecan.pro` (served directly through the Cloudflare tunnel, no Vercel proxy), so the callbacks are `https://conference-companion.ecan.pro/auth/<provider>/callback`; register the same value in each provider app and set it as that provider's `*_OAUTH_REDIRECT_URI`. Provider-app creation is a manual operator task. Google consent must be External/In production for any Google account to sign in; LinkedIn must enable Sign In with LinkedIn using OpenID Connect.
 
 ## Hosting the sign-in backend elsewhere
 
