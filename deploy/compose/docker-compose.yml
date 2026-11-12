@@ -1,26 +1,15 @@
+# Local development database: Postgres 17 with pgvector. Matches Supabase's engine and the
+# schema api/src/db/schema.ts creates (run `npm run db:init -w api`, then `npm run seed -w api`).
+#   DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres
 services:
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.6
+  postgres:
+    image: pgvector/pgvector:pg17
     environment:
-      discovery.type: single-node
-      xpack.ml.max_machine_memory_percent: "50"
-      xpack.security.enabled: "true"
-      xpack.security.http.ssl.enabled: "true"
-      xpack.security.http.ssl.key: certs/tls.key
-      xpack.security.http.ssl.certificate: certs/tls.crt
-      xpack.security.transport.ssl.enabled: "true"
-      xpack.security.transport.ssl.key: certs/tls.key
-      xpack.security.transport.ssl.certificate: certs/tls.crt
-      xpack.security.transport.ssl.certificate_authorities: certs/tls.crt
-      xpack.security.transport.ssl.verification_mode: certificate
-      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?Set an admin bootstrap password}
-      ES_JAVA_OPTS: -Xms1g -Xmx1g
-    mem_limit: 4g
+      POSTGRES_PASSWORD: postgres
     volumes:
-      - es-data:/usr/share/elasticsearch/data
-      - es-certs:/usr/share/elasticsearch/config/certs:ro
+      - pg-data:/var/lib/postgresql/data
     ports:
-      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:54322:5432"
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.116.1
     command: ["--config=/conf/config.yaml"]
@@ -33,6 +22,4 @@ services:
       - "4317:4317"
       - "4318:4318"
 volumes:
-  es-data: {}
-  es-certs:
-    name: companion-es-certs
+  pg-data: {}

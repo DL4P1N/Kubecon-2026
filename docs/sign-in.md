@@ -5,7 +5,7 @@ Visitors can use a GitHub, Google or LinkedIn account to access the same attende
 ## What is stored where
 
 - **Browser:** provider display information in `localStorage` key `cc.linked.v1`: `{ "<provider>": { "displayName", "handle", "avatarUrl", "linkedAt" } }`. The attendee session token is held in `sessionStorage` as `cc.token`; new-account claims use `cc.identity-claim` temporarily and are cleared after registration.
-- **Elasticsearch:** the `identities` index maps an HMAC-SHA256 of `<provider>:<provider subject>` to `attendee_id`, with `created_at` and `expires_at`. Raw provider subjects and email are never stored. `DELETE /api/me` removes identity links; the retention job deletes expired identity records with the attendee data.
+- **Database:** the `identities` table maps an HMAC-SHA256 of `<provider>:<provider subject>` to `attendee_id`, with `created_at` and `expires_at`. Raw provider subjects and email are never stored. `DELETE /api/me` removes identity links; the retention job deletes expired identity rows with the attendee data.
 - **API memory:** a random one-time `state` (plus the validated return path and, for Google, a PKCE verifier) for 10 minutes, capped at 2000 entries. Provider access tokens are used once to read the profile and then dropped. Codes, tokens, identity subjects, and profile fields are never logged or put on spans.
 - **Secrets:** client secrets and `IDENTITY_HASH_KEY` stay in the API environment/Secret. `IDENTITY_HASH_KEY` must contain at least 32 characters whenever an OAuth provider is configured.
 

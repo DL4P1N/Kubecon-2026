@@ -1,12 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { routes, type ServiceState, type StatusResponse } from "@cc/shared";
-import type { EsClient } from "../es/client.js";
-import { TALKS_INDEX } from "../search/queries.js";
+import type { Db } from "../db/client.js";
+import { runQuery } from "../search/errors.js";
 import { WINDOW_SECONDS, type StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
 import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor, type RouteLimit } from "../http/rateLimit.js";
 
-/** Responses are cached this long so a busy status page cannot load Elasticsearch. */
+/** Responses are cached this long so a busy status page cannot load the database. */
 export const STATUS_CACHE_MS = 10_000;
 const PROBE_TIMEOUT_MS = 3_000;
 /** Degraded when this share of recent responses were 5xx, once there are enough of them. */
@@ -14,7 +14,7 @@ export const ERROR_RATE_THRESHOLD = 0.05;
 export const ERROR_RATE_MIN_REQUESTS = 20;
 
 export interface StatusRouteDeps {
-  es: EsClient;
+  db: Db;
   tracker: StatusTracker;
   version: string;
   now?: () => number;
@@ -22,11 +22,11 @@ export interface StatusRouteDeps {
   rateLimit?: RouteLimit;
 }
 
-async function esReachable(es: EsClient): Promise<boolean> {
+async function dbReachable(db: Db): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined;
   try {
-    // A count on the talks index needs only the read access the search path already has.
-    const probe = es.request("GET", `/${TALKS_INDEX}/_count`);
+    // A count on the talks table needs only the read access the search path already has.
+    const probe = runQuery(db, "select count(*) from talks");
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error("timeout")), PROBE_TIMEOUT_MS);
     });
@@ -53,7 +53,7 @@ function addStatusRoute(app: FastifyInstance, deps: StatusRouteDeps): void {
   let inflight: Promise<StatusResponse> | undefined;
 
   async function compute(): Promise<StatusResponse> {
-    const reachable = await esReachable(deps.es);
+    const reachable = await dbReachable(deps.db);
     const hybridState = deps.tracker.hybridState();
     const errorRate = deps.tracker.errorRate();
     let status: ServiceState = "ok";

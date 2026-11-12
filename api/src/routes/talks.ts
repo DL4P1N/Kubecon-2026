@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { ALTERNATIVES_PATH, RELATED_PATH, TALK_PATH } from "@cc/shared";
-import { EsError, isEsOverload, type EsClient } from "../es/client.js";
+import { isDbUnavailable, type Db } from "../db/client.js";
+import { sendDbError } from "../search/errors.js";
 import {
   DEFAULT_ALTERNATIVES,
   DEFAULT_RELATED,
@@ -10,7 +11,6 @@ import {
   findTalk,
 } from "../talks/alternatives.js";
 import { applyRateLimit, sendIfRateLimited } from "../http/rateLimit.js";
-import { RETRY_AFTER_SECONDS } from "./search.js";
 import type { StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
 
@@ -21,7 +21,7 @@ const MAX_CACHE_ENTRIES = 500;
 const TALK_ID = /^[A-Za-z0-9._:-]{1,100}$/;
 
 export interface TalkRouteOptions {
-  es: EsClient;
+  db: Db;
   /** Per client IP per minute. Default 60. */
   rateLimitPerMinute?: number;
   now?: () => number;
@@ -44,12 +44,7 @@ export const talkRoutes: FastifyPluginAsync<TalkRouteOptions> = async (app, opts
 
   app.setErrorHandler((err: Error, req, reply) => {
     if (sendIfRateLimited(err, reply)) return reply;
-    if (err instanceof EsError) {
-      // Error type and status only; ES bodies can contain query text.
-      req.log.warn({ "error.type": err.errorType, "http.route": req.routeOptions?.url }, `elasticsearch request failed with status ${err.status}`);
-      if (isEsOverload(err)) return reply.code(503).header("Retry-After", String(RETRY_AFTER_SECONDS)).send({ error: "search_overloaded" });
-      return reply.code(502).send({ error: "search_unavailable" });
-    }
+    if (sendDbError(err, req, reply)) return reply;
     const status = (err as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) return reply.code(status).send({ error: status === 429 ? "rate_limited" : "invalid_request" });
     return reply.code(500).send({ error: "internal_error" });
@@ -64,7 +59,7 @@ export const talkRoutes: FastifyPluginAsync<TalkRouteOptions> = async (app, opts
       if (out !== undefined) opts.tracker?.recordSearch("hybrid", performance.now() - start, "ok");
       return out;
     } catch (err) {
-      opts.tracker?.recordSearch("hybrid", performance.now() - start, err instanceof EsError && isEsOverload(err) ? "overloaded" : "error");
+      opts.tracker?.recordSearch("hybrid", performance.now() - start, isDbUnavailable(err) ? "overloaded" : "error");
       throw err;
     }
   }
@@ -112,7 +107,7 @@ export const talkRoutes: FastifyPluginAsync<TalkRouteOptions> = async (app, opts
     const { id } = req.params;
     if (!TALK_ID.test(id)) return badRequest(reply, MAX_ALTERNATIVES);
     return serve("talks.detail", TALK_PATH, `detail|${id}`, reply, async () => {
-      const talk = await findTalk(opts.es, id);
+      const talk = await findTalk(opts.db, id);
       return talk ? { talk } : undefined;
     }, () => undefined);
   });
@@ -121,13 +116,13 @@ export const talkRoutes: FastifyPluginAsync<TalkRouteOptions> = async (app, opts
     const { id } = req.params;
     const size = parseSize(req.query.size, DEFAULT_ALTERNATIVES, MAX_ALTERNATIVES);
     if (!TALK_ID.test(id) || size === undefined) return badRequest(reply, MAX_ALTERNATIVES);
-    return serve("talks.alternatives", ALTERNATIVES_PATH, `alt|${id}|${size}`, reply, () => observed(() => findAlternatives(opts.es, id, size)), (v) => v.alternatives.length);
+    return serve("talks.alternatives", ALTERNATIVES_PATH, `alt|${id}|${size}`, reply, () => observed(() => findAlternatives(opts.db, id, size)), (v) => v.alternatives.length);
   });
 
   app.get<{ Params: { id: string }; Querystring: { size?: string } }>(RELATED_PATH, { config: rateLimitConfig }, async (req, reply) => {
     const { id } = req.params;
     const size = parseSize(req.query.size, DEFAULT_RELATED, MAX_ALTERNATIVES);
     if (!TALK_ID.test(id) || size === undefined) return badRequest(reply, MAX_ALTERNATIVES);
-    return serve("talks.related", RELATED_PATH, `rel|${id}|${size}`, reply, () => observed(() => findRelated(opts.es, id, size)), (v) => v.related.length);
+    return serve("talks.related", RELATED_PATH, `rel|${id}|${size}`, reply, () => observed(() => findRelated(opts.db, id, size)), (v) => v.related.length);
   });
 };

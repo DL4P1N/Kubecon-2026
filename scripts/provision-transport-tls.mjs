@@ -26,10 +26,9 @@ const caKey = join(output, "ca.key");
 run(openssl, ["req", "-x509", "-newkey", "rsa:3072", "-nodes", "-days", "7", "-sha256",
   "-subj", "/CN=Conference Companion demo transport CA", "-keyout", caKey, "-out", ca,
   "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign"]);
-const es = JSON.parse(run("kubectl", [...kubectlArgs, "get", "secret", "elasticsearch-http-ca", "-o", "json"]));
-if (!es.data?.["ca.crt"]) throw new Error("ES CA Secret must contain ca.crt");
+// The API trusts this CA for its collector connection; the database uses its own pinned CA (DATABASE_CA_FILE).
 const bundle = join(output, "ca-bundle.crt");
-writeFileSync(bundle, Buffer.concat([readFileSync(ca), Buffer.from("\n"), Buffer.from(es.data["ca.crt"], "base64")]));
+writeFileSync(bundle, readFileSync(ca));
 
 for (const [service, secret] of [["api", "companion-api-tls"], ["otel-collector", "companion-collector-tls"], ["web", "companion-web-tls"]]) {
   const key = join(output, `${service}.key`);

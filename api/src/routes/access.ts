@@ -2,12 +2,11 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { routes, type AccessTokenResponse, type ScanResponse } from "@cc/shared";
 import { requireAttendee, TokenError, type TokenService } from "../auth/token.js";
-import type { EsClient } from "../es/client.js";
-import { TALKS_INDEX } from "../search/queries.js";
+import type { Db } from "../db/client.js";
 import { recordAccessScan } from "../telemetry/metrics.js";
 import { withSpan } from "../telemetry/span.js";
 import { applyRateLimit } from "../http/rateLimit.js";
-import { ALL_ROOMS, type AttendeeDoc, type EntitlementDoc } from "./register.js";
+import { ALL_ROOMS } from "./register.js";
 import type { RoomActivityCounter } from "../rooms/activity.js";
 
 /**
@@ -19,16 +18,16 @@ import type { RoomActivityCounter } from "../rooms/activity.js";
  * Design doc section 6:
  * - The QR token carries the attendee ID only and has audience "access", so a
  *   session token cannot be scanned and a QR token cannot call the API.
- * - Every scan reads the `entitlements` doc from Elasticsearch (no cache), so
- *   revocation is just editing that doc. Any failure to decide denies.
+ * - Every scan reads the `entitlements` row from Postgres (no cache), so
+ *   revocation is just editing that row. Any failure to decide denies.
  * - Spans carry only `access.decision` and `room.id` (docs/telemetry-allowlist.md).
  *   The attendee ID is never logged, put on a span, or returned by the scan.
- *   ES error messages contain the doc path (and so the ID); they are dropped.
+ *   Database errors can carry row values (and so the ID); they are dropped.
  */
 
 export const ACCESS_AUDIENCE = "access";
 export const ACCESS_TOKEN_TTL_SECONDS = 60;
-/** Room IDs are the talks index `room` strings (e.g. "Salt Palace | Level 1 | Hall DE"). */
+/** Room IDs are the talks index `room` values (e.g. "Salt Palace | Level 1 | Hall DE"). */
 export const MAX_ROOM_LENGTH = 200;
 /** A signed JWT carrying a UUID is ~250 bytes; anything much larger is not ours. */
 export const MAX_SCAN_TOKEN_LENGTH = 1024;
@@ -50,7 +49,7 @@ export const scanBodySchema = z.object({
 
 export interface AccessRoutesOptions {
   roomActivity?: RoomActivityCounter;
-  es: EsClient;
+  db: Db;
   tokens: TokenService;
   /** Per client IP per minute. Kiosks share a venue IP, so this is generous. Default 600. */
   scanRateLimitPerMinute?: number;
@@ -61,14 +60,14 @@ export interface AccessRoutesOptions {
 
 /** Fail closed: a missing or unparseable expiry (docs are hand-edited) is treated as expired. */
 function isActive(expiresAt: unknown, nowMs: number): boolean {
-  const exp = typeof expiresAt === "string" ? Date.parse(expiresAt) : NaN;
+  const exp = expiresAt instanceof Date ? expiresAt.getTime() : typeof expiresAt === "string" ? Date.parse(expiresAt) : NaN;
   return Number.isFinite(exp) && exp > nowMs;
 }
 
 const deny = (room: string, reason: string): ScanResponse => ({ decision: "deny", room, reason });
 
 export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app, opts) => {
-  const { es, tokens } = opts;
+  const { db, tokens } = opts;
   const now = opts.now ?? Date.now;
 
   // Scoped to this plugin; only routes that opt in via config.rateLimit are limited.
@@ -82,24 +81,18 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
         const id = await requireAttendee(tokens, req, reply);
         if (id === null) return reply;
 
-        let doc: { found?: boolean; _source?: Pick<AttendeeDoc, "consent" | "expires_at"> } | undefined;
+        let src: { consent_qr_checkin: boolean; expires_at: Date | string } | undefined;
         try {
-          const r = await es.request<typeof doc>(
-            "GET",
-            `/attendees/_doc/${encodeURIComponent(id)}?_source_includes=consent,expires_at`,
-            undefined,
-            [404],
-          );
-          doc = r.body;
+          const r = await db.query<NonNullable<typeof src>>("select consent_qr_checkin, expires_at from attendees where id = $1", [id]);
+          src = r.rows[0];
         } catch {
           return reply.code(503).send({ error: "storage_unavailable", message: "could not check consent" });
         }
-        const src = doc?.found ? doc._source : undefined;
         if (!src || !isActive(src.expires_at, now())) {
           return reply.code(401).send({ error: "unauthorized", message: "attendee not found" });
         }
-        // Absent counts as consenting (registration defaults to true); only a stored false refuses.
-        if (src.consent?.qr_checkin === false) {
+        // Registration defaults to true; only a stored false refuses.
+        if (src.consent_qr_checkin === false) {
           return reply.code(403).send({ error: "forbidden", message: "QR check-in was not opted in" });
         }
         const signed = await tokens.sign(id, { audience: ACCESS_AUDIENCE, ttlSeconds: ACCESS_TOKEN_TTL_SECONDS });
@@ -150,29 +143,25 @@ export const accessRoutes: FastifyPluginAsync<AccessRoutesOptions> = async (app,
 
         try {
           // Unknown rooms are rejected, never allowed by a "*" entitlement.
-          const known = await es.request<{ count?: number }>("POST", `/${TALKS_INDEX}/_count`, {
-            query: { term: { room } },
-          });
-          if (!known.body.count) {
+          const known = await db.query("select 1 from talks where room = $1 limit 1", [room]);
+          if (known.rows.length === 0) {
             decide("deny");
             return reply.code(400).send({ error: "invalid_request", message: "room: unknown room" });
           }
           knownRoom = room;
           span.setAttribute("room.id", room);
 
-          const r = await es.request<{ found?: boolean; _source?: EntitlementDoc }>(
-            "GET",
-            `/entitlements/_doc/${encodeURIComponent(attendeeId)}`,
-            undefined,
-            [404],
+          const r = await db.query<{ rooms: string[]; expires_at: Date | string }>(
+            "select rooms, expires_at from entitlements where attendee_id = $1",
+            [attendeeId],
           );
-          const ent = r.body?.found ? r.body._source : undefined;
+          const ent = r.rows[0];
           if (!ent || !isActive(ent.expires_at, now())) return finish(200, deny(room, "no_entitlement"));
           const rooms = Array.isArray(ent.rooms) ? ent.rooms : [];
           if (!rooms.includes(room) && !rooms.includes(ALL_ROOMS)) return finish(200, deny(room, "not_entitled"));
           return finish(200, { decision: "allow", room });
         } catch {
-          // Fail closed. ES errors are not logged or returned: they contain the doc path.
+          // Fail closed. Database errors are not logged or returned: they can carry row values.
           decide("deny");
           return reply.code(503).send({ error: "storage_unavailable", message: "could not check access" });
         }

@@ -6,11 +6,11 @@ of at least 5.
 
 ## How it works
 
-1. `npm run clusters` (the API image runs `node dist/clusters/cli.js`) scrolls
-   through `attendees` for unexpired records (every registered attendee whose stored `consent.cluster_map` is not false) that have an
+1. `npm run clusters` (the API image runs `node dist/clusters/cli.js`) pages
+   through `attendees` for unexpired records (every registered attendee with `consent_cluster_map` set) that have an
    `interest_vector`. Only vectors and interest tags are read, never IDs or names.
-2. **k-means runs in the Node job process.** Elasticsearch stores the input
-   vectors and the output documents; it does not run the clustering.
+2. **k-means runs in the Node job process.** Postgres stores the input
+   vectors and the output rows; it does not run the clustering.
    k is chosen by population: `round(sqrt(n/2))`, capped at 8 and at `n/5`.
    Seeding is k-means++ with a fixed seed and 5 restarts, so a run is reproducible.
 3. Any cluster with fewer than 5 members is pooled into "Other". "Other" is
@@ -43,7 +43,7 @@ public. This cluster view is the grouped, organizer-keyed one.
 ## Demo
 
 ```
-npm run es:init          # indices, if not yet created
+npm run db:init          # schema, if not yet created
 npm run clusters:seed    # 40 synthetic attendees (ids demo-NN, always 24h expiry)
 npm run clusters         # writes a run
 ```
@@ -59,12 +59,12 @@ The `clusters.run` span carries four counts: `clusters.attendees`, `clusters.k`,
 attendee IDs, locations, interests or labels. The CLI (`api/src/clusters/cli.ts`) starts the
 OpenTelemetry SDK as `companion-clusters` (when `OTEL_EXPORTER_OTLP_ENDPOINT` is set) before the
 job runs and flushes it on exit, so the CronJob's span is exported; on failure it prints only the
-error class or Elasticsearch error type, never an error body.
+error class or SQLSTATE code, never an error body.
 
 ## Deployment
 
 `deploy/k8s/app/clusters-cronjob.yaml` runs the job every 15 minutes, using the
-same ConfigMap, Secret and ES CA as the retention CronJob. Add `ORGANIZER_KEY`
+same ConfigMap, Secret and database CA as the retention CronJob. Add `ORGANIZER_KEY`
 to `companion-app-secrets` for the API. Live Kubernetes execution has not been
 validated yet.
 

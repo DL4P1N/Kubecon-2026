@@ -1,159 +1,194 @@
 import { describe, expect, it } from "vitest";
+import { vectorLiteral } from "../src/db/client.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
 import {
   DEFAULT_TUNING,
-  KEYWORD_FIELDS,
-  SEMANTIC_FIELD,
-  buildHybridBody,
-  buildKeywordBody,
-  eligibilityClauses,
+  buildHybridPlan,
+  buildKeywordPlan,
+  dayBounds,
   expandQueryText,
-  filterClauses,
+  fuzzyTerms,
   levelsFor,
   onboardingFilters,
   onboardingText,
+  type SearchFilters,
+  type SearchTuning,
 } from "../src/search/queries.js";
+import { C, CATALOG, D, mk, seededDb } from "./search-fixtures.js";
 
-type Obj = Record<string, any>;
+const embedder = new LocalHashEmbedder();
 
-describe("buildKeywordBody", () => {
-  it("is a BM25 multi_match over title, tags and abstract", () => {
-    const body = buildKeywordBody("kubernetes networking", 7) as Obj;
-    expect(body.size).toBe(7);
-    const mm = body.query.bool.must[0].multi_match;
-    expect(mm.query).toBe("kubernetes networking");
-    expect(mm.fields).toEqual([...KEYWORD_FIELDS]);
-    expect(body.query.bool.filter).toEqual([]);
-    expect(body.retriever).toBeUndefined();
+async function run(db: Awaited<ReturnType<typeof seededDb>>, plan: { hits: { text: string; params: unknown[] } }) {
+  return (await db.query<{ id: string; score: number; in_keyword: boolean; in_semantic: boolean }>(plan.hits.text, plan.hits.params)).rows;
+}
+const hybrid = async (db: Awaited<ReturnType<typeof seededDb>>, text: string, size = 10, f: SearchFilters = {}, t: SearchTuning = DEFAULT_TUNING) =>
+  run(db, buildHybridPlan(text, vectorLiteral(await embedder.embed(text, "query")), size, f, t));
+const keyword = (db: Awaited<ReturnType<typeof seededDb>>, text: string, size = 10, f: SearchFilters = {}, t: SearchTuning = DEFAULT_TUNING) =>
+  run(db, buildKeywordPlan(text, size, f, t));
+
+describe("keyword plan", () => {
+  it("matches any term (like the old OR multi_match) and ranks talks matching more terms first", async () => {
+    const db = await seededDb();
+    const rows = await keyword(db, "supply chain kubernetes");
+    const ids = rows.map((r) => r.id);
+    expect(ids.slice(0, 2).sort()).toEqual(["a", "b"]); // supply + chain in the title
+    expect(ids).toContain("c"); // kubernetes only
+    expect(ids).not.toContain("d");
+    expect(rows.every((r) => r.in_keyword && !r.in_semantic)).toBe(true);
   });
 
-  it("applies level and time filters", () => {
-    const body = buildKeywordBody("x", 5, { levels: ["beginner"], from: "2026-11-10T09:00:00Z", to: "2026-11-10T17:00:00Z" }) as Obj;
-    expect(body.query.bool.filter).toEqual([
-      { terms: { level: ["beginner"] } },
-      { range: { start: { gte: "2026-11-10T09:00:00Z" } } },
-      { range: { end: { lte: "2026-11-10T17:00:00Z" } } },
+  it('"all" requires every term (websearch AND semantics)', async () => {
+    const db = await seededDb();
+    const rows = await keyword(db, "supply kubernetes", 10, {}, { ...DEFAULT_TUNING, keywordMatch: "all", fuzzyThreshold: undefined });
+    expect(rows).toEqual([]);
+  });
+
+  it("weights title above abstract", async () => {
+    const db = await seededDb([
+      mk("t", 9, 10, { title: "Observability pipelines", abstract: "plain" }),
+      mk("ab", 9, 10, { title: "Plain talk", abstract: "all about observability" }),
     ]);
+    expect((await keyword(db, "observability")).map((r) => r.id)).toEqual(["t", "ab"]);
+  });
+
+  it("applies level, time, track and track-exclusion filters", async () => {
+    const db = await seededDb();
+    const ids = async (f: SearchFilters, t = DEFAULT_TUNING) => (await keyword(db, "kubernetes security observability", 10, f, t)).map((r) => r.id).sort();
+    expect(await ids({ levels: ["advanced"] })).toEqual(["d"]);
+    expect(await ids({ tracks: ["Platform", "Observability"] })).toEqual(["c", "d"]);
+    expect(await ids({ from: C.start, to: C.end })).toEqual(["c", "e"]);
+    expect(await ids({ from: C.start })).toEqual(["c", "d", "e"]);
+    expect(await ids({}, { ...DEFAULT_TUNING, excludeTracks: ["Contribfest"] })).not.toContain("e");
+  });
+
+  it("filters by local conference day (UTC-7), not UTC day", async () => {
+    const db = await seededDb([
+      mk("late", 0, 1, { title: "kubernetes late", start: "2026-11-11T05:00:00Z", end: "2026-11-11T06:00:00Z" }), // Nov 10 22:00 local
+      mk("next", 0, 1, { title: "kubernetes next", start: "2026-11-11T07:30:00Z", end: "2026-11-11T08:30:00Z" }), // Nov 11 00:30 local
+      mk("early", 0, 1, { title: "kubernetes early", start: "2026-11-10T06:59:00Z", end: "2026-11-10T08:00:00Z" }), // Nov 9 23:59 local
+    ]);
+    const day = async (d: string) => (await keyword(db, "kubernetes", 10, { day: d })).map((r) => r.id);
+    expect(await day("2026-11-10")).toEqual(["late"]);
+    expect(await day("2026-11-11")).toEqual(["next"]);
+    expect(await day("2026-11-09")).toEqual(["early"]);
+    expect(dayBounds("2026-11-10")).toEqual({ start: "2026-11-10T07:00:00.000Z", end: "2026-11-11T07:00:00.000Z" });
+  });
+
+  it("caps the page at size", async () => {
+    const db = await seededDb();
+    expect(await keyword(db, "kubernetes security observability", 2)).toHaveLength(2);
+  });
+
+  it("is parameterised: the SQL never contains the query text, only placeholders", () => {
+    const plan = buildKeywordPlan("zebra-secret'; drop table talks; --", 5, { tracks: ["Sec'urity"], day: "2026-11-10" });
+    expect(plan.hits.text).not.toMatch(/zebra|drop table|Sec'urity|2026/);
+    expect(plan.hits.text).toContain("$1");
+    expect(plan.hits.params[0]).toEqual(expect.stringContaining("zebra-secret'; drop table talks; --"));
+    const referenced = new Set([...plan.hits.text.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+    expect([...referenced].sort((a, b) => a - b)).toEqual(plan.hits.params.map((_, i) => i + 1));
   });
 });
 
-describe("buildHybridBody", () => {
-  it("fuses a BM25 leg and a semantic leg on content_semantic with RRF", () => {
-    const body = buildHybridBody("keep my software safe", 10) as Obj;
-    expect(body.query).toBeUndefined();
-    const rrf = body.retriever.rrf;
-    expect(rrf.retrievers).toHaveLength(2);
-    const [kw, sem] = rrf.retrievers;
-    expect(kw.standard._name).toBe("keyword");
-    expect(kw.standard.query.bool.must[0].multi_match.query).toBe("keep my software safe");
-    expect(sem.standard._name).toBe("semantic");
-    expect(sem.standard.query.bool.must[0]).toEqual({
-      semantic: { field: SEMANTIC_FIELD, query: "keep my software safe" },
-    });
-    expect(rrf.rank_window_size).toBeGreaterThanOrEqual(10);
+describe("hybrid plan", () => {
+  it("fuses both legs with RRF and marks which legs matched", async () => {
+    const db = await seededDb();
+    const rows = await hybrid(db, "supply chain builds");
+    expect(rows.slice(0, 2).map((r) => r.id).sort()).toEqual(["a", "b"]);
+    expect(rows[0]).toMatchObject({ in_keyword: true, in_semantic: true });
+    const d = rows.find((r) => r.id === "d")!;
+    expect(d).toMatchObject({ in_keyword: false, in_semantic: true });
+    // RRF score of a talk ranked first in both legs: 2 / (60 + 1).
+    const both = rows.find((r) => r.in_keyword && r.in_semantic)!;
+    expect(Number(both.score)).toBeLessThanOrEqual(2 / 61 + 1e-9);
+    expect(Number(rows[0]!.score)).toBeGreaterThanOrEqual(Number(rows[1]!.score));
   });
 
-  it("uses no client-side vectors", () => {
-    expect(JSON.stringify(buildHybridBody("x", 5))).not.toMatch(/query_vector|knn/);
+  it("passes the rank constant and window from the tuning", async () => {
+    const db = await seededDb();
+    const k20 = await hybrid(db, "supply chain builds", 10, {}, { ...DEFAULT_TUNING, rankConstant: 20 });
+    expect(Number(k20[0]!.score)).toBeGreaterThan(2 / 61);
+    expect(Number(k20[0]!.score)).toBeLessThanOrEqual(2 / 21 + 1e-9);
+    const narrow = await hybrid(db, "supply chain builds", 1, {}, { ...DEFAULT_TUNING, rankWindowSize: 2 });
+    expect(narrow).toHaveLength(1);
+    const windowed = await run(db, buildHybridPlan("supply chain builds", vectorLiteral(await embedder.embed("x", "query")), 1, {}, { ...DEFAULT_TUNING, rankWindowSize: 1 }));
+    expect(windowed).toHaveLength(1);
   });
 
-  it("repeats filters on both legs", () => {
-    const body = buildHybridBody("x", 5, { levels: ["beginner", "intermediate"], from: "2026-11-10T09:00:00Z" }) as Obj;
-    const expected = [
-      { terms: { level: ["beginner", "intermediate"] } },
-      { range: { start: { gte: "2026-11-10T09:00:00Z" } } },
-    ];
-    for (const leg of body.retriever.rrf.retrievers) expect(leg.standard.query.bool.filter).toEqual(expected);
+  it("limits each leg to the rank window (widened to size)", async () => {
+    const db = await seededDb();
+    const rows = await hybrid(db, "kubernetes", 10, {}, { ...DEFAULT_TUNING, rankWindowSize: 2 });
+    // window = max(2, size 10): every talk reachable through the semantic leg
+    expect(rows).toHaveLength(CATALOG.length);
+    const small = await hybrid(db, "kubernetes", 1, {}, { ...DEFAULT_TUNING, rankWindowSize: 2 });
+    expect(small).toHaveLength(1);
   });
 
-  it("widens the rank window for large page sizes", () => {
-    const body = buildHybridBody("x", 200) as Obj;
-    expect(body.retriever.rrf.rank_window_size).toBe(200);
+  it("supports min-max linear fusion with a semantic weight", async () => {
+    const db = await seededDb();
+    const linear = { ...DEFAULT_TUNING, fusion: "linear" as const };
+    const w1 = await hybrid(db, "supply chain builds", 10, {}, linear);
+    const w2 = await hybrid(db, "supply chain builds", 10, {}, { ...linear, semanticWeight: 2 });
+    // Best of both legs normalises to 1 each: top score is 1 + weight when one talk leads both legs.
+    expect(Number(w1[0]!.score)).toBeCloseTo(2, 5);
+    expect(Number(w2[0]!.score)).toBeCloseTo(3, 5);
+    expect(w1.slice(0, 2).map((r) => r.id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("repeats the filters on both legs", async () => {
+    const db = await seededDb();
+    const f = async (filters: SearchFilters, t = DEFAULT_TUNING) => (await hybrid(db, "kubernetes security", 10, filters, t)).map((r) => r.id).sort();
+    expect(await f({ levels: ["beginner"] })).toEqual(["a", "b", "e"]);
+    expect(await f({ tracks: ["Observability"] })).toEqual(["d"]);
+    expect(await f({}, { ...DEFAULT_TUNING, excludeTracks: ["Contribfest"] })).toEqual(["a", "b", "c", "d"]);
+    expect(await f({ from: D.start })).toEqual(["d"]);
+  });
+
+  it("all params are referenced and the statement holds no user text", async () => {
+    const q = "zebra-secret";
+    const plan = buildHybridPlan(q, vectorLiteral(await embedder.embed(q, "query")), 5, { levels: ["beginner"] });
+    expect(plan.hits.text).not.toContain(q);
+    const referenced = new Set([...plan.hits.text.matchAll(/\$(\d+)/g)].map((m) => Number(m[1])));
+    expect([...referenced].sort((a, b) => a - b)).toEqual(plan.hits.params.map((_, i) => i + 1));
   });
 });
 
 describe("attendee-vocabulary expansion (#52)", () => {
   const pagerQuery = "my pager keeps going off at night";
 
-  it("expands both legs once from the same text", () => {
-    const [keywordLeg, semanticLeg] = (buildHybridBody(pagerQuery, 10) as Obj).retriever.rrf.retrievers;
-    const keywordText = keywordLeg.standard.query.bool.must[0].multi_match.query;
-    const semanticText = semanticLeg.standard.query.bool.must[0].semantic.query;
-    expect(keywordText).toBe(semanticText);
-    expect(keywordText.startsWith(pagerQuery)).toBe(true);
-    expect(keywordText).toContain("on-call incident response alert triage");
-    expect(keywordText.match(/on-call/g)).toHaveLength(1);
+  it("appends catalog vocabulary once", () => {
+    const text = expandQueryText(pagerQuery);
+    expect(text.startsWith(pagerQuery)).toBe(true);
+    expect(text).toContain("on-call incident response alert triage");
+    expect(text.match(/on-call/g)).toHaveLength(1);
   });
 
   it("leaves unrelated queries untouched", () => {
     expect(expandQueryText("kubernetes network security")).toBe("kubernetes network security");
   });
 
-  it("can be disabled through the tuning", () => {
-    const [, semanticLeg] = (buildHybridBody(pagerQuery, 10, {}, { ...DEFAULT_TUNING, queryExpansion: "off" }) as Obj)
-      .retriever.rrf.retrievers;
-    expect(semanticLeg.standard.query.bool.must[0].semantic.query).toBe(pagerQuery);
-  });
-
-  it("expands keyword mode with the same bridge text", () => {
-    const body = buildKeywordBody(pagerQuery, 10) as Obj;
-    expect(body.query.bool.must[0].multi_match.query).toContain("on-call incident response alert triage");
-  });
-
-  it("keeps an untouched query identical in both modes", () => {
-    const plain = "kubernetes network security";
-    const keywordBody = buildKeywordBody(plain, 10) as Obj;
-    const [, semanticLeg] = (buildHybridBody(plain, 10) as Obj).retriever.rrf.retrievers;
-    expect(keywordBody.query.bool.must[0].multi_match.query).toBe(plain);
-    expect(semanticLeg.standard.query.bool.must[0].semantic.query).toBe(plain);
+  it("feeds the keyword leg, and can be disabled through the tuning", async () => {
+    const db = await seededDb([mk("oncall", 9, 10, { title: "Incident response and alert triage", abstract: "x" })]);
+    expect((await keyword(db, pagerQuery)).map((r) => r.id)).toEqual(["oncall"]);
+    expect(await keyword(db, pagerQuery, 10, {}, { ...DEFAULT_TUNING, queryExpansion: "off", fuzzyThreshold: undefined })).toEqual([]);
   });
 });
 
-describe("tuning", () => {
-  const excl = { ...DEFAULT_TUNING, excludeTracks: ["Contribfest"] };
-  const mustNot = { bool: { must_not: [{ terms: { track: ["Contribfest"] } }] } };
-
-  it("adds the track exclusion after the level/time filters", () => {
-    expect(eligibilityClauses({ levels: ["beginner"] }, excl)).toEqual([{ terms: { level: ["beginner"] } }, mustNot]);
-    expect(eligibilityClauses({}, { ...DEFAULT_TUNING, excludeTracks: [] })).toEqual([]);
+describe("typo tolerance (#55)", () => {
+  it("finds a misspelled title word by trigram similarity, below exact matches", async () => {
+    const db = await seededDb();
+    const rows = await keyword(db, "kuberentes");
+    expect(rows.map((r) => r.id)).toContain("c");
   });
-
-  it("applies the same exclusion in keyword mode and on both hybrid legs", () => {
-    expect((buildKeywordBody("x", 5, {}, excl) as Obj).query.bool.filter).toEqual([mustNot]);
-    for (const leg of (buildHybridBody("x", 5, {}, excl) as Obj).retriever.rrf.retrievers) {
-      expect(leg.standard.query.bool.filter).toEqual([mustNot]);
-    }
+  it("is off when the tuning leaves fuzzyThreshold unset (eval baseline)", async () => {
+    const db = await seededDb();
+    expect(await keyword(db, "kuberentes", 10, {}, { ...DEFAULT_TUNING, fuzzyThreshold: undefined })).toEqual([]);
   });
-
-  it("passes RRF rank constant and window from the tuning", () => {
-    const rrf = (buildHybridBody("x", 5, {}, { ...DEFAULT_TUNING, rankConstant: 20, rankWindowSize: 100 }) as Obj).retriever.rrf;
-    expect(rrf.rank_constant).toBe(20);
-    expect(rrf.rank_window_size).toBe(100);
-  });
-
-  it("sets minimum_should_match on the hybrid keyword leg only", () => {
-    const t = { ...DEFAULT_TUNING, hybridKeywordMinimumShouldMatch: "30%" };
-    const [kw, sem] = (buildHybridBody("x", 5, {}, t) as Obj).retriever.rrf.retrievers;
-    expect(kw.standard.query.bool.must[0].multi_match.minimum_should_match).toBe("30%");
-    expect(sem.standard.query.bool.must[0].semantic).toBeDefined();
-    expect((buildKeywordBody("x", 5, {}, t) as Obj).query.bool.must[0].multi_match.minimum_should_match).toBeUndefined();
-  });
-
-  it("builds a weighted linear retriever with min-max normalization", () => {
-    const body = buildHybridBody("x", 5, {}, { ...DEFAULT_TUNING, fusion: "linear", semanticWeight: 2 }) as Obj;
-    expect(body.retriever.rrf).toBeUndefined();
-    const [kw, sem] = body.retriever.linear.retrievers;
-    expect(kw).toMatchObject({ weight: 1, normalizer: "minmax", retriever: { standard: { _name: "keyword" } } });
-    expect(sem).toMatchObject({ weight: 2, normalizer: "minmax", retriever: { standard: { _name: "semantic" } } });
-    expect(body.retriever.linear.rank_window_size).toBe(DEFAULT_TUNING.rankWindowSize);
+  it("only fuzzes content words of 5+ letters", () => {
+    expect(fuzzyTerms("how do I fix my kuberentes pod")).toEqual(["kuberentes"]);
   });
 });
 
 describe("filters and onboarding", () => {
-  it("emits no clauses without filters", () => {
-    expect(filterClauses({})).toEqual([]);
-    expect(filterClauses({ levels: [] })).toEqual([]);
-  });
-
   it("maps experience to nearby levels", () => {
     expect(levelsFor("beginner")).toEqual(["beginner", "intermediate"]);
     expect(levelsFor("advanced")).not.toContain("beginner");
@@ -172,19 +207,3 @@ describe("filters and onboarding", () => {
   });
 });
 
-describe("typo tolerance (#55)", () => {
-  it("adds fuzziness to the keyword leg in both modes, and only there", () => {
-    const kw = (buildKeywordBody("kuberentes", 5) as Obj).query.bool.must[0].multi_match;
-    expect(kw).toMatchObject({ fuzziness: "AUTO", prefix_length: 1, type: "best_fields" });
-    const hy = buildHybridBody("kuberentes", 5) as Obj;
-    const legs = hy.retriever.rrf.retrievers as Obj[];
-    expect(legs[0]!.standard.query.bool.must[0].multi_match).toMatchObject({ fuzziness: "AUTO", prefix_length: 1 });
-    expect(JSON.stringify(legs[1])).not.toContain("fuzziness"); // the semantic leg is untouched
-  });
-  it("is off when the tuning leaves fuzziness unset (pre-#55 behaviour, used by the eval baseline)", () => {
-    const t = { ...DEFAULT_TUNING, fuzziness: undefined, fuzzyPrefixLength: undefined };
-    const mm = (buildKeywordBody("x", 5, {}, t) as Obj).query.bool.must[0].multi_match;
-    expect(mm.fuzziness).toBeUndefined();
-    expect(mm.prefix_length).toBeUndefined();
-  });
-});

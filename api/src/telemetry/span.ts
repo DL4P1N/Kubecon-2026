@@ -24,7 +24,7 @@ export type SpanRunner = <T>(name: string, attrs: SpanAttributes, fn: (span: Act
 
 export const TRACER_NAME = "companion-api";
 
-/** Safe `errorType` carried by EsError (Elasticsearch error.type or http_<status>), if any. */
+/** Safe `errorType` set on a database error by `runQuery` (a SQLSTATE or Node error code), if any. */
 const errorTypeOf = (err: unknown): string | undefined => {
   const t = (err as { errorType?: unknown } | null)?.errorType;
   return typeof t === "string" ? t : undefined;
@@ -45,7 +45,7 @@ export const otelRunner: SpanRunner = (name, attrs, fn) =>
         return await fn(active);
       } catch (err) {
         span.setStatus({ code: SpanStatusCode.ERROR });
-        // Prefer the Elasticsearch error type (e.g. inference_exception) over the class name "EsError".
+        // Prefer the SQLSTATE/error code (e.g. 57P01) over the generic class name.
         span.setAttribute("error.type", errorTypeOf(err) ?? (err instanceof Error ? err.name : "unknown"));
         throw err;
       } finally {
@@ -62,7 +62,7 @@ export function setSpanRunner(next?: SpanRunner): void {
 
 /**
  * Runs `fn` in a span. When it throws an error carrying a string `errorType`
- * (Elasticsearch failures, see `EsError`), that type is recorded as the
+ * (database failures, see `runQuery`), that type is recorded as the
  * allowlisted `error.type` attribute before the error propagates. Only the type
  * is recorded: never the message, which can contain query text.
  */

@@ -1,7 +1,7 @@
 import { MIN_CLUSTER_SIZE, OTHER_TOPIC, type InterestAggregateResponse, type InterestTopicCount } from "@cc/shared";
-import type { EsClient } from "../es/client.js";
+import type { Db } from "../db/client.js";
 
-/** Upper bound on distinct topics read from the terms aggregation. */
+/** Upper bound on distinct topics read by the topic count. */
 export const MAX_TOPICS = 500;
 
 export interface TopicBucket {
@@ -35,41 +35,37 @@ export function buildTopicCounts(kept: InterestTopicCount[], otherCount: number,
   return topics.sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
 }
 
-/** Attendees not past an expiry (expired docs count as deleted) and not explicitly opted out of the cluster map (absent = consenting). */
-const optedIn = (now: Date) => [
-  { bool: { must_not: [{ term: { "consent.cluster_map": false } }] } },
-  { range: { expires_at: { gt: now.toISOString() } } },
-];
+/** Attendees opted in to the cluster map and not past an expiry (expired rows count as deleted). */
+const OPTED_IN = "consent_cluster_map and expires_at > $1";
 
-interface AggResponse {
-  hits: { total: { value: number } | number };
-  aggregations?: { topics?: { buckets?: TopicBucket[] } };
-}
-
-/** Runs the aggregation in Elasticsearch and applies the k >= 5 suppression. */
-export async function aggregateInterests(es: EsClient, now: Date, k = MIN_CLUSTER_SIZE): Promise<InterestAggregateResponse> {
-  const { body } = await es.request<AggResponse>("POST", "/attendees/_search", {
-    size: 0,
-    track_total_hits: true,
-    query: { bool: { filter: optedIn(now) } },
-    aggs: { topics: { terms: { field: "interests", size: MAX_TOPICS } } },
-  });
-  const total = typeof body.hits.total === "number" ? body.hits.total : body.hits.total.value;
-  const { kept, small } = splitBuckets(body.aggregations?.topics?.buckets ?? [], k);
+/** Counts topics in SQL and applies the k >= 5 suppression. */
+export async function aggregateInterests(db: Db, now: Date, k = MIN_CLUSTER_SIZE): Promise<InterestAggregateResponse> {
+  const at = now.toISOString();
+  // distinct per attendee: a repeated interest in one profile counts once.
+  const topics = await db.query<{ key: string; doc_count: string }>(
+    `select t as key, count(*) as doc_count
+       from (select distinct id, unnest(interests) as t from attendees where ${OPTED_IN}) x
+      group by t
+      order by count(*) desc, t
+      limit $2`,
+    [at, MAX_TOPICS],
+  );
+  const total = await db.query<{ n: string }>(`select count(*) as n from attendees where ${OPTED_IN}`, [at]);
+  const buckets = topics.rows.map((r) => ({ key: r.key, doc_count: Number(r.doc_count) }));
+  const totalOptedIn = Number(total.rows[0]?.n ?? 0);
+  const { kept, small } = splitBuckets(buckets, k);
 
   // Count distinct attendees behind the small topics, so one person with several
   // rare interests is not counted several times toward the "other" threshold.
   let otherCount = 0;
   if (small.length > 0) {
-    const res = await es.request<{ count: number }>("POST", "/attendees/_count", {
-      query: { bool: { filter: [...optedIn(now), { terms: { interests: small } }] } },
-    });
-    otherCount = res.body.count;
+    const res = await db.query<{ n: string }>(`select count(*) as n from attendees where ${OPTED_IN} and interests && $2::text[]`, [at, small]);
+    otherCount = Number(res.rows[0]?.n ?? 0);
   }
 
   return {
     topics: buildTopicCounts(kept, otherCount, k),
-    totalOptedIn: total >= k ? total : 0,
+    totalOptedIn: totalOptedIn >= k ? totalOptedIn : 0,
     suppressedBelow: k,
     generatedAt: now.toISOString(),
   };
@@ -79,35 +75,23 @@ export async function aggregateInterests(es: EsClient, now: Date, k = MIN_CLUSTE
 export const AGGREGATE_RUN_PREFIX = "aggregate-";
 
 /**
- * Stores the latest result in `interest_clusters`: one doc per topic with a
- * stable _id (each write overwrites the last), then deletes topics from older
+ * Stores the latest result in `interest_clusters`: one row per topic with a
+ * stable doc_id (each write overwrites the last), then deletes topics from older
  * aggregate runs that are no longer present. Only suppressed, aggregate
  * counts are written; no attendee IDs.
  */
-export async function writeAggregate(es: EsClient, result: InterestAggregateResponse): Promise<void> {
+export async function writeAggregate(db: Db, result: InterestAggregateResponse): Promise<void> {
   const runId = `${AGGREGATE_RUN_PREFIX}${result.generatedAt}`;
-  if (result.topics.length > 0) {
-    const lines: object[] = [];
+  await db.transaction(async (tx) => {
     for (const t of result.topics) {
-      lines.push({ index: { _index: "interest_clusters", _id: `aggregate:${t.topic}` } });
-      lines.push({
-        cluster_id: `topic:${t.topic}`,
-        run_id: runId,
-        label: t.topic,
-        size: t.count,
-        top_interests: [t.topic],
-        computed_at: result.generatedAt,
-      });
+      await tx.query(
+        `insert into interest_clusters (doc_id, cluster_id, run_id, label, size, top_interests, computed_at)
+         values ($1, $2, $3, $4, $5, $6, $7)
+         on conflict (doc_id) do update set cluster_id = excluded.cluster_id, run_id = excluded.run_id, label = excluded.label,
+           size = excluded.size, top_interests = excluded.top_interests, computed_at = excluded.computed_at`,
+        [`aggregate:${t.topic}`, `topic:${t.topic}`, runId, t.topic, t.count, [t.topic], result.generatedAt],
+      );
     }
-    const res = await es.bulk(lines);
-    if (res.errors) throw new Error("interest_clusters write failed");
-  }
-  await es.request("POST", "/interest_clusters/_delete_by_query?conflicts=proceed", {
-    query: {
-      bool: {
-        filter: [{ prefix: { run_id: AGGREGATE_RUN_PREFIX } }],
-        must_not: [{ term: { run_id: runId } }],
-      },
-    },
+    await tx.query(`delete from interest_clusters where starts_with(run_id, $1) and run_id <> $2`, [AGGREGATE_RUN_PREFIX, runId]);
   });
 }

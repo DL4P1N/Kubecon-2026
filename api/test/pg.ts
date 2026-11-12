@@ -13,7 +13,7 @@ function adapt(conn: Conn, root: PGlite): Db {
   return {
     async query<T extends object>(text: string, params: readonly unknown[] = []) {
       const r = await conn.query<T>(text, params as unknown[]);
-      return { rows: r.rows, rowCount: r.affectedRows ?? r.rows.length };
+      return { rows: r.rows, rowCount: r.affectedRows && r.affectedRows > 0 ? r.affectedRows : r.rows.length };
     },
     async exec(text: string) {
       await conn.exec(text);

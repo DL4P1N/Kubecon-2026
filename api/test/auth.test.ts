@@ -1,9 +1,22 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthCallbackResponse, AuthProvidersResponse } from "@cc/shared";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
 import { createStateStore, identityId, sanitizeReturn } from "../src/auth/oauth.js";
-import { fakeEs, type FakeHandler } from "./helpers.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import type { Db } from "../src/db/client.js";
+import { testDb } from "./pg.js";
+
+const sharedDb = await testDb();
+beforeEach(async () => {
+  for (const table of ["identities", "schedules", "entitlements", "attendees"]) await sharedDb.query(`delete from ${table}`);
+});
+const NO_EXPIRY = "9999-12-31T23:59:59.999Z";
+const seedAttendee = (db: Db, id: string, expiresAt: string) =>
+  db.query("insert into attendees (id, display_name, interests, consent_cluster_map, consent_qr_checkin, created_at, expires_at) values ($1, 'Ada', array['search'], true, false, now(), $2)", [id, expiresAt]);
+const seedIdentity = (db: Db, id: string, attendeeId: string) =>
+  db.query("insert into identities (id, attendee_id, created_at, expires_at) values ($1, $2, now(), $3)", [id, attendeeId, NO_EXPIRY]);
+const identityRows = async (db: Db) => (await db.query<{ id: string }>("select id from identities")).rows.map((r) => r.id);
 
 const SECRET = "test-secret-value";
 const ENV = {
@@ -27,8 +40,8 @@ function fakeFetch(profile: unknown, opts: { tokenStatus?: number } = {}) {
   return { fn: fn as unknown as typeof fetch, calls };
 }
 
-function setup(env: Record<string, string> = ENV, fetchFn?: typeof fetch, now?: () => number, esHandler: FakeHandler = () => undefined) {
-  return buildServer(loadConfig(env as NodeJS.ProcessEnv), { es: fakeEs(esHandler), runClaude: null, auth: { fetch: fetchFn, now } });
+function setup(env: Record<string, string> = ENV, fetchFn?: typeof fetch, now?: () => number, db: Db = sharedDb) {
+  return buildServer(loadConfig(env as NodeJS.ProcessEnv), { db, embedder: new LocalHashEmbedder(), runClaude: null, auth: { fetch: fetchFn, now } });
 }
 
 async function start(app: ReturnType<typeof setup>, provider: string, query = "") {
@@ -167,70 +180,50 @@ describe("POST /api/auth/:provider/callback", () => {
   });
 
   it("returns 503 when identity lookup storage fails", async () => {
-    const app = setup(ENV, fakeFetch({ id: 123, login: "octo" }).fn, undefined, () => { throw new Error("private ES path"); });
+    const broken = { ...sharedDb, query: async () => { throw Object.assign(new Error("private SQL text"), { code: "ECONNREFUSED" }); } } as Db;
+    const app = setup(ENV, fakeFetch({ id: 123, login: "octo" }).fn, undefined, broken);
     const { state } = await start(app, "github");
     const res = await callback(app, "github", { code: "c", state });
     expect(res.statusCode).toBe(503);
     expect(res.json()).toEqual({ error: "storage_unavailable", message: "could not check sign-in" });
-    expect(res.body).not.toContain("private ES path");
+    expect(res.body).not.toContain("private SQL text");
   });
   it("returns an attendee session for a live identity and deletes a stale identity before issuing a claim", async () => {
     const hash = identityId(ENV.IDENTITY_HASH_KEY, "github", "9001");
-    const known = setup(ENV, fakeFetch({ id: 9001, login: "ada" }).fn, undefined, (call) => {
-      if (call.method === "GET" && call.path === `/identities/_doc/${hash}`) return { status: 200, body: { found: true, _source: { attendee_id: "attendee-1" } } };
-      if (call.method === "GET" && call.path.startsWith("/attendees/_doc/")) return { status: 200, body: { found: true, _source: { id: "attendee-1", display_name: "Ada", interests: ["search"], consent: { cluster_map: true, qr_checkin: false }, expires_at: "9999-12-31T23:59:59.999Z" } } };
-      return undefined;
-    });
+    await seedAttendee(sharedDb, "attendee-1", NO_EXPIRY);
+    await seedIdentity(sharedDb, hash, "attendee-1");
+    const known = setup(ENV, fakeFetch({ id: 9001, login: "ada" }).fn);
     const { state } = await start(known, "github");
     const res = await callback(known, "github", { code: "c", state });
     const session = res.json<AuthCallbackResponse>().session?.token;
     expect(session).toBeTruthy();
     expect(res.json<AuthCallbackResponse>().claim).toBeUndefined();
+    expect(await identityRows(sharedDb)).toEqual([hash]);
     const me = await known.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${session}` } });
     expect(me.statusCode).toBe(200);
     expect(me.json()).toMatchObject({ attendeeId: "attendee-1", name: "Ada", interests: ["search"] });
+  });
 
-    const calls: string[] = [];
-    const stale = setup(ENV, fakeFetch({ id: 9001, login: "ada" }).fn, undefined, (call) => {
-      calls.push(`${call.method} ${call.path}`);
-      if (call.method === "GET" && call.path === `/identities/_doc/${hash}`) return { status: 200, body: { found: true, _source: { attendee_id: "missing" } } };
-      return undefined;
-    });
-    const staleState = (await start(stale, "github")).state;
-    const staleRes = await callback(stale, "github", { code: "c", state: staleState });
-    expect(staleRes.json<AuthCallbackResponse>().claim?.token).toBeTruthy();
-    expect(calls).toContain(`DELETE /identities/_doc/${hash}`);
+  it("deletes a stale identity (attendee missing or expired) and issues a claim instead", async () => {
+    const hash = identityId(ENV.IDENTITY_HASH_KEY, "github", "9001");
+    for (const setupStale of [
+      async () => { await seedIdentity(sharedDb, hash, "missing"); },
+      async () => { await seedAttendee(sharedDb, "gone", "2000-01-01T00:00:00Z"); await seedIdentity(sharedDb, hash, "gone"); },
+    ]) {
+      await sharedDb.query("delete from identities"); await sharedDb.query("delete from attendees");
+      await setupStale();
+      const stale = setup(ENV, fakeFetch({ id: 9001, login: "ada" }).fn);
+      const staleState = (await start(stale, "github")).state;
+      const staleRes = await callback(stale, "github", { code: "c", state: staleState });
+      expect(staleRes.json<AuthCallbackResponse>().claim?.token).toBeTruthy();
+      expect(staleRes.json<AuthCallbackResponse>().session).toBeUndefined();
+      expect(await identityRows(sharedDb)).toEqual([]);
+    }
   });
 
   it("runs new-account claim -> registration -> cross-device session -> profile deletion -> fresh claim", async () => {
-    const docs = new Map<string, Record<string, unknown>>();
-    const esHandler: FakeHandler = (call) => {
-      const path = call.path.split("?")[0]!;
-      const docMatch = /^\/(\w+)\/(_create|_doc)\/([^/]+)$/.exec(path);
-      if (call.method === "GET" && docMatch) {
-        const key = `${docMatch[1]}/${decodeURIComponent(docMatch[3]!)}`;
-        const source = docs.get(key);
-        return source ? { status: 200, body: { found: true, _source: source } } : { status: 404, body: { found: false } };
-      }
-      if (call.method === "PUT" && docMatch) {
-        const key = `${docMatch[1]}/${decodeURIComponent(docMatch[3]!)}`;
-        if (docMatch[2] === "_create" && docs.has(key)) return { status: 409, body: { error: "version_conflict_engine_exception" } };
-        docs.set(key, call.body as Record<string, unknown>);
-        return { status: 201, body: { result: "created" } };
-      }
-      if (call.method === "DELETE" && docMatch) {
-        docs.delete(`${docMatch[1]}/${decodeURIComponent(docMatch[3]!)}`);
-        return { status: 200, body: { result: "deleted" } };
-      }
-      if (call.method === "POST" && path === "/identities/_delete_by_query") {
-        const attendeeId = (call.body as { query: { term: { attendee_id: string } } }).query.term.attendee_id;
-        for (const [key, source] of docs) if (key.startsWith("identities/") && source.attendee_id === attendeeId) docs.delete(key);
-        return { status: 200, body: { deleted: 1 } };
-      }
-      return { status: 400, body: {} };
-    };
     const f = fakeFetch({ id: 9002, login: "ada", name: "Ada" });
-    const app = setup(ENV, f.fn, undefined, esHandler);
+    const app = setup(ENV, f.fn);
     const firstState = (await start(app, "github")).state;
     const first = await callback(app, "github", { code: "c", state: firstState });
     const claim = first.json<AuthCallbackResponse>().claim?.token;
@@ -238,6 +231,7 @@ describe("POST /api/auth/:provider/callback", () => {
     const created = await app.inject({ method: "POST", url: "/api/register", payload: { name: "Ada", interests: ["search"], identityClaim: claim, consent: { clusterMap: true, qrCheckin: false } } });
     expect(created.statusCode).toBe(201);
     const attendeeId = created.json<{ attendeeId: string }>().attendeeId;
+    expect(await identityRows(sharedDb)).toEqual([identityId(ENV.IDENTITY_HASH_KEY, "github", "9002")]);
     f.calls.length = 0;
 
     const secondState = (await start(app, "github")).state;
@@ -249,7 +243,7 @@ describe("POST /api/auth/:provider/callback", () => {
     expect(me.json()).toMatchObject({ attendeeId, name: "Ada", interests: ["search"] });
 
     await app.inject({ method: "DELETE", url: "/api/me", headers: { authorization: `Bearer ${session}` } });
-    expect([...docs.keys()].some((key) => key.startsWith("identities/"))).toBe(false);
+    expect(await identityRows(sharedDb)).toEqual([]);
     f.calls.length = 0;
     const thirdState = (await start(app, "github")).state;
     const third = await callback(app, "github", { code: "c", state: thirdState });
@@ -301,7 +295,7 @@ describe("POST /api/auth/:provider/callback", () => {
   });
 
   it("answers 429 in the shared shape once the limit is passed", async () => {
-    const app = buildServer(loadConfig(ENV as NodeJS.ProcessEnv), { es: fakeEs(() => undefined), runClaude: null, rateLimits: { auth: { max: 2 } } });
+    const app = buildServer(loadConfig(ENV as NodeJS.ProcessEnv), { db: sharedDb, embedder: new LocalHashEmbedder(), runClaude: null, rateLimits: { auth: { max: 2 } } });
     for (let i = 0; i < 2; i++) expect((await app.inject({ url: "/api/auth/providers" })).statusCode).toBe(200);
     const res = await app.inject({ url: "/api/auth/providers" });
     expect(res.statusCode).toBe(429);

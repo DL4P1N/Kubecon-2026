@@ -4,28 +4,33 @@ import { buildServer, type ServerDeps } from "../src/server.js";
 import { AGGREGATE_CACHE_MS } from "../src/routes/interests.js";
 import { CATALOG_CACHE_MS } from "../src/routes/catalog.js";
 import { BODY_LIMIT_BYTES, MAX_ANSWER_ITEMS, MAX_ANSWER_ITEM_LENGTH, MAX_FREE_TEXT_LENGTH, MAX_RAW_ANSWER_ITEMS } from "../src/routes/search.js";
-import { esHit, fakeEs, talk, type FakeHandler } from "./helpers.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import type { Db } from "../src/db/client.js";
+import { insertTalks, testDb } from "./pg.js";
+import { talk } from "./helpers.js";
 
-const A = talk("a", 9, 10);
+const A = talk("a", 9, 10, { tags: ["security"] });
+const NO_EXPIRY = "9999-12-31T23:59:59.999Z";
 
-function setup(deps: Omit<ServerDeps, "es"> = {}) {
-  const handler: FakeHandler = (call) => {
-    if (call.path.startsWith("/talks/_search") && (call.body as { size?: number } | undefined)?.size === 0) {
-      return { body: { aggregations: { topics: { buckets: [{ key: "security" }] } } } };
-    }
-    if (call.path.startsWith("/talks/_search")) return { body: { took: 1, hits: { hits: [esHit(A, 1)] } } };
-    if (call.path === "/talks/_count") return { body: { count: 1 } };
-    if (call.path === "/attendees/_search") {
-      return { body: { hits: { total: { value: 12 }, hits: [] }, aggregations: { topics: { buckets: [{ key: "kubernetes", doc_count: 12 }] } } } };
-    }
-    if (call.path === "/attendees/_count") return { body: { count: 0 } };
-    if (call.path === "/interest_clusters/_search") return { body: { hits: { hits: [] } } };
-    if (call.path.startsWith("/interest_clusters/")) return { body: { deleted: 0, result: "created", errors: false, items: [] } };
-    return undefined;
+const sharedDb = await testDb();
+await insertTalks(sharedDb, [{ ...A, level: "beginner" }]);
+// 12 consenting attendees interested in kubernetes: above the aggregate's k-anonymity floor.
+for (let i = 0; i < 12; i++) {
+  await sharedDb.query(
+    "insert into attendees (id, display_name, interests, consent_cluster_map, consent_qr_checkin, created_at, expires_at) values ($1, 'x', array['kubernetes'], true, true, now(), $2)",
+    [`seed-${i}`, NO_EXPIRY],
+  );
+}
+
+/** Server over the shared database; `queries` counts every SQL statement the routes ran. */
+function setup(deps: Omit<ServerDeps, "db" | "embedder"> = {}) {
+  const queries: string[] = [];
+  const db: Db = {
+    ...sharedDb,
+    query: ((sql: string, params?: readonly unknown[]) => { queries.push(sql); return sharedDb.query(sql, params); }) as Db["query"],
   };
-  const es = fakeEs(handler);
-  const app = buildServer(loadConfig({ NODE_ENV: "test" } as NodeJS.ProcessEnv), { es, ...deps });
-  return { app, es };
+  const app = buildServer(loadConfig({ NODE_ENV: "test" } as NodeJS.ProcessEnv), { db, embedder: new LocalHashEmbedder(), ...deps });
+  return { app, db, queries };
 }
 
 describe("shared rate-limit policy", () => {
@@ -59,7 +64,8 @@ describe("shared rate-limit policy", () => {
   it("uses one 429 body shape in every scope (default and custom error handlers)", async () => {
     // search and suggest have custom error handlers; status, register and access use Fastify's default.
     const app = buildServer(loadConfig({ NODE_ENV: "test", REGISTER_RATE_LIMIT_PER_MINUTE: "1" } as NodeJS.ProcessEnv), {
-      es: setup().es,
+      db: sharedDb,
+      embedder: new LocalHashEmbedder(),
       rateLimits: { search: { max: 1 }, status: { max: 1 } },
     });
     try {
@@ -111,23 +117,24 @@ describe("shared rate-limit policy", () => {
 });
 
 describe("aggregate caching", () => {
-  it("serves a second request from memory without another Elasticsearch call", async () => {
+  it("serves a second request from memory, without another database query, until the window passes", async () => {
     let clock = Date.UTC(2026, 10, 10, 9);
-    const { app, es } = setup({ search: { now: () => new Date(clock) } });
+    const { app, queries } = setup({ search: { now: () => new Date(clock) } });
     try {
       const first = await app.inject({ method: "GET", url: "/api/interests/aggregate" });
       expect(first.statusCode).toBe(200);
-      const searches = () => es.calls.filter((c) => c.path === "/attendees/_search").length;
-      expect(searches()).toBe(1);
+      const attendeeQueries = () => queries.filter((q) => /attendees/.test(q)).length;
+      expect(attendeeQueries()).toBeGreaterThan(0);
+      const afterFirst = attendeeQueries();
 
       const second = await app.inject({ method: "GET", url: "/api/interests/aggregate" });
       expect(second.json()).toEqual(first.json());
       expect(second.headers["cache-control"]).toBe(`public, max-age=${AGGREGATE_CACHE_MS / 1000}`);
-      expect(searches()).toBe(1);
+      expect(attendeeQueries()).toBe(afterFirst);
 
       clock += AGGREGATE_CACHE_MS;
       await app.inject({ method: "GET", url: "/api/interests/aggregate" });
-      expect(searches()).toBe(2);
+      expect(attendeeQueries()).toBeGreaterThan(afterFirst);
     } finally {
       await app.close();
     }
@@ -135,18 +142,20 @@ describe("aggregate caching", () => {
 });
 
 describe("catalog caching", () => {
-  it("serves catalog topics from memory within the cache window", async () => {
+  it("serves catalog topics from memory within the cache window and refreshes after it", async () => {
     let clock = Date.UTC(2026, 10, 10, 9);
-    const { app, es } = setup({ search: { now: () => new Date(clock) } });
+    const { app } = setup({ search: { now: () => new Date(clock) } });
     try {
-      const aggCalls = () => es.calls.filter((c) => (c.body as { size?: number } | undefined)?.size === 0).length;
       const first = await app.inject({ method: "GET", url: "/api/catalog/topics" });
       expect(first.json()).toEqual({ topics: ["security"] });
-      await app.inject({ method: "GET", url: "/api/catalog/topics" });
-      expect(aggCalls()).toBe(1);
-      clock += CATALOG_CACHE_MS;
-      await app.inject({ method: "GET", url: "/api/catalog/topics" });
-      expect(aggCalls()).toBe(2);
+      await insertTalks(sharedDb, [{ ...talk("b", 11, 12, { tags: ["observability"] }), level: "beginner" }]);
+      try {
+        expect((await app.inject({ method: "GET", url: "/api/catalog/topics" })).json()).toEqual({ topics: ["security"] });
+        clock += CATALOG_CACHE_MS;
+        expect((await app.inject({ method: "GET", url: "/api/catalog/topics" })).json().topics).toContain("observability");
+      } finally {
+        await sharedDb.query("delete from talks where id = 'b'");
+      }
     } finally {
       await app.close();
     }
@@ -158,7 +167,7 @@ describe("input validation", () => {
     app.inject({ method: "POST", url: "/api/onboarding", payload: { answers } });
 
   it("rejects oversized onboarding answers without echoing them", async () => {
-    const { app, es } = setup();
+    const { app, queries } = setup();
     try {
       const canary = "CANARY-" + "x".repeat(MAX_FREE_TEXT_LENGTH);
       const long = await post(app, { topics: ["security"], freeText: canary });
@@ -168,7 +177,7 @@ describe("input validation", () => {
 
       expect((await post(app, { topics: ["y".repeat(101)] })).statusCode).toBe(400);
       expect((await post(app, { topics: [], goals: ["z".repeat(101)] })).statusCode).toBe(400);
-      expect(es.calls).toHaveLength(0);
+      expect(queries).toHaveLength(0);
     } finally {
       await app.close();
     }
@@ -188,15 +197,15 @@ describe("input validation", () => {
   });
 
   it("keeps the first 20 topics instead of rejecting a longer selection", async () => {
-    const { app, es } = setup();
+    const { app } = setup();
     try {
       const topics = Array.from({ length: MAX_ANSWER_ITEMS + 5 }, (_, i) => `topic${i}`);
       const res = await post(app, { topics });
       expect(res.statusCode).toBe(200);
-      const sent = JSON.stringify(es.calls[0]!.body);
-      expect(sent).toContain(`topic${MAX_ANSWER_ITEMS - 1}`);
-      expect(sent).not.toContain(`topic${MAX_ANSWER_ITEMS}"`);
-      expect(sent).not.toContain(`topic${MAX_ANSWER_ITEMS + 4}`);
+      const kept = (res.json() as { query: { topics: string[] } }).query.topics;
+      expect(kept).toHaveLength(MAX_ANSWER_ITEMS);
+      expect(kept).toContain(`topic${MAX_ANSWER_ITEMS - 1}`);
+      expect(kept).not.toContain(`topic${MAX_ANSWER_ITEMS}`);
     } finally {
       await app.close();
     }

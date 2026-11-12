@@ -2,7 +2,8 @@
 
 This overlay encrypts attendee HTTPS -> nginx -> API and browser/API OTLP ->
 collector. Nginx verifies the transport CA and upstream DNS names. Node trusts
-a bundle containing transport and Elasticsearch CAs. The collector keeps its
+a bundle containing the transport CA (the database connection pins its own CA).
+The collector keeps its
 existing allowlist/exporter config and merges only TLS receiver settings from
 a second file. Dash0 export already uses its authenticated HTTPS endpoint.
 
@@ -18,8 +19,7 @@ and `KUBE_NAMESPACE=conference-companion`, then run
 `OPENSSL` can name an absolute executable path. The script explicitly targets
 that context/namespace, generates seven-day demo certificates, and provisions
 three Secrets without printing their values. Keys stay in a private temporary
-directory outside the repository. It reads the existing public ES CA from
-`elasticsearch-http-ca`. Do not commit generated material.
+directory outside the repository. Do not commit generated material.
 `TLS_PUBLIC_HOST` adds the attendee DNS hostname to the web certificate
 (default `companion.localhost`).
 

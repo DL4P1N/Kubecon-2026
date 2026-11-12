@@ -5,55 +5,53 @@ import {
   type FacetBucket,
   type SearchFacets,
 } from "@cc/shared";
-import type { SearchFilters } from "./queries.js";
+import type { SearchFilters, SearchPlan, SqlQuery } from "./queries.js";
 
 /**
- * Filters and facet aggregations for GET /api/search (task #54).
- * Field names come from the talks mapping (api/src/es/mappings.ts):
- * `track` and `level` are keyword fields, `start` is a date.
+ * Facet counts for GET /api/search (task #54): GROUP BY queries over the
+ * candidate talks of one search (see SearchPlan.withClause).
  */
 
 export const TRACK_FACET_SIZE = 30;
 export const LEVEL_FACET_SIZE = 5;
 
-/** Terms aggs on track and level plus a per-local-day histogram on `start`. */
-export function facetAggs(): Record<string, unknown> {
-  return {
-    track: { terms: { field: "track", size: TRACK_FACET_SIZE } },
-    level: { terms: { field: "level", size: LEVEL_FACET_SIZE } },
-    day: {
-      date_histogram: {
-        field: "start",
-        calendar_interval: "day",
-        time_zone: EVENT_UTC_OFFSET,
-        format: "yyyy-MM-dd",
-        min_doc_count: 1,
-      },
-    },
-  };
+/**
+ * One statement counting the plan's candidates by track, level and local
+ * conference day (talk start shifted by EVENT_UTC_OFFSET, computed on the UTC
+ * wall clock so it does not depend on the session time zone).
+ */
+export function facetQuery(plan: SearchPlan): SqlQuery {
+  const offset = `$${plan.params.length + 1}::interval`;
+  const text =
+    `${plan.withClause} ` +
+    `select 'track' as facet, t.track as value, count(*)::int as n from cand join talks t on t.id = cand.id where t.track <> '' group by t.track ` +
+    `union all select 'level', t.level, count(*)::int from cand join talks t on t.id = cand.id where t.level is not null group by t.level ` +
+    `union all select 'day', to_char((t.start_at at time zone 'UTC') + ${offset}, 'YYYY-MM-DD'), count(*)::int ` +
+    `from cand join talks t on t.id = cand.id where t.start_at is not null group by 2`;
+  return { text, params: [...plan.params, EVENT_UTC_OFFSET] };
 }
 
-function buckets(agg: unknown, useKeyString: boolean): FacetBucket[] {
-  const raw = (agg as { buckets?: unknown } | null | undefined)?.buckets;
-  if (!Array.isArray(raw)) return [];
-  const out: FacetBucket[] = [];
-  for (const b of raw as Record<string, unknown>[]) {
-    const value = useKeyString ? b?.key_as_string : b?.key;
-    const count = b?.doc_count;
-    if (typeof value !== "string" || value === "" || typeof count !== "number" || count <= 0) continue;
-    out.push({ value, count });
-  }
-  return out;
+export interface FacetRow {
+  facet: string;
+  value: string | null;
+  n: number | string;
 }
 
-/** Facets from an ES `aggregations` object; undefined when ES returned none. */
-export function parseFacets(aggregations: unknown): SearchFacets | undefined {
-  if (!aggregations || typeof aggregations !== "object") return undefined;
-  const a = aggregations as Record<string, unknown>;
+/** Most talks first, ties by value; the day facet is chronological. */
+function bucketsOf(rows: FacetRow[], facet: string, limit: number, chronological = false): FacetBucket[] {
+  const out = rows
+    .filter((r) => r.facet === facet && typeof r.value === "string" && r.value !== "" && Number(r.n) > 0)
+    .map((r) => ({ value: r.value as string, count: Number(r.n) }));
+  out.sort(chronological ? (a, b) => a.value.localeCompare(b.value) : (a, b) => b.count - a.count || a.value.localeCompare(b.value));
+  return out.slice(0, limit);
+}
+
+/** Facets from the rows of `facetQuery`. */
+export function parseFacets(rows: FacetRow[]): SearchFacets {
   return {
-    track: buckets(a.track, false),
-    level: buckets(a.level, false),
-    day: buckets(a.day, true),
+    track: bucketsOf(rows, "track", TRACK_FACET_SIZE),
+    level: bucketsOf(rows, "level", LEVEL_FACET_SIZE),
+    day: bucketsOf(rows, "day", Number.MAX_SAFE_INTEGER, true),
   };
 }
 
@@ -91,7 +89,7 @@ export const searchFiltersSchema = z
     path: ["from"],
   });
 
-/** Validates search filters from the query string; returns an error message or ES filters. */
+/** Validates search filters from the query string; returns an error message or the filters. */
 export function parseSearchFilters(query: Record<string, unknown>): { error: string } | { filters: SearchFilters } {
   const r = searchFiltersSchema.safeParse({
     day: query.day,

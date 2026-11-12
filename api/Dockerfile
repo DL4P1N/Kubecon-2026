@@ -1,5 +1,7 @@
 # Build from the repo root:  docker build -f api/Dockerfile -t cc-api .
-FROM node:22-alpine AS build
+# Debian (glibc) base, not alpine: onnxruntime-node ships no musl binaries, and the
+# API embeds search queries with multilingual-e5-small in-process.
+FROM node:22-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY shared/package.json shared/
@@ -10,7 +12,7 @@ COPY shared shared
 COPY api api
 RUN npm run build -w shared && npm run build -w api
 
-FROM node:22-alpine AS deps
+FROM node:22-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY shared/package.json shared/
@@ -18,8 +20,17 @@ COPY api/package.json api/
 COPY web/package.json web/
 RUN npm ci --omit=dev --workspace=@cc/api --include-workspace-root=false
 
-FROM node:22-alpine
-ENV NODE_ENV=production PORT=3000
+# The model is baked into the image so a running pod never calls the Hugging Face hub.
+FROM deps AS model
+COPY --from=build /app/shared/package.json shared/package.json
+COPY --from=build /app/shared/dist shared/dist
+COPY --from=build /app/api/package.json api/package.json
+COPY --from=build /app/api/dist api/dist
+ENV MODEL_CACHE_DIR=/app/models MODEL_ALLOW_DOWNLOAD=true
+RUN cd api && node dist/embed/fetch-model.js
+
+FROM node:22-slim
+ENV NODE_ENV=production PORT=3000 MODEL_CACHE_DIR=/app/models MODEL_ALLOW_DOWNLOAD=false
 WORKDIR /app
 COPY --from=deps /app/node_modules node_modules
 # npm nests some deps (e.g. @opentelemetry/sdk-node, because of the @opentelemetry/api
@@ -30,6 +41,7 @@ COPY --from=build /app/shared/package.json shared/package.json
 COPY --from=build /app/shared/dist shared/dist
 COPY --from=build /app/api/package.json api/package.json
 COPY --from=build /app/api/dist api/dist
+COPY --from=model /app/models models
 COPY data/talks.json /app/data/talks.json
 USER node
 EXPOSE 3000

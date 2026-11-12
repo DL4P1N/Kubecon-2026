@@ -1,17 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { routes, type CatalogTopicsResponse } from "@cc/shared";
-import type { EsClient } from "../es/client.js";
+import type { Db } from "../db/client.js";
+import { runQuery } from "../search/errors.js";
 import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor, type RouteLimit } from "../http/rateLimit.js";
 import { withSpan } from "../telemetry/span.js";
 
 /** Catalog tags only change on reseed; serve them from memory for this long. */
 export const CATALOG_CACHE_MS = 30_000;
-
-interface TopicAggregation {
-  timed_out?: boolean;
-  _shards?: { failed: number };
-  aggregations?: { topics: { buckets: { key: string }[] } };
-}
 
 export interface CatalogRouteOptions {
   /** Per-IP limit; defaults to DEFAULT_RATE_LIMITS.catalogTopics. */
@@ -19,20 +14,19 @@ export interface CatalogRouteOptions {
   now?: () => number;
 }
 
-async function loadTopics(es: EsClient): Promise<CatalogTopicsResponse> {
-  const { body } = await es.request<TopicAggregation>("POST", "/talks/_search", {
-    size: 0,
-    aggs: { topics: { terms: { field: "tags", size: 1000, order: { _key: "asc" } } } },
-  });
-  if (body.timed_out || body._shards?.failed || !body.aggregations?.topics?.buckets) {
-    throw new Error("Catalog unavailable");
-  }
-  return { topics: [...new Set(body.aggregations.topics.buckets.map(({ key }) => key)
-    .filter((key) => typeof key === "string" && key.trim().length > 0))].sort() };
+/** Most tags returned, as before. `collate "C"` keeps the order identical to a plain string sort. */
+export const MAX_TOPICS = 1000;
+
+async function loadTopics(db: Db): Promise<CatalogTopicsResponse> {
+  const rows = await runQuery<{ tag: string }>(
+    db,
+    `select distinct tag collate "C" as tag from talks, unnest(tags) as tag where btrim(tag) <> '' order by 1 limit ${MAX_TOPICS}`,
+  );
+  return { topics: [...new Set(rows.map(({ tag }) => tag).filter((tag) => typeof tag === "string" && tag.trim().length > 0))].sort() };
 }
 
 /** Public read of catalog metadata only; never queries attendee interests. Own plugin scope (rate limited, cached). */
-export function registerCatalogRoutes(root: FastifyInstance, es: EsClient, opts: CatalogRouteOptions = {}): void {
+export function registerCatalogRoutes(root: FastifyInstance, db: Db, opts: CatalogRouteOptions = {}): void {
   root.register(async (app) => {
     await applyRateLimit(app);
     const now = opts.now ?? Date.now;
@@ -43,11 +37,11 @@ export function registerCatalogRoutes(root: FastifyInstance, es: EsClient, opts:
     app.get(routes.catalogTopics.path, limit, async (_request, reply): Promise<CatalogTopicsResponse | void> => {
       try {
         return await withSpan("catalog.topics", {
-          "db.system": "elasticsearch", "db.namespace": "talks", "db.operation.name": "search",
+          "db.system": "postgresql", "db.namespace": "talks", "db.operation.name": "select",
         }, async () => {
-          // Only successful responses are cached, so an ES outage is not pinned for 30 s.
+          // Only successful responses are cached, so a database outage is not pinned for 30 s.
           if (!cached || now() - cached.at >= CATALOG_CACHE_MS) {
-            inflight ??= loadTopics(es).finally(() => {
+            inflight ??= loadTopics(db).finally(() => {
               inflight = undefined;
             });
             const value = await inflight;
@@ -57,7 +51,7 @@ export function registerCatalogRoutes(root: FastifyInstance, es: EsClient, opts:
           return cached.value;
         });
       } catch {
-        // ES error bodies can echo data; expose only a stable error code.
+        // Driver errors can echo data; expose only a stable error code.
         return reply.code(503).send({ error: "catalog_unavailable" });
       }
     });

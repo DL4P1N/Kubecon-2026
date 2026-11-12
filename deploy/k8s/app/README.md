@@ -1,165 +1,81 @@
 # Application deployment
 
-Task #6. The human selected a new local `conference-companion` kind cluster,
-not `toghouse`. One replica each is the hackathon resource baseline; this is
-not a highly available production deployment.
-
-## Dedicated local cluster
-
-```sh
-brew install kind
-kind create cluster --name conference-companion \
-  --kubeconfig "$HOME/.kube/conference-companion" --wait 120s
-export KUBECONFIG="$HOME/.kube/conference-companion"
-export CONTEXT=kind-conference-companion NAMESPACE=conference-companion
-kubectl --context "$CONTEXT" create namespace "$NAMESPACE"
-```
-
-The separate kubeconfig leaves the existing default context untouched. For this
-local arm64 cluster, build and load images instead of publishing multiarch tags:
-
-```sh
-docker build -f api/Dockerfile -t cc-api:local .
-docker build -f web/Dockerfile -t cc-web:local .
-kind load docker-image --name conference-companion cc-api:local cc-web:local
-```
-
-After creating the dependency Secrets and deploying ES/collector, keep the
-default local image names and apply with `kubectl --context "$CONTEXT"
--n "$NAMESPACE" apply -k deploy/k8s/app`. The publish section below is for
-remote/shared clusters, not required for kind-loaded images.
+One replica each of the API, web and collector, plus CronJobs, as Kubernetes manifests. The data lives in an
+external Postgres (Supabase), not in the cluster. This is a personal-demo deployment, not a high-availability one.
+The toghouse homelab adds TLS, secrets and the tunnel in [`../overlays/toghouse`](../overlays/toghouse), which Argo CD syncs.
 
 ## Prerequisites
 
-- Use context `kind-conference-companion`, namespace `conference-companion`,
-  and the dedicated kubeconfig below. Do not overwrite the `toghouse` context.
-- Elasticsearch and `otel-collector` must be in the same namespace. The API
-  uses the least-privilege application user, never `elastic`.
-- The ES HTTP CA Secret is `elasticsearch-http-ca`, key `ca.crt`; if the ES
-  owner supplies another name, change the `es-ca` volume before deployment.
-  `NODE_EXTRA_CA_CERTS` adds this CA without disabling certificate verification.
-- Create `companion-app-secrets` with keys `ES_USERNAME`, `ES_PASSWORD`, and
-  `TOKEN_SIGNING_KEY` from files supplied securely by the credential owner.
-  The signing key must be cryptographically random (at least 32 bytes).
-  When OAuth is enabled, also include `IDENTITY_HASH_KEY` (random, at least 32
-  characters) and all three client settings for each enabled provider (omit
-  provider lines below for apps not configured).
-  Do not commit credentials or print Secret YAML into the board.
+- A Postgres database with `pgvector` and `pg_trgm` (see [docs/database.md](../../../docs/database.md)). The API creates
+  the schema itself on start.
+- A namespace and the Secret `companion-app-secrets` with these keys (the toghouse overlay builds it from Vault
+  `kv/apps/conference-companion/app` through external-secrets; never commit values):
+
+  | Key | Meaning |
+  | --- | --- |
+  | `DATABASE_URL` | Postgres connection string with the password URL-encoded; on Supabase use the session pooler |
+  | `TOKEN_SIGNING_KEY` | random, at least 32 bytes; the API refuses to start in production with a missing or placeholder key |
+  | `IDENTITY_HASH_KEY` | random, at least 32 characters; required when any OAuth provider is configured |
+  | `<PROVIDER>_CLIENT_ID`, `_CLIENT_SECRET`, `_OAUTH_REDIRECT_URI` | for `GITHUB`, `GOOGLE`, `LINKEDIN`; a provider missing any of the three is disabled |
+
+- A ConfigMap `companion-database-ca` with the CA that signed the database certificate (key `supabase-ca.crt` for
+  Supabase). It is optional: omit it, and unset `DATABASE_CA_FILE`, for a database with a publicly trusted certificate.
 
 ```sh
-export KUBECONFIG="$HOME/.kube/conference-companion"
-export CONTEXT=kind-conference-companion NAMESPACE=conference-companion
-kubectl --context "$CONTEXT" get namespace "$NAMESPACE"
-kubectl --context "$CONTEXT" -n "$NAMESPACE" create secret generic companion-app-secrets \
-  --from-file=ES_USERNAME=/secure/path/es-username \
-  --from-file=ES_PASSWORD=/secure/path/es-password \
+kubectl -n "$NAMESPACE" create secret generic companion-app-secrets \
+  --from-file=DATABASE_URL=/secure/path/database-url \
   --from-file=TOKEN_SIGNING_KEY=/secure/path/token-signing-key \
-  --from-file=IDENTITY_HASH_KEY=/secure/path/identity-hash-key \
-  --from-file=GITHUB_CLIENT_ID=/secure/path/github-client-id \
-  --from-file=GITHUB_CLIENT_SECRET=/secure/path/github-client-secret \
-  --from-file=GITHUB_OAUTH_REDIRECT_URI=/secure/path/github-redirect-uri \
-  --from-file=GOOGLE_CLIENT_ID=/secure/path/google-client-id \
-  --from-file=GOOGLE_CLIENT_SECRET=/secure/path/google-client-secret \
-  --from-file=GOOGLE_OAUTH_REDIRECT_URI=/secure/path/google-redirect-uri \
-  --from-file=LINKEDIN_CLIENT_ID=/secure/path/linkedin-client-id \
-  --from-file=LINKEDIN_CLIENT_SECRET=/secure/path/linkedin-client-secret \
-  --from-file=LINKEDIN_OAUTH_REDIRECT_URI=/secure/path/linkedin-redirect-uri
+  --from-file=IDENTITY_HASH_KEY=/secure/path/identity-hash-key
 ```
 
-Files must not contain trailing newlines. The CA is public trust material;
-create its Secret from the certificate provided by the ES owner, not a new CA.
-
-```sh
-kubectl --context "$CONTEXT" -n "$NAMESPACE" create secret generic elasticsearch-http-ca \
-  --from-file=ca.crt=/secure/path/es-http-ca.crt
-```
+Files must not contain trailing newlines.
 
 ## Build and publish
 
-Run from the repository root. Use an immutable commit tag and build for the
-cluster node architecture, not automatically the developer laptop architecture.
-The registry owner must grant push permission, and the cluster must be able to
-pull the package (public package or namespace imagePullSecret).
+Run from the repository root. Use an immutable commit tag and build for the node architecture, not the laptop's. The
+API image is Debian based (onnxruntime ships no musl build) and contains the embedding model, so a pod never downloads it.
 
 ```sh
-export IMAGE_BASE=ghcr.io/dl4p1n/conference-companion
+export IMAGE_BASE=ghcr.io/<owner>/conference-companion
 export IMAGE_TAG="$(git rev-parse HEAD)"
-# Authenticate using your registry credential manager; never paste a token here.
-docker buildx build --platform linux/amd64,linux/arm64 \
-  -f api/Dockerfile -t "$IMAGE_BASE-api:$IMAGE_TAG" --push .
-docker buildx build --platform linux/amd64,linux/arm64 \
-  -f web/Dockerfile -t "$IMAGE_BASE-web:$IMAGE_TAG" --push .
+docker buildx build --platform linux/amd64 -f api/Dockerfile -t "$IMAGE_BASE-api:$IMAGE_TAG" --push .
+docker buildx build --platform linux/amd64 -f web/Dockerfile -t "$IMAGE_BASE-web:$IMAGE_TAG" --push .
 ```
 
-The committed `cc-api:local` and `cc-web:local` image references are for images
-loaded into a local cluster, not registry-published releases. In
-`deploy/k8s/app/kustomization.yaml`, set each image's `newName` to the published
-registry name (`$IMAGE_BASE-api` / `$IMAGE_BASE-web`) and `newTag` to the exact
-commit tag. These fields are literal YAML values; shell variables are not
-expanded by Kustomize. Render and inspect both image references before applying:
+The base manifests reference `cc-api:local` and `cc-web:local`; set each image's `newName`/`newTag` in a Kustomization
+(see the toghouse overlay) rather than editing the base. The packages must be public, or the cluster needs an
+imagePullSecret.
 
 ```sh
 kubectl kustomize deploy/k8s/app > /tmp/companion-app-release.yaml
-kubectl --context "$CONTEXT" -n "$NAMESPACE" apply --dry-run=server \
-  -f /tmp/companion-app-release.yaml
-kubectl --context "$CONTEXT" -n "$NAMESPACE" apply -f /tmp/companion-app-release.yaml
-kubectl --context "$CONTEXT" -n "$NAMESPACE" rollout status deployment/api --timeout=120s
-kubectl --context "$CONTEXT" -n "$NAMESPACE" rollout status deployment/web --timeout=120s
-kubectl --context "$CONTEXT" -n "$NAMESPACE" get pods,services \
-  -l app.kubernetes.io/part-of=conference-companion
+kubectl -n "$NAMESPACE" apply --dry-run=server -f /tmp/companion-app-release.yaml
+kubectl -n "$NAMESPACE" apply -f /tmp/companion-app-release.yaml
+kubectl -n "$NAMESPACE" rollout status deployment/api --timeout=180s
 ```
-
-For pre-pull, have the cluster owner pull the exact published tags onto the
-eligible nodes before the demo (or use the cluster's approved image cache).
-A laptop `docker pull` does not populate remote Kubernetes nodes.
 
 ## Access and probes
 
 ```sh
-kubectl --context "$CONTEXT" -n "$NAMESPACE" port-forward service/web 8080:8080
-# In a second terminal:
+kubectl -n "$NAMESPACE" port-forward service/web 8080:8080
 curl --fail http://127.0.0.1:8080/healthz
 ```
 
-`/healthz` on web proxies to API; it proves that hop, not Elasticsearch health,
-inference availability, or that stub routes have been replaced. Web startup and
-liveness probe local `/index.html`; only readiness depends on API `/healthz`,
-so an API outage removes web from service without restarting healthy nginx.
-Both workloads have startup, readiness and liveness probes. They run non-root, with dropped
-capabilities, no API token mount, and read-only root filesystems; nginx config
-and temporary files use bounded emptyDir volumes.
+`/healthz` on web proxies to the API; it proves that hop, not database health. The API runs the schema migration and
+loads the embedding model before it listens, so its startup probe allows about two minutes. Both workloads run
+non-root with dropped capabilities, no API token mount and read-only root filesystems.
 
-Only ClusterIP Services are created: there is no public HTTP ingress. A real
-attendee deployment requires the assigned TLS ingress host/certificate and
-internal transport TLS to meet Design Doc §6. Port-forward is a local developer
-access path, not evidence of end-to-end TLS compliance. The current collector
-interface is plaintext OTLP on the cluster network, inherited from #4; resolve
-transport TLS before claiming the complete security requirement.
+Only ClusterIP Services are created: there is no ingress here. Public access is the Cloudflare tunnel in the toghouse
+overlay. See [../tls/README.md](../tls/README.md) for pod-to-pod TLS.
 
-## Judge evidence
+## Seed the catalog
 
-Follow [the Radar runbook](../../../docs/radar.md). Capture Running **and Ready**
-pods, `/healthz`, Radar workload topology and a real investigation. If a fault
-is deliberately injected, label it controlled. No live deployment or Radar
-connection is implied by successful YAML/schema validation.
-
-## Seed the real catalog
-
-The API runtime image includes `data/talks.json`. After the ES administrator
-bootstraps `companion_svc` and activates the inference-capable license, run:
+The API image includes `data/talks.json`. The Job embeds all 417 talks (about 20 seconds):
 
 ```sh
-kubectl --context "$CONTEXT" -n "$NAMESPACE" apply -f deploy/k8s/app/seed-job.yaml
-kubectl --context "$CONTEXT" -n "$NAMESPACE" wait --for=condition=complete job/seed-talks --timeout=900s
-kubectl --context "$CONTEXT" -n "$NAMESPACE" logs job/seed-talks
+kubectl -n "$NAMESPACE" apply -f deploy/k8s/app/seed-job.yaml
+kubectl -n "$NAMESPACE" wait --for=condition=complete job/seed-talks --timeout=600s
+kubectl -n "$NAMESPACE" logs job/seed-talks
 ```
 
-The Job is intentionally outside the base Kustomization: seeding is a deliberate
-one-shot operation, not part of every app apply. It uses the app Secret and
-public CA only, not ES admin credentials. To rerun a completed/failed Job,
-delete only `job/seed-talks`, then apply the Job manifest again.
-
-For this 4Gi ES node, set `xpack.ml.max_machine_memory_percent=50` as in the ES
-manifest. The default 30% prevented the E5 model from allocating in the live run.
-Model load and first indexing can take minutes; inspect the Job logs rather than
-claiming successful inference from `/healthz`.
+The Job is outside the base Kustomization on purpose: seeding is a deliberate one-shot. To rerun it, delete
+`job/seed-talks` and apply the manifest again.

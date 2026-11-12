@@ -4,10 +4,11 @@ import { createCalendar } from "../src/calendar/ical.js";
 import { createTokenService } from "../src/auth/token.js";
 import { buildServer } from "../src/server.js";
 import { loadConfig } from "../src/config.js";
-import { esHit, fakeEs, talk } from "./helpers.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import { mk, recordingDb, seededDb } from "./search-fixtures.js";
 
 const at = new Date("2026-11-09T12:00:00Z");
-const item = talk("calendar-talk", 9, 10, {
+const item = mk("calendar-talk", 9, 10, {
   title: "Security, signing; Kubernetes\\cloud\nWorkshop " + "🚀é".repeat(40),
   room: "Hall A; Level 1, East",
   abstract: "First line\r\nSecond line; commas, and \\slashes\nBEGIN:VEVENT",
@@ -45,10 +46,10 @@ describe("GET /api/schedule.ics", () => {
   it("requires a signed session before reading personal data and exports only that attendee's saved talks", async () => {
     const attendeeId = "synthetic-attendee-private-canary";
     const tokens = createTokenService({ key: "test-only-calendar-signing-key-0123456789" });
-    const es = fakeEs(() => ({ body: { hits: { hits: [esHit(item, 1)] } } }));
+    const db = recordingDb(await seededDb([item]));
     const store = { save: vi.fn(async () => {}), load: vi.fn(async (id: string) => id === attendeeId
       ? { talkIds: [item.id], updatedAt: at.toISOString() } : undefined) };
-    const app = buildServer(loadConfig({}), { es, tokens, search: { scheduleStore: store, now: () => at } });
+    const app = buildServer(loadConfig({}), { db, embedder: new LocalHashEmbedder(), tokens, search: { scheduleStore: store, now: () => at } });
     try {
       for (const authorization of [undefined, "Bearer stub.victim", "Bearer malformed"]) {
         const result = await app.inject({ method: "GET", url: "/api/schedule.ics", headers: authorization ? { authorization } : {} });
@@ -56,7 +57,7 @@ describe("GET /api/schedule.ics", () => {
         expect(result.headers["cache-control"]).toBe("private, no-store");
       }
       expect(store.load).not.toHaveBeenCalled();
-      expect(es.calls).toHaveLength(0);
+      expect(db.statements).toHaveLength(0);
       const signed = await tokens.sign(attendeeId);
       const headers = { authorization: `Bearer ${signed.token}` };
       const result = await app.inject({ method: "GET", url: "/api/schedule.ics", headers });
@@ -64,6 +65,8 @@ describe("GET /api/schedule.ics", () => {
       expect(result.headers["content-type"]).toContain("text/calendar");
       expect(result.headers["content-disposition"]).toBe('attachment; filename="conference-schedule.ics"');
       expect(parse(result.body).getAllSubcomponents("vevent")).toHaveLength(1);
+      // The talk came back from the talks table with its text intact.
+      expect(new ICAL.Event(parse(result.body).getAllSubcomponents("vevent")[0]).summary).toBe(item.title);
       expect(result.body).not.toContain(attendeeId);
       expect(result.body).not.toContain(signed.token);
       expect(store.load).toHaveBeenCalledWith(attendeeId, at);

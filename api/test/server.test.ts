@@ -3,17 +3,23 @@ import type { FastifyInstance } from "fastify";
 import type { HealthResponse, SearchResponse } from "@cc/shared";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
-import { esHit, fakeEs, talk } from "./helpers.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import type { Db } from "../src/db/client.js";
+import { insertTalks, testDb } from "./pg.js";
+import { talk } from "./helpers.js";
 
 describe("api stub", () => {
   let app: FastifyInstance;
+  let db: Db;
 
   beforeAll(async () => {
-    const es = fakeEs(() => ({ body: { took: 1, hits: { hits: [esHit(talk("t1", 9, 10), 1.5, ["keyword"])] } } }));
-    app = buildServer(loadConfig({}), { es });
+    db = await testDb();
+    const t = talk("t1", 9, 10, { title: "Elasticsearch to Postgres", tags: ["search"] });
+    await insertTalks(db, [{ ...t, level: "intermediate" }]);
+    app = buildServer(loadConfig({}), { db, embedder: new LocalHashEmbedder() });
     await app.ready();
   });
-  afterAll(() => app.close());
+  afterAll(async () => { await app.close(); await db.close(); });
 
   it("serves /healthz", async () => {
     const res = await app.inject({ method: "GET", url: "/healthz" });
@@ -53,23 +59,22 @@ describe("api stub", () => {
 describe("config", () => {
   it("reads settings from env", () => {
     const c = loadConfig({
-      ES_URL: "https://es:9200",
-      ES_USERNAME: "svc",
-      ES_PASSWORD: "pw",
+      DATABASE_URL: "postgresql://app:pw@db.example.test:5432/postgres",
       TOKEN_SIGNING_KEY: "k",
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel:4318",
       PORT: "8080",
     });
-    expect(c.esUrl).toBe("https://es:9200");
+    expect(c.databaseUrl).toBe("postgresql://app:pw@db.example.test:5432/postgres");
     expect(c.port).toBe(8080);
     expect(c.otelExporterOtlpEndpoint).toBe("http://otel:4318");
     expect(c.registerRateLimitPerMinute).toBe(120);
   });
 
   it("refuses to start in production with a placeholder signing key", () => {
-    const prod = { NODE_ENV: "production", ES_URL: "https://es:9200", ES_USERNAME: "svc", ES_PASSWORD: "pw" };
-    expect(() => buildServer(loadConfig({ ...prod, TOKEN_SIGNING_KEY: "change-me" }))).toThrow(/placeholder/);
-    expect(() => buildServer(loadConfig({ ...prod, TOKEN_SIGNING_KEY: "too-short" }))).toThrow(/at least/);
+    const prod = { NODE_ENV: "production", DATABASE_URL: "postgresql://app:pw@db.example.test:5432/postgres" };
+    const db = {} as Db;
+    expect(() => buildServer(loadConfig({ ...prod, TOKEN_SIGNING_KEY: "change-me" }), { db })).toThrow(/placeholder/);
+    expect(() => buildServer(loadConfig({ ...prod, TOKEN_SIGNING_KEY: "too-short" }), { db })).toThrow(/at least/);
     expect(() => loadConfig({ ...prod })).toThrow(/TOKEN_SIGNING_KEY/);
   });
 });

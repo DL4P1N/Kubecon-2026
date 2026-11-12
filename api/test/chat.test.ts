@@ -15,15 +15,17 @@ import {
   validateChatBody,
   SYSTEM_PROMPT,
 } from "../src/chat/model.js";
-import { fakeEs } from "./helpers.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import { testDb } from "./pg.js";
+
+const sharedDb = await testDb();
 import { ASK_KINDS, CONFIRM_FIRST_OPTIONS, GOAL_OPTIONS, REGISTER_NOTICE, scriptedTurn } from "../src/chat/script.js";
 
 const conference = { slug: "cloud-native-hackathon-slc-2026", name: "Cloud Native Hackathon", topics: ["search", "observability"] };
 const profile = { name: "Ada", role: "engineer", interests: ["kubernetes", "search", "tracing"], goal: "learn", formats: "workshops" };
 
 function setup(deps: ServerDeps = {}, env: Record<string, string> = {}) {
-  const es = fakeEs(() => undefined);
-  const app = buildServer(loadConfig({ NODE_ENV: "test", ...env } as NodeJS.ProcessEnv), { es, runClaude: null, ...deps });
+  const app = buildServer(loadConfig({ NODE_ENV: "test", ...env } as NodeJS.ProcessEnv), { db: sharedDb, embedder: new LocalHashEmbedder(), runClaude: null, ...deps });
   return app;
 }
 

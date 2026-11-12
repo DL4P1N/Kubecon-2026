@@ -1,21 +1,19 @@
 import type { FastifyInstance } from "fastify";
 import { routes } from "@cc/shared";
-import type { EsClient } from "../es/client.js";
+import type { Db } from "../db/client.js";
+import { runQuery } from "../search/errors.js";
 import type { RoomActivityCounter } from "../rooms/activity.js";
 import { withSpan } from "../telemetry/span.js";
 import rateLimit from "@fastify/rate-limit";
 
-export function registerRoomRoutes(root: FastifyInstance, es: EsClient, counter: RoomActivityCounter, perMinute = 120, now = Date.now): void {
+export function registerRoomRoutes(root: FastifyInstance, db: Db, counter: RoomActivityCounter, perMinute = 120, now = Date.now): void {
   let catalog: { at: number; rooms: string[] } | undefined;
   let inflight: Promise<string[]> | undefined;
   async function catalogRooms(): Promise<string[]> {
     if (catalog && now() - catalog.at < 60_000) return catalog.rooms;
     inflight ??= (async () => {
-      const { body } = await es.request<{ timed_out?: boolean; _shards?: { failed: number }; aggregations?: { rooms: { buckets: { key: string }[] } } }>(
-        "POST", "/talks/_search", { size: 0, aggs: { rooms: { terms: { field: "room", size: 1000 } } } },
-      );
-      if (body.timed_out || body._shards?.failed || !body.aggregations?.rooms?.buckets) throw new Error("Catalog unavailable");
-      const rooms = body.aggregations.rooms.buckets.map(({ key }) => key).filter((key) => typeof key === "string" && key.length > 0);
+      const rows = await runQuery<{ room: string }>(db, "select distinct room from talks where room is not null and room <> '' order by room");
+      const rooms = rows.map(({ room }) => room);
       catalog = { at: now(), rooms };
       return rooms;
     })().finally(() => { inflight = undefined; });

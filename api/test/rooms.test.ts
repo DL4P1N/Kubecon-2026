@@ -2,10 +2,12 @@ import { expect, it } from "vitest";
 import { RoomActivityCounter } from "../src/rooms/activity.js";
 import { buildServer } from "../src/server.js";
 import { loadConfig } from "../src/config.js";
-import { fakeEs } from "./helpers.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import { failingDb, mk, recordingDb, seededDb } from "./search-fixtures.js";
 import Fastify from "fastify";
 import { registerRoomRoutes } from "../src/routes/rooms.js";
 
+const roomTalks = (...rooms: string[]) => rooms.map((room, i) => mk(`r${i}`, 9, 10, { room }));
 it("publishes only coarse levels, never exact counts, percentages or capacity", () => {
   const counter = new RoomActivityCounter(() => 0);
   for (let count = 0; count <= 50; count++) {
@@ -26,39 +28,39 @@ it("suppresses after summing minute buckets and after older buckets expire", () 
   now = 10 * 60 * 1000;
   expect(counter.snapshot(["A"]).rooms[0]).toEqual({ room: "A", level: "quiet" });
 });
-it("rate limits before querying Elasticsearch", async () => {
-  const es = fakeEs(() => ({ body: { aggregations: { rooms: { buckets: [] } } } }));
+it("rate limits before querying the database", async () => {
+  const db = recordingDb(await seededDb([]));
   const app = Fastify();
-  registerRoomRoutes(app, es, new RoomActivityCounter(), 2);
+  registerRoomRoutes(app, db, new RoomActivityCounter(), 2);
   try {
     expect((await app.inject("/api/rooms/occupancy")).statusCode).toBe(200);
     expect((await app.inject("/api/rooms/occupancy")).statusCode).toBe(200);
     expect((await app.inject("/api/rooms/occupancy")).statusCode).toBe(429);
-    expect(es.calls).toHaveLength(1);
+    expect(db.statements).toHaveLength(1);
   } finally { await app.close(); }
 });
 it("caches catalog rooms for one minute while scan activity stays fresh", async () => {
   let now = 0;
-  const es = fakeEs(() => ({ body: { aggregations: { rooms: { buckets: [{ key: "A" }] } } } }));
+  const db = recordingDb(await seededDb(roomTalks("A")));
   const counter = new RoomActivityCounter(() => now);
   const app = Fastify();
-  registerRoomRoutes(app, es, counter, 120, () => now);
+  registerRoomRoutes(app, db, counter, 120, () => now);
   try {
     const first = await app.inject("/api/rooms/occupancy");
     expect(first.json().rooms[0]).toEqual({ room: "A", level: "quiet" });
     expect(first.headers["cache-control"]).toBe("no-store");
     for (let i = 0; i < 5; i++) counter.recordAllowed("A");
     expect((await app.inject("/api/rooms/occupancy")).json().rooms[0]).toEqual({ room: "A", level: "some recent check-ins" });
-    expect(es.calls).toHaveLength(1);
+    expect(db.statements).toHaveLength(1);
     now = 60_000;
     await app.inject("/api/rooms/occupancy");
-    expect(es.calls).toHaveLength(2);
+    expect(db.statements).toHaveLength(2);
   } finally { await app.close(); }
 });
 it("public polling cannot reveal each additional scan within a coarse level", async () => {
   const counter = new RoomActivityCounter();
   const app = Fastify();
-  registerRoomRoutes(app, fakeEs(() => ({ body: { aggregations: { rooms: { buckets: [{ key: "A" }] } } } })), counter);
+  registerRoomRoutes(app, await seededDb(roomTalks("A")), counter);
   try {
     let previous = "";
     for (let count = 0; count <= 25; count++) {
@@ -71,21 +73,23 @@ it("public polling cannot reveal each additional scan within a coarse level", as
     }
   } finally { await app.close(); }
 });
-it("public occupancy returns catalog rooms only and handles ES failure safely", async () => {
+it("public occupancy returns catalog rooms only and handles database failure safely", async () => {
   const counter = new RoomActivityCounter();
   counter.recordAllowed("not-in-catalog");
-  const app = buildServer(loadConfig({}), { roomActivity: counter,
-    es: fakeEs(() => ({ body: { aggregations: { rooms: { buckets: [{ key: "A" }, { key: "B" }] } } } })) });
+  const embedder = new LocalHashEmbedder();
+  const app = buildServer(loadConfig({}), { roomActivity: counter, embedder,
+    db: await seededDb([...roomTalks("B", "A", "A"), mk("none", 9, 10, { room: "" })]) });
   try {
     const response = await app.inject("/api/rooms/occupancy");
     expect(response.statusCode).toBe(200);
     expect(response.json().rooms.map((item: { room: string }) => item.room)).toEqual(["A", "B"]);
     expect(response.body).not.toContain("not-in-catalog");
   } finally { await app.close(); }
-  const down = buildServer(loadConfig({}), { es: fakeEs(() => ({ status: 503, body: {} })) });
+  const down = buildServer(loadConfig({}), { embedder, db: failingDb({ code: "ECONNREFUSED", message: "secret" }) });
   try {
     const response = await down.inject("/api/rooms/occupancy");
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({ error: "room_activity_unavailable" });
+    expect(response.body).not.toContain("secret");
   } finally { await down.close(); }
 });

@@ -4,32 +4,13 @@ import type { OnboardingResponse, ScheduleResponse, SearchResponse } from "@cc/s
 import { createTokenService } from "../src/auth/token.js";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
 import { RETRY_AFTER_SECONDS, registerSearchRoutes } from "../src/routes/search.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
 import { loggerOptions } from "../src/telemetry/logger.js";
-import { esHit, fakeEs, talk, type FakeHandler } from "./helpers.js";
+import { A, CATALOG, failingDb, recordingDb, seededDb } from "./search-fixtures.js";
 
-const A = talk("a", 9, 10, { level: "beginner" });
-const B = talk("b", 9, 10, { level: "beginner" }); // overlaps A
-const C = talk("c", 11, 12, { level: "intermediate" });
-
-/** In-memory ES: serves talk searches from a fixed hit list and stores schedule docs. */
-function memoryEs(searchHits: ReturnType<typeof esHit>[]) {
-  const docs = new Map<string, unknown>();
-  const handler: FakeHandler = (call) => {
-    if (call.path.startsWith("/talks/_search")) return { body: { took: 3, hits: { hits: searchHits } } };
-    if (call.path.startsWith("/schedules/_doc/")) {
-      const id = decodeURIComponent(call.path.split("/")[3]!.split("?")[0]!);
-      if (call.method === "PUT") {
-        docs.set(id, call.body);
-        return { body: { result: "created" } };
-      }
-      return docs.has(id) ? { body: { found: true, _source: docs.get(id) } } : { status: 404, body: { found: false } };
-    }
-    return undefined;
-  };
-  return { es: fakeEs(handler), docs };
-}
+const embedder = new LocalHashEmbedder();
 
 const spans: { name: string; attrs: Record<string, unknown>; set: Record<string, unknown> }[] = [];
 setSpanRunner(async (name, attrs, fn) => {
@@ -41,61 +22,84 @@ afterEach(() => {
   spans.length = 0;
 });
 
-const hits = [esHit(A, 0.03, ["keyword", "semantic"]), esHit(C, 0.02, ["semantic"]), esHit(B, 0.01, ["keyword"])];
+async function server(extra: Record<string, unknown> = {}) {
+  const db = recordingDb(await seededDb());
+  return { db, app: buildServer(loadConfig({}), { db, embedder, ...extra }) };
+}
+const ids = (r: SearchResponse) => r.hits.map((h) => h.talk.id);
 
 describe("GET /api/search", () => {
-  it("sends a misspelled query to Elasticsearch with fuzziness in both modes (#55)", async () => {
-    for (const mode of ["keyword", "hybrid"]) {
-      const { es } = memoryEs([esHit(A, 4.2, ["keyword"])]);
-      const app = buildServer(loadConfig({}), { es });
-      const res = await app.inject({ method: "GET", url: `/api/search?q=kuberentes&mode=${mode}` });
-      expect(res.statusCode).toBe(200);
-      const body = JSON.stringify(es.calls[0]!.body);
-      expect(body).toContain('"query":"kuberentes"');
-      expect(body).toContain('"fuzziness":"AUTO"');
-      expect(body).toContain('"prefix_length":1');
-    }
-  });
-  it("keyword mode sends a multi_match and returns scored hits", async () => {
-    const { es } = memoryEs([esHit(A, 4.2, ["keyword"])]);
-    const app = buildServer(loadConfig({}), { es });
+  it("keyword mode matches stemmed terms and returns scored hits with the keyword leg", async () => {
+    const { app } = await server();
     const res = await app.inject({ method: "GET", url: "/api/search?q=supply%20chain&mode=keyword" });
     expect(res.statusCode).toBe(200);
     const body = res.json() as SearchResponse;
     expect(body.mode).toBe("keyword");
-    expect(body.hits[0]).toMatchObject({ score: 4.2, matched: ["keyword"], talk: { id: "a", speaker: "Someone", level: "beginner" } });
+    expect(ids(body).slice(0, 2).sort()).toEqual(["a", "b"]);
+    expect(ids(body)).not.toContain("d");
+    expect(body.hits[0]).toMatchObject({ matched: ["keyword"], talk: { speaker: expect.any(String), level: "beginner" } });
+    expect(body.hits[0]!.score).toBeGreaterThan(0);
     expect(body.debug).toBeUndefined();
-    expect(es.calls[0]!.path).toBe("/talks/_search");
-    expect(JSON.stringify(es.calls[0]!.body)).toContain("multi_match");
+    // Dates come back as ISO strings.
+    expect(body.hits.find((h) => h.talk.id === "a")!.talk).toMatchObject({ start: A.start, end: A.end, tags: A.tags });
   });
 
-  it("hybrid mode (default) uses the RRF retriever and reports matched legs", async () => {
-    const { es } = memoryEs(hits);
-    const app = buildServer(loadConfig({}), { es });
-    const res = await app.inject({ method: "GET", url: "/api/search?q=secure%20my%20builds" });
+  it("ranks a title match above an abstract-only match", async () => {
+    const { app } = await server();
+    const body = (await app.inject({ method: "GET", url: "/api/search?q=sigstore&mode=keyword" })).json() as SearchResponse;
+    expect(ids(body)).toEqual(["a"]);
+    const t = (await app.inject({ method: "GET", url: "/api/search?q=opentelemetry&mode=keyword" })).json() as SearchResponse;
+    expect(ids(t)[0]).toBe("d");
+  });
+
+  it.each(["keyword", "hybrid"])("forgives a misspelled query in %s mode (#55)", async (mode) => {
+    const { app } = await server();
+    const body = (await app.inject({ method: "GET", url: `/api/search?q=kuberentes&mode=${mode}` })).json() as SearchResponse;
+    const kw = body.hits.filter((h) => h.matched?.includes("keyword")).map((h) => h.talk.id);
+    expect(kw).toContain("c");
+  });
+
+  it("hybrid mode (default) fuses both legs and reports which legs matched", async () => {
+    const { app } = await server();
+    const res = await app.inject({ method: "GET", url: "/api/search?q=supply%20chain%20builds" });
     const body = res.json() as SearchResponse;
     expect(body.mode).toBe("hybrid");
-    expect(body.hits.map((h) => h.matched)).toEqual([["keyword", "semantic"], ["semantic"], ["keyword"]]);
-    expect(JSON.stringify(es.calls[0]!.body)).toContain('"rrf"');
+    expect(ids(body).slice(0, 2).sort()).toEqual(["a", "b"]);
+    expect(body.hits[0]!.matched).toEqual(["keyword", "semantic"]);
+    // The semantic leg ranks every talk, so unrelated ones appear with the semantic leg only.
+    const d = body.hits.find((h) => h.talk.id === "d");
+    expect(d?.matched).toEqual(["semantic"]);
+    const scores = body.hits.map((h) => h.score);
+    expect(scores).toEqual([...scores].sort((x, y) => y - x));
   });
 
-  it("debug=1 returns the exact ES request body", async () => {
-    const { es } = memoryEs(hits);
-    const app = buildServer(loadConfig({}), { es });
-    const res = await app.inject({ method: "GET", url: "/api/search?q=x&mode=hybrid&debug=1" });
-    expect((res.json() as SearchResponse).debug).toEqual(es.calls[0]!.body);
+  it("respects size", async () => {
+    const { app } = await server();
+    const body = (await app.inject({ method: "GET", url: "/api/search?q=kubernetes&size=2" })).json() as SearchResponse;
+    expect(body.hits).toHaveLength(2);
   });
 
-  it("emits search and embed spans with only allowlisted attributes", async () => {
-    const { es } = memoryEs(hits);
-    const app = buildServer(loadConfig({}), { es });
-    await app.inject({ method: "GET", url: "/api/search?q=hello" });
+  it("debug=1 describes the executed plan without parameter values or the query text", async () => {
+    const { app } = await server();
+    const q = "zebra-secret-query";
+    const res = await app.inject({ method: "GET", url: `/api/search?q=${q}&mode=hybrid&debug=1` });
+    const debug = (res.json() as SearchResponse).debug as { engine: string; mode: string; sql: string; paramCount: number };
+    expect(debug).toMatchObject({ engine: "postgres", mode: "hybrid", paramCount: expect.any(Number) });
+    expect(debug.sql).toContain("$1");
+    expect(debug.sql).not.toContain(q);
+    expect(JSON.stringify(debug)).not.toContain(q);
+  });
+
+  it("emits search and embed spans with only allowlisted attributes and no query text", async () => {
+    const { app } = await server();
+    await app.inject({ method: "GET", url: "/api/search?q=hello-canary" });
     const search = spans.find((s) => s.name === "search")!;
     expect(search.attrs).toEqual({ "search.mode": "hybrid" });
-    expect(search.set).toEqual({ "search.hits": 3 });
+    expect(search.set).toEqual({ "search.hits": CATALOG.length });
     expect(spans.some((s) => s.name === "embed")).toBe(true);
     await app.inject({ method: "GET", url: "/api/search?q=hello&mode=keyword" });
     expect(spans.filter((s) => s.name === "embed")).toHaveLength(1);
+    expect(JSON.stringify(spans)).not.toContain("hello-canary");
   });
 
   it.each([
@@ -104,153 +108,82 @@ describe("GET /api/search", () => {
     ["/api/search?q=x&size=0", "size too small"],
     ["/api/search?q=x&size=51", "size too large"],
     [`/api/search?q=${"a".repeat(501)}`, "q too long"],
-  ])("rejects %s (%s)", async (url) => {
-    const { es } = memoryEs([]);
-    const app = buildServer(loadConfig({}), { es });
+  ])("rejects %s (%s) without touching the database", async (url) => {
+    const { app, db } = await server();
     expect((await app.inject({ method: "GET", url })).statusCode).toBe(400);
-    expect(es.calls).toHaveLength(0);
+    expect(db.statements).toHaveLength(0);
   });
 
-  it("answers 502 without leaking details when ES fails", async () => {
-    const es = fakeEs(() => ({ status: 500, body: {} }));
-    const app = buildServer(loadConfig({}), { es });
-    const res = await app.inject({ method: "GET", url: "/api/search?q=x" });
-    expect(res.statusCode).toBe(502);
-    expect(res.json()).toEqual({ error: "search_unavailable" });
+  it("returns 400 (not 500) for a repeated q parameter", async () => {
+    const { app, db } = await server();
+    const res = await app.inject({ method: "GET", url: "/api/search?q=a&q=b" });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: "invalid_request" });
+    expect(db.statements).toHaveLength(0);
+  });
+
+  it("treats operators and quotes in q as plain text", async () => {
+    const { app } = await server();
+    for (const q of ["'; drop table talks; --", "supply & | ! ( ) :*", '"unbalanced', "%_\\"]) {
+      const res = await app.inject({ method: "GET", url: `/api/search?q=${encodeURIComponent(q)}&mode=keyword` });
+      expect(res.statusCode).toBe(200);
+    }
+    const body = (await app.inject({ method: "GET", url: "/api/search?q=supply&mode=keyword" })).json() as SearchResponse;
+    expect(body.hits.length).toBeGreaterThan(0);
   });
 });
 
-// Realistic Elasticsearch error bodies. The reason text echoes the query on purpose:
-// nothing from it may reach the client, a span or the log.
+// Failures: the driver message echoes the query on purpose; nothing from it may reach the client, a span or the log.
 const SECRET = "zebra-secret-query";
-const ES_429_NO_ML_CAPACITY = {
-  error: {
-    root_cause: [
-      {
-        type: "inference_exception",
-        reason: `Could not start deployment because no ML nodes with sufficient capacity were found [query: ${SECRET}]`,
-      },
-    ],
-    type: "search_phase_execution_exception",
-    reason: "all shards failed",
-    phase: "query",
-    grouped: true,
-    failed_shards: [],
-  },
-  status: 429,
-};
-const ES_400_PARSING = {
-  error: {
-    root_cause: [{ type: "parsing_exception", reason: `[rrf] unknown field [bogus] near "${SECRET}"`, line: 1, col: 40 }],
-    type: "parsing_exception",
-    reason: `[rrf] unknown field [bogus] near "${SECRET}"`,
-    line: 1,
-    col: 40,
-  },
-  status: 400,
-};
 
-/**
- * Fastify app using the production logger options (telemetry/logger.ts: redaction,
- * query-string-free request serializer) with a capturing stream. `lines` holds only the
- * diagnostic line; `all` holds every log line (request/response lines included).
- */
-function appWithLogs(es: ReturnType<typeof fakeEs>) {
+function appWithLogs(db: ReturnType<typeof failingDb>) {
   const lines: string[] = [];
   const all: string[] = [];
   const keep = (l: string) => {
     all.push(l);
-    if (String(JSON.parse(l).msg).startsWith("elasticsearch request failed")) lines.push(l);
+    if (String(JSON.parse(l).msg).startsWith("database request failed")) lines.push(l);
   };
   const app = Fastify({ logger: { ...loggerOptions, level: "info", stream: { write: keep } } });
-  registerSearchRoutes(app, { es, resolveAttendee: async () => "attendee-test" });
+  registerSearchRoutes(app, { db, embedder, resolveAttendee: async () => "attendee-test" });
   return { app, lines, all };
 }
 
-describe("Elasticsearch failures are diagnosable", () => {
-  it("maps a 429 inference capacity error to 503 + Retry-After, with error.type on spans and one log line", async () => {
-    const es = fakeEs(() => ({ status: 429, body: ES_429_NO_ML_CAPACITY }));
-    const { app, lines, all } = appWithLogs(es);
+describe("database failures are diagnosable without leaking", () => {
+  it("maps an unreachable database to 503 + Retry-After, with error.type on the span and one log line", async () => {
+    const { app, lines, all } = appWithLogs(failingDb({ code: "ECONNREFUSED", message: `connect failed near "${SECRET}"` }));
     const res = await app.inject({ method: "GET", url: `/api/search?q=${SECRET}&mode=hybrid` });
-
     expect(res.statusCode).toBe(503);
     expect(res.headers["retry-after"]).toBe(String(RETRY_AFTER_SECONDS));
     expect(res.json()).toEqual({ error: "search_overloaded" });
-    // Hybrid must not silently fall back to keyword: exactly one ES call, the hybrid one.
-    expect(es.calls).toHaveLength(1);
-
-    expect(spans.find((s) => s.name === "search")!.set["error.type"]).toBe("inference_exception");
-    expect(spans.find((s) => s.name === "embed")!.set["error.type"]).toBe("inference_exception");
-
+    expect(spans.find((s) => s.name === "search")!.set["error.type"]).toBe("ECONNREFUSED");
     const diag = lines.map((l) => JSON.parse(l));
     expect(diag).toHaveLength(1);
-    expect(diag[0]).toMatchObject({
-      "error.type": "inference_exception",
-      "http.route": "/api/search",
-      msg: "elasticsearch request failed with status 429 (overloaded)",
-      level: 40,
-    });
-
-    // Request/response lines went through the same redacting logger and carry no query string.
+    expect(diag[0]).toMatchObject({ "error.type": "ECONNREFUSED", "http.route": "/api/search", level: 40 });
     expect(all.length).toBeGreaterThan(lines.length);
-    expect(all.some((l) => JSON.parse(l).req?.path === "/api/search")).toBe(true);
-    const everything = JSON.stringify({ spans, all, body: res.body, headers: res.headers });
-    expect(everything).not.toContain(SECRET);
-    expect(everything).not.toContain("ML nodes");
-    expect(everything).not.toContain("authorization");
+    expect(JSON.stringify({ spans, all, body: res.body, headers: res.headers })).not.toContain(SECRET);
   });
 
-  it("keeps a 400 parsing error as 502 search_unavailable and records its type", async () => {
-    const es = fakeEs(() => ({ status: 400, body: ES_400_PARSING }));
-    const { app, lines, all } = appWithLogs(es);
+  it("keeps another database error as 502 search_unavailable and records its SQLSTATE", async () => {
+    const { app, lines, all } = appWithLogs(failingDb({ code: "42601", message: `syntax error at or near "${SECRET}"` }));
     const res = await app.inject({ method: "GET", url: `/api/search?q=${SECRET}` });
-
     expect(res.statusCode).toBe(502);
     expect(res.headers["retry-after"]).toBeUndefined();
     expect(res.json()).toEqual({ error: "search_unavailable" });
-    expect(spans.find((s) => s.name === "search")!.set["error.type"]).toBe("parsing_exception");
-    const diag = lines.map((l) => JSON.parse(l));
-    expect(diag).toHaveLength(1);
-    expect(diag[0]).toMatchObject({ "error.type": "parsing_exception", msg: "elasticsearch request failed with status 400" });
+    expect(spans.find((s) => s.name === "search")!.set["error.type"]).toBe("42601");
+    expect(lines).toHaveLength(1);
     expect(JSON.stringify({ spans, all, body: res.body })).not.toContain(SECRET);
   });
 
-  it("falls back to http_<status> when the body has no error type", async () => {
-    const es = fakeEs(() => ({ status: 500, body: "<html>proxy error</html>" }));
-    const { app } = appWithLogs(es);
-    const res = await app.inject({ method: "GET", url: "/api/search?q=x" });
-    expect(res.statusCode).toBe(502);
-    expect(spans.find((s) => s.name === "search")!.set["error.type"]).toBe("http_500");
-  });
-
   it("applies to onboarding and schedule paths too", async () => {
-    const es = fakeEs(() => ({ status: 429, body: ES_429_NO_ML_CAPACITY }));
-    const { app } = appWithLogs(es);
-    const onboarding = await app.inject({
-      method: "POST",
-      url: "/api/onboarding",
-      payload: { answers: { topics: ["security"], freeText: SECRET } },
-    });
+    const { app } = appWithLogs(failingDb({ code: "ECONNREFUSED", message: SECRET }));
+    const onboarding = await app.inject({ method: "POST", url: "/api/onboarding", payload: { answers: { topics: ["security"], freeText: SECRET } } });
     expect(onboarding.statusCode).toBe(503);
     expect(onboarding.headers["retry-after"]).toBe(String(RETRY_AFTER_SECONDS));
-    expect(onboarding.json()).toEqual({ error: "search_overloaded" });
-
     spans.length = 0;
     const save = await app.inject({ method: "POST", url: "/api/schedule", payload: { talkIds: ["a"] } });
     expect(save.statusCode).toBe(503);
-    expect(spans.find((s) => s.name === "talks.fetch")!.set["error.type"]).toBe("inference_exception");
+    expect(spans.find((s) => s.name === "talks.fetch")!.set["error.type"]).toBe("ECONNREFUSED");
     expect(JSON.stringify({ spans, bodies: [onboarding.body, save.body] })).not.toContain(SECRET);
-  });
-});
-
-describe("GET /api/search repeated params", () => {
-  it("returns 400 (not 500) for a repeated q parameter", async () => {
-    const { es } = memoryEs([]);
-    const app = buildServer(loadConfig({}), { es });
-    const res = await app.inject({ method: "GET", url: "/api/search?q=a&q=b" });
-    expect(res.statusCode).toBe(400);
-    expect(res.json()).toMatchObject({ error: "invalid_request" });
-    expect(es.calls).toHaveLength(0);
   });
 });
 
@@ -264,9 +197,8 @@ describe("POST /api/onboarding", () => {
     availableTo: "2026-11-10T18:00:00.000Z",
   };
 
-  it("builds a hybrid query with level and time filters and returns ranked talks", async () => {
-    const { es } = memoryEs(hits);
-    const app = buildServer(loadConfig({}), { es });
+  it("filters by level and time window and returns ranked talks", async () => {
+    const { app } = await server();
     const res = await app.inject({ method: "POST", url: "/api/onboarding?debug=1", payload: { answers } });
     expect(res.statusCode).toBe(200);
     const body = res.json() as OnboardingResponse;
@@ -275,17 +207,22 @@ describe("POST /api/onboarding", () => {
       topics: ["security", "supply chain"],
       mode: "hybrid",
     });
-    expect(body.hits).toHaveLength(3);
-    const sent = JSON.stringify(es.calls[0]!.body);
-    expect(sent).toContain('"rrf"');
-    expect(sent).toContain('"level":["beginner","intermediate"]');
-    expect(sent).toContain("2026-11-10T08:00:00.000Z");
-    expect(body.debug).toEqual(es.calls[0]!.body);
+    // beginner -> beginner + intermediate; D is advanced and never returned. E (beginner) is included.
+    const got = body.hits.map((h) => h.talk.id);
+    expect(got).not.toContain("d");
+    expect(got.slice(0, 2).sort()).toEqual(["a", "b"]);
+    expect(body.debug).toMatchObject({ engine: "postgres" });
+  });
+
+  it("applies the availability window to start and end", async () => {
+    const { app } = await server();
+    const narrow = { ...answers, availableFrom: "2026-11-10T11:00:00.000Z", availableTo: "2026-11-10T12:00:00.000Z" };
+    const body = (await app.inject({ method: "POST", url: "/api/onboarding", payload: { answers: narrow } })).json() as OnboardingResponse;
+    expect(body.hits.map((h) => h.talk.id).sort()).toEqual(["c", "e"]);
   });
 
   it("rejects bad answers", async () => {
-    const { es } = memoryEs([]);
-    const app = buildServer(loadConfig({}), { es });
+    const { app } = await server();
     const post = (a: unknown) => app.inject({ method: "POST", url: "/api/onboarding", payload: { answers: a } });
     expect((await post(undefined)).statusCode).toBe(400);
     expect((await post({ topics: "x" })).statusCode).toBe(400);
@@ -293,12 +230,11 @@ describe("POST /api/onboarding", () => {
     expect((await post({ topics: [], availableFrom: "soon" })).statusCode).toBe(400);
   });
 
-  it("skips ES when the answers produce no text", async () => {
-    const { es } = memoryEs(hits);
-    const app = buildServer(loadConfig({}), { es });
+  it("skips the database when the answers produce no text", async () => {
+    const { app, db } = await server();
     const res = await app.inject({ method: "POST", url: "/api/onboarding", payload: { answers: { topics: [], experience: "beginner", goals: [] } } });
     expect((res.json() as OnboardingResponse).hits).toEqual([]);
-    expect(es.calls).toHaveLength(0);
+    expect(db.statements).toHaveLength(0);
   });
 });
 
@@ -311,43 +247,42 @@ describe("schedule routes", () => {
   const asAttendee = async (id: string): Promise<Record<string, string>> => ({
     authorization: `Bearer ${(await tokens.sign(id)).token}`,
   });
-  const server = (es: ReturnType<typeof memoryEs>["es"], search: Record<string, unknown> = {}) =>
-    buildServer(loadConfig({}), { es, tokens, search: { now: () => fixedNow, ...search } });
+  const scheduleServer = async (search: Record<string, unknown> = {}) => {
+    const db = recordingDb(await seededDb());
+    return { db, app: buildServer(loadConfig({}), { db, embedder, tokens, search: { now: () => fixedNow, ...search } }) };
+  };
+  const savedRow = async (db: Awaited<ReturnType<typeof seededDb>>, id: string) =>
+    (await db.query<{ talk_ids: string[]; updated_at: Date; expires_at: Date }>("select * from schedules where attendee_id = $1", [id])).rows[0];
 
   afterEach(() => {
     clock = fixedNow.getTime();
   });
 
   it("builds an overlap-free schedule from answers, saves it and reads it back", async () => {
-    const { es, docs } = memoryEs(hits);
-    const app = server(es);
+    const { app, db } = await scheduleServer();
     const headers = await asAttendee("ada-1");
-    const res = await app.inject({
-      method: "POST",
-      url: "/api/schedule",
-      headers,
-      payload: { answers: { topics: ["security"], experience: "beginner", goals: [] } },
-    });
+    const res = await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { answers: { topics: ["security supply chain"], experience: "beginner", goals: [] } } });
     expect(res.statusCode).toBe(200);
     const body = res.json() as ScheduleResponse;
-    // A (best score) wins over overlapping B; C fits.
-    expect(body.items.map((i) => i.talk.id)).toEqual(["a", "c"]);
-    expect(body.droppedTalkIds).toEqual(["b"]);
+    const chosen = body.items.map((i) => i.talk.id);
+    // One of the overlapping A/B wins; the other is dropped; no two chosen talks overlap.
+    expect(chosen.filter((i) => i === "a" || i === "b")).toHaveLength(1);
+    expect(body.droppedTalkIds).toContain(["a", "b"].find((i) => !chosen.includes(i)));
+    expect(chosen).not.toContain("d");
     expect(spans.some((s) => s.name === "schedule.build")).toBe(true);
 
-    const saved = docs.get("ada-1") as Record<string, unknown>;
-    expect(saved.talk_ids).toEqual(["a", "c"]);
-    expect(saved.updated_at).toBe(fixedNow.toISOString());
+    const saved = await savedRow(db, "ada-1");
+    expect(saved!.talk_ids).toEqual(chosen);
+    expect(saved!.updated_at.toISOString()).toBe(fixedNow.toISOString());
     // Default policy: schedules are kept like profiles (ATTENDEE_RETENTION_HOURS unset).
-    expect(saved.expires_at).toBe("9999-12-31T23:59:59.999Z");
+    expect(saved!.expires_at.toISOString()).toBe("9999-12-31T23:59:59.999Z");
 
     const get = await app.inject({ method: "GET", url: "/api/schedule", headers });
-    expect((get.json() as ScheduleResponse).items.map((i) => i.talk.id).sort()).toEqual(["a", "c"]);
+    expect((get.json() as ScheduleResponse).items.map((i) => i.talk.id).sort()).toEqual([...chosen].sort());
   });
 
   it("saves explicit talkIds in priority order and reports unknown and conflicting ids", async () => {
-    const { es, docs } = memoryEs([esHit(A, 1), esHit(B, 1), esHit(C, 1)]);
-    const app = server(es);
+    const { app, db } = await scheduleServer();
     const headers = await asAttendee("ada-1");
     const res = await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: ["b", "a", "c", "nope"] } });
     const body = res.json() as ScheduleResponse;
@@ -356,24 +291,32 @@ describe("schedule routes", () => {
     // Only the overlap is a conflict; the unknown id is not.
     expect(body.skipped?.map(({ talkId, conflictsWith }) => ({ talkId, conflictsWith }))).toEqual([{ talkId: "a", conflictsWith: ["b"] }]);
     expect(body.skipped?.[0]?.talk?.id).toBe("a");
-    expect((docs.get("ada-1") as { talk_ids: string[] }).talk_ids).toEqual(["b", "c"]);
+    expect((await savedRow(db, "ada-1"))!.talk_ids).toEqual(["b", "c"]);
     const get = await app.inject({ method: "GET", url: "/api/schedule", headers });
     expect((get.json() as ScheduleResponse).skipped).toBeUndefined();
   });
 
+  it("saving again replaces the previous schedule", async () => {
+    const { app, db } = await scheduleServer();
+    const headers = await asAttendee("ada-1");
+    await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: ["a"] } });
+    await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: ["c"] } });
+    expect((await savedRow(db, "ada-1"))!.talk_ids).toEqual(["c"]);
+    expect((await db.query("select 1 from schedules")).rowCount).toBe(1);
+  });
+
   it("keeps two registered attendees' schedules separate", async () => {
-    const { es, docs } = memoryEs([esHit(A, 1), esHit(C, 1)]);
-    const app = server(es);
+    const { app, db } = await scheduleServer();
     const ada = await asAttendee("ada-1");
     const bob = await asAttendee("bob-2");
     expect((await app.inject({ method: "POST", url: "/api/schedule", headers: ada, payload: { talkIds: ["a"] } })).statusCode).toBe(200);
     expect((await app.inject({ method: "POST", url: "/api/schedule", headers: bob, payload: { talkIds: ["c"] } })).statusCode).toBe(200);
-    expect((docs.get("ada-1") as { talk_ids: string[] }).talk_ids).toEqual(["a"]);
-    expect((docs.get("bob-2") as { talk_ids: string[] }).talk_ids).toEqual(["c"]);
-    const ids = async (headers: Record<string, string>) =>
+    expect((await savedRow(db, "ada-1"))!.talk_ids).toEqual(["a"]);
+    expect((await savedRow(db, "bob-2"))!.talk_ids).toEqual(["c"]);
+    const got = async (headers: Record<string, string>) =>
       ((await app.inject({ method: "GET", url: "/api/schedule", headers })).json() as ScheduleResponse).items.map((i) => i.talk.id);
-    expect(await ids(ada)).toEqual(["a"]);
-    expect(await ids(bob)).toEqual(["c"]);
+    expect(await got(ada)).toEqual(["a"]);
+    expect(await got(bob)).toEqual(["c"]);
     expect(JSON.stringify(spans)).not.toContain("ada-1");
     expect(JSON.stringify(spans)).not.toContain("bob-2");
   });
@@ -391,10 +334,7 @@ describe("schedule routes", () => {
         return { authorization: `Bearer ${h}.${forged}.${sig}` };
       },
     ],
-    [
-      "a token signed with another key",
-      async () => ({ authorization: `Bearer ${(await createTokenService({ key: `${KEY}-other` }).sign("victim-7")).token}` }),
-    ],
+    ["a token signed with another key", async () => ({ authorization: `Bearer ${(await createTokenService({ key: `${KEY}-other` }).sign("victim-7")).token}` })],
     [
       "an expired token",
       async () => {
@@ -404,21 +344,18 @@ describe("schedule routes", () => {
       },
     ],
   ])("returns 401 for %s and never touches any schedule", async (_label, makeHeaders) => {
-    const { es, docs } = memoryEs([esHit(A, 1)]);
-    const victim = { talk_ids: ["a"], updated_at: "2026-11-09T00:00:00.000Z", expires_at: "2099-01-01T00:00:00.000Z" };
-    docs.set("victim-7", victim);
-    const app = server(es);
+    const { app, db } = await scheduleServer();
+    await db.query("insert into schedules (attendee_id, talk_ids, updated_at, expires_at) values ('victim-7', '{a}', now(), '2099-01-01')");
+    db.statements.length = 0;
     const headers = await makeHeaders();
     const get = await app.inject({ method: "GET", url: "/api/schedule", headers });
     expect(get.statusCode).toBe(401);
     expect(get.headers["www-authenticate"]).toMatch(/^Bearer/);
     const post = await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: ["a"] } });
     expect(post.statusCode).toBe(401);
-    expect(docs.get("victim-7")).toEqual(victim);
-    expect(docs.size).toBe(1);
-    expect(es.calls).toHaveLength(0);
-    // Rejected requests are still traced, with allowlisted attributes only.
-    // requireAttendee awaits reply.send(), which can settle just after inject() resolves.
+    expect((await savedRow(db, "victim-7"))!.talk_ids).toEqual(["a"]);
+    expect((await db.query("select 1 from schedules")).rowCount).toBe(1);
+    expect(db.statements.filter((s) => !s.startsWith("select 1 from schedules") && !s.startsWith("select * from schedules"))).toHaveLength(0);
     await new Promise((r) => setImmediate(r));
     expect(spans.map((s) => [s.name, s.set["http.response.status_code"]])).toEqual([
       ["schedule.get", 401],
@@ -428,47 +365,48 @@ describe("schedule routes", () => {
   });
 
   it("fails closed with 401 when no token service is wired", async () => {
-    const { es } = memoryEs([]);
+    const db = recordingDb(await seededDb());
     const app = Fastify();
-    registerSearchRoutes(app, { es });
+    registerSearchRoutes(app, { db, embedder });
     const res = await app.inject({ method: "GET", url: "/api/schedule", headers: await asAttendee("ada-1") });
     expect(res.statusCode).toBe(401);
-    expect(es.calls).toHaveLength(0);
+    expect(db.statements).toHaveLength(0);
   });
 
   it("keeps search and onboarding public (no token needed)", async () => {
-    const { es } = memoryEs(hits);
-    const app = server(es);
+    const { app } = await scheduleServer();
     expect((await app.inject({ method: "GET", url: "/api/search?q=x&mode=keyword" })).statusCode).toBe(200);
     const onboarding = await app.inject({ method: "POST", url: "/api/onboarding", payload: { answers: { topics: ["security"] } } });
     expect(onboarding.statusCode).toBe(200);
   });
 
   it("keys schedules per injected attendee resolver without exposing the id in spans", async () => {
-    const { es, docs } = memoryEs([esHit(A, 1)]);
-    const app = server(es, { resolveAttendee: async () => "zed-42" });
+    const { app, db } = await scheduleServer({ resolveAttendee: async () => "zed-42" });
     await app.inject({ method: "POST", url: "/api/schedule", payload: { talkIds: ["a"] } });
     await app.inject({ method: "GET", url: "/api/schedule" });
-    expect(docs.has("zed-42")).toBe(true);
+    expect(await savedRow(db, "zed-42")).toBeDefined();
     expect(JSON.stringify(spans)).not.toContain("zed-42");
   });
 
   it("ignores expired schedules on load and serves unexpired ones", async () => {
-    const { es, docs } = memoryEs([esHit(A, 1)]);
-    const app = server(es);
+    const { app, db } = await scheduleServer();
     const headers = await asAttendee("ada-1");
-    const doc = (expires_at: string) => ({ talk_ids: ["a"], updated_at: "2026-11-09T00:00:00.000Z", expires_at });
-    docs.set("ada-1", doc("2026-11-10T06:59:59.000Z"));
+    const put = (expires: string) =>
+      db.query(
+        `insert into schedules (attendee_id, talk_ids, updated_at, expires_at) values ('ada-1', '{a}', '2026-11-09T00:00:00Z', $1)
+         on conflict (attendee_id) do update set expires_at = excluded.expires_at`,
+        [expires],
+      );
+    await put("2026-11-10T06:59:59.000Z");
     const expired = await app.inject({ method: "GET", url: "/api/schedule", headers });
     expect(expired.json()).toEqual({ items: [], updatedAt: new Date(0).toISOString() });
-    docs.set("ada-1", doc("2026-11-10T07:00:01.000Z"));
+    await put("2026-11-10T07:00:01.000Z");
     const live = await app.inject({ method: "GET", url: "/api/schedule", headers });
     expect((live.json() as ScheduleResponse).items.map((i) => i.talk.id)).toEqual(["a"]);
   });
 
   it("wraps GET /api/schedule in a request span plus attribute-free load and fetch spans", async () => {
-    const { es } = memoryEs([esHit(A, 1)]);
-    const app = server(es);
+    const { app } = await scheduleServer();
     const headers = await asAttendee("ada-1");
     await app.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: ["a"] } });
     spans.length = 0;
@@ -481,16 +419,14 @@ describe("schedule routes", () => {
   });
 
   it("returns an empty schedule when nothing was saved", async () => {
-    const { es } = memoryEs([]);
-    const app = server(es);
+    const { app } = await scheduleServer();
     const res = await app.inject({ method: "GET", url: "/api/schedule", headers: await asAttendee("new-3") });
     expect(res.statusCode).toBe(200);
     expect((res.json() as ScheduleResponse).items).toEqual([]);
   });
 
   it("validates the body", async () => {
-    const { es } = memoryEs([]);
-    const app = server(es);
+    const { app } = await scheduleServer();
     const headers = await asAttendee("ada-1");
     const post = (payload: unknown) => app.inject({ method: "POST", url: "/api/schedule", headers, payload: payload as object });
     expect((await post({})).statusCode).toBe(400);
@@ -499,3 +435,4 @@ describe("schedule routes", () => {
     expect((await post({ answers: { topics: 3 } })).statusCode).toBe(400);
   });
 });
+

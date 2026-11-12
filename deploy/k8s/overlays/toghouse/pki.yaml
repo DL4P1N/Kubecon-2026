@@ -69,18 +69,3 @@ spec:
   usages: [server auth]
   privateKey: {algorithm: ECDSA, size: 256}
   issuerRef: {name: companion-ca, kind: Issuer}
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: elasticsearch
-spec:
-  secretName: elasticsearch-tls
-  commonName: elasticsearch
-  dnsNames: [elasticsearch, elasticsearch.conference-companion, elasticsearch.conference-companion.svc, elasticsearch.conference-companion.svc.cluster.local, localhost]
-  duration: 2160h
-  renewBefore: 720h
-  # Elasticsearch authenticates peers over transport TLS with the same leaf.
-  usages: [server auth, client auth]
-  privateKey: {algorithm: ECDSA, size: 256, encoding: PKCS8}
-  issuerRef: {name: companion-ca, kind: Issuer}

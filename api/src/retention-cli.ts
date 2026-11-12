@@ -4,12 +4,18 @@ try {
   startTelemetry("companion-retention");
   // Load application modules only after instrumentation has been registered.
   const { loadConfig } = await import("./config.js");
-  const { createEsClient } = await import("./es/client.js");
+  const { createPgDb } = await import("./db/client.js");
   const { runRetention } = await import("./retention.js");
-  const deleted = await runRetention(createEsClient(loadConfig()));
-  console.log(JSON.stringify({ deleted }));
+  const config = loadConfig();
+  const db = createPgDb(config.databaseUrl, { caFile: config.databaseCaFile });
+  try {
+    const deleted = await runRetention(db);
+    console.log(JSON.stringify({ deleted }));
+  } finally {
+    await db.close();
+  }
 } catch {
-  // Elasticsearch error bodies can include source data; never print them.
+  // Database errors can include row values; never print them.
   console.error("Retention cleanup failed");
   process.exitCode = 1;
 } finally {

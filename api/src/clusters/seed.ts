@@ -1,8 +1,8 @@
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../config.js";
-import { createEsClient, type EsClient } from "../es/client.js";
-import { createEmbedder, type Embedder } from "../es/embeddings.js";
-import { ensureIndices } from "../es/mappings.js";
+import { createPgDb, vectorLiteral, type Db } from "../db/client.js";
+import { migrate } from "../db/schema.js";
+import { createEmbedder, type Embedder } from "../embed/embedder.js";
 
 /**
  * Demo data for the cluster map: 40 SYNTHETIC attendees who all opted in.
@@ -47,37 +47,34 @@ export function demoSpecs(): DemoAttendeeSpec[] {
   return specs;
 }
 
-export async function seedDemoAttendees(es: EsClient, embedder: Pick<Embedder, "embed">, now = new Date()): Promise<number> {
+export async function seedDemoAttendees(db: Db, embedder: Pick<Embedder, "embed">, now = new Date()): Promise<number> {
   const specs = demoSpecs();
-  const lines: object[] = [];
+  const expires = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
   for (const s of specs) {
-    const vector = await embedder.embed(s.interests.join(", "));
-    lines.push(
-      { index: { _index: "attendees", _id: s.id } },
-      {
-        id: s.id,
-        display_name: `Demo attendee ${s.id.slice(5)}`,
-        interests: s.interests,
-        interest_vector: vector,
-        consent: { cluster_map: true, qr_checkin: true },
-        created_at: now.toISOString(),
-        expires_at: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-      },
+    const vector = await embedder.embed(s.interests.join(", "), "passage");
+    await db.query(
+      `insert into attendees (id, display_name, interests, interest_vector, consent_cluster_map, consent_qr_checkin, created_at, expires_at)
+       values ($1, $2, $3, $4::vector, true, true, $5, $6)
+       on conflict (id) do update set display_name = excluded.display_name, interests = excluded.interests,
+         interest_vector = excluded.interest_vector, consent_cluster_map = true, consent_qr_checkin = true,
+         created_at = excluded.created_at, expires_at = excluded.expires_at`,
+      [s.id, `Demo attendee ${s.id.slice(5)}`, s.interests, vectorLiteral(vector), now.toISOString(), expires],
     );
   }
-  const res = await es.bulk(lines);
-  if (res.errors) throw new Error("demo attendee bulk write failed");
-  await es.request("POST", "/attendees/_refresh");
   return specs.length;
 }
 
-/** `npm run clusters:seed`: ensure indices, then index the demo attendees. Run `npm run clusters` afterwards. */
+/** `npm run clusters:seed`: ensure the schema, then insert the demo attendees. Run `npm run clusters` afterwards. */
 async function main() {
-  const es = createEsClient(loadConfig());
-  const embedder = createEmbedder(process.env, es);
-  await ensureIndices(es, embedder.dims);
-  const n = await seedDemoAttendees(es, embedder);
-  console.log(`indexed ${n} synthetic opted-in attendees (demo-NN). Now run: npm run clusters`);
+  const config = loadConfig();
+  const db = createPgDb(config.databaseUrl, { caFile: config.databaseCaFile });
+  try {
+    await migrate(db);
+    const n = await seedDemoAttendees(db, createEmbedder());
+    console.log(`inserted ${n} synthetic opted-in attendees (demo-NN). Now run: npm run clusters`);
+  } finally {
+    await db.close();
+  }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
