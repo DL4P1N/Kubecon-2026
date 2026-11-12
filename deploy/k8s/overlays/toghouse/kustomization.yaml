@@ -28,3 +28,9 @@ patches:
       - op: replace
         path: /data/TRUST_PROXY
         value: "3"
+  - path: collector-patch.yaml
+    target: {kind: Deployment, name: otel-collector}
+configMapGenerator:
+  - name: companion-collector-local-config
+    files:
+      - local.yaml=collector-local.yaml
