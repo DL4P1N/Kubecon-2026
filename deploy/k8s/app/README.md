@@ -39,6 +39,10 @@ Files must not contain trailing newlines.
 
 ## Build and publish
 
+On pushes to `main`, `.github/workflows/ci.yml` publishes multi-architecture API and web images to GHCR after CI and
+image smoke checks pass. Tags are the full source commit SHA; pull-request builds do not publish. The commands below are
+for operator-managed builds.
+
 Build for the Linux platforms supported by the target cluster and native dependencies. The API image uses Debian/glibc
 because ONNX Runtime does not ship musl binaries; it includes the embedding model and does not download it at runtime.
 
