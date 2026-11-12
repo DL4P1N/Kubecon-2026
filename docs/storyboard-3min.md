@@ -12,7 +12,7 @@ Big conferences are hard to get around, and organisers guess room sizes. You sig
 **Laptop, NEW site (branch build, `http://127.0.0.1:4320/`):**
 - [ ] Tab A: `conference.html?c=cloud-native-hackathon-slc-2026&demo=1` (recording tab, at top). Tab B: `register.html?c=cloud-native-hackathon-slc-2026` (fresh visitor). Tab C: `profile.html`. Tab D: React app Organizer page with "Room placement". Tab E: React `/navigate` (backup).
 
-**Laptop, DEPLOYED build (old front end, "our deployed build", `https://conference-companion-ecan4.vercel.app`):**
+**Laptop, deployed build (server origin configured in the app's Settings):**
 - [ ] Tab F: `/search`. Run the rollout query ONCE before, so the model is warm. Tab G: `/schedule` (already onboarded). The header badge ("All systems normal") must show. Tab H: `/status`.
 
 **Laptop, EVIDENCE tabs (open in this order; clear any private details):**

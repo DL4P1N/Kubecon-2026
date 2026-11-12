@@ -8,7 +8,6 @@ struct ConferenceCompanionApp: App {
     @State private var nav = AppNavigation()
 
     init() {
-        ServerDefaults.apply()
         NotificationService.install()
     }
 
