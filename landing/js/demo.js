@@ -18,7 +18,7 @@ const TAG_SYNTH = "Synthetic demo data";
 const TAG_LIVE = "Live data";
 const TOAST_MS = 4000;
 const ROOM_LABELS = { keynote: "Keynote", "room-a": "Room A", "room-b": "Room B", "room-c": "Room C", "room-d": "Room D", lounge: "Lounge" };
-const VIA_LABELS = { qr: "QR code", github: "GitHub", google: "Google", linkedin: "LinkedIn" };
+const VIA_LABELS = { qr: "QR code", github: "GitHub" };
 
 const root = document.documentElement;
 const reg = { demo: null }; // the live instance while demo mode is on

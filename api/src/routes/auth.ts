@@ -27,7 +27,7 @@ const callbackBody = z.object({ code: z.string().min(1).max(2048), state: z.stri
 const notFound = { error: "not_found", message: "unknown or disabled sign-in provider" };
 
 /**
- * Sign in with GitHub / Google / LinkedIn; an account maps to one attendee profile across devices.
+ * Sign in with GitHub; an account maps to one attendee profile across devices.
  *
  * GET  /api/auth/providers            which providers are configured
  * GET  /api/auth/:provider/start      302 to the provider, with a one-time `state` kept in memory for 10 minutes,
@@ -82,13 +82,13 @@ export const authRoutes: FastifyPluginAsync<AuthRouteOptions> = async (app, opts
         span.setAttribute("http.response.status_code", 400);
         return reply.code(400).send({ error: "invalid_request", message: "invalid return" });
       }
-      const { state, verifier, nonce } = states.create({ provider, return: back, app: q.data.app === "1" });
+      const { state, nonce } = states.create({ provider, return: back, app: q.data.app === "1" });
       span.setAttribute("http.response.status_code", 302);
       reply.header("cache-control", "no-store");
       // Binds the flow to this browser: the callback must present the same nonce. No cookie plugin is
       // needed; the cookie is scoped to /api/auth so it never rides along on other requests.
       reply.header("set-cookie", nonceCookie(nonce, cfg.redirectUri.startsWith("https:")));
-      return reply.redirect(buildAuthorizeUrl(provider, cfg, state, verifier), 302);
+      return reply.redirect(buildAuthorizeUrl(provider, cfg, state), 302);
     }),
   );
 
@@ -108,7 +108,7 @@ export const authRoutes: FastifyPluginAsync<AuthRouteOptions> = async (app, opts
       const pending = states.consume(body.state, provider);
       if (!pending || !nonceMatches(pending.nonce, req.headers.cookie)) return fail(400, { error: "invalid_state", message: "sign-in expired or already used, start again" });
       try {
-        const profile = await fetchProfile(provider, cfg, body.code, pending.verifier, fetchFn);
+        const profile = await fetchProfile(provider, cfg, body.code, fetchFn);
         const { subject, ...shown } = profile;
         const id = identityId(opts.identityHashKey, provider, subject);
         let linked: string | null;

@@ -150,5 +150,5 @@ function SignInLinks() {
   const [providers, setProviders] = useState<string[]>([]);
   useEffect(() => { api.authProviders().then((r) => setProviders(r.providers.filter((p) => p.enabled).map((p) => p.id))).catch(() => {}); }, []);
   if (providers.length === 0) return null;
-  return <span> Sign in: {providers.map((p, i) => <span key={p}>{i > 0 ? " / " : ""}<a href={`/api/auth/${p}/start?return=/schedule`}>{p === "github" ? "GitHub" : p === "google" ? "Google" : "LinkedIn"}</a></span>)}</span>;
+  return <span> Sign in: {providers.map((p, i) => <span key={p}>{i > 0 ? " / " : ""}<a href={`/api/auth/${p}/start?return=/schedule`}>{p === "github" ? "GitHub" : p}</a></span>)}</span>;
 }

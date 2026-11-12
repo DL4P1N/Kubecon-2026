@@ -14,7 +14,7 @@ The deployed origin is operator-configured; the site and API share one origin. Â
 
 | Step | Where |
 | --- | --- |
-| **Register** | `/site/register.html?c=cloud-native-hackathon-slc-2026` explains what is kept, collects interests, and creates a ticket and recommended schedule. Optional sign-in with GitHub, Google or LinkedIn links an account to the profile ([docs/sign-in.md](docs/sign-in.md)). |
+| **Register** | `/site/register.html?c=cloud-native-hackathon-slc-2026` explains what is kept, collects interests, and creates a ticket and recommended schedule. Optional sign-in with GitHub links an account to the profile ([docs/sign-in.md](docs/sign-in.md)). |
 | **Find a talk** | `/search` compares keyword and hybrid retrieval over 417 real KubeCon NA 2026 sessions. |
 | **Plan the day** | `/schedule` saves selected talks without overlaps and shows a short-lived room-access QR. |
 | **Check the door** | `/kiosk` accepts a camera scan or token text and checks current entitlements on every scan. |
@@ -51,7 +51,7 @@ npm run seed
 npm run dev:api   # http://localhost:3000
 ```
 
-In another terminal: `npm run dev:web` (http://localhost:5173, `/site/` is the landing entry). Vite proxies `/api` and `/otlp`. Configuration comes from environment variables only; [.env.example](.env.example) lists them. For offline work set `EMBEDDINGS_PROVIDER=local` (hashed vectors, lexical quality only).
+In another terminal: `npm run dev:web` (http://localhost:5173, `/site/` is the landing entry). Vite proxies `/api` (and `/otlp`, used only when you enable browser telemetry). Configuration comes from environment variables only; [.env.example](.env.example) lists them. For offline work set `EMBEDDINGS_PROVIDER=local` (hashed vectors, lexical quality only).
 
 ### Checks
 
@@ -73,7 +73,7 @@ Container images for the API and web are built from `api/Dockerfile` and `web/Do
 | [Sign-in](docs/sign-in.md) | OAuth providers and the account-link design |
 | [Chat](docs/chat.md) | Scripted flow; optional Claude CLI mode |
 | [Retention](docs/retention.md) / [clusters](docs/cluster-map.md) | Scheduled jobs, profile deletion, aggregation limits |
-| [Telemetry](docs/observability.md) / [allowlist](docs/telemetry-allowlist.md) | SDKs, collector, scrubbing |
+| [Telemetry](docs/observability.md) / [allowlist](docs/telemetry-allowlist.md) | Optional OpenTelemetry, in-process scrubbing |
 | [iOS](ios/README.md) | Xcode build, server URL, signing, Wallet |
 
 ## Data, privacy, and demo boundaries

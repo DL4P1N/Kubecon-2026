@@ -79,7 +79,7 @@ test("POST /api/chat validation: shape, roles, lengths, counts", async () => {
     assert.equal(max.length, MAX_MESSAGES);
     assert.equal(max.at(-1).role, "user");
     assert.equal((await postJson(a.base, "/api/chat", { ...ok, messages: max })).status, 200);
-    for (const via of ["github", "google", "linkedin", "qr", null]) {
+    for (const via of ["github", "qr", null]) {
       assert.equal((await postJson(a.base, "/api/chat", { ...ok, via })).status, 200);
     }
     // errors never echo what was submitted

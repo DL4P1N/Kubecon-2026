@@ -11,13 +11,7 @@ import {
 import { withSpan } from "../src/telemetry/span.js";
 import { recordAccessScan, recordSearchLatency, resetMetricsForTest } from "../src/telemetry/metrics.js";
 import Fastify from "fastify";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import {
-  LOG_ATTRIBUTE_ALLOWLIST,
-  METRIC_ATTRIBUTE_ALLOWLIST,
-  SPAN_ATTRIBUTE_ALLOWLIST,
-} from "../src/telemetry/allowlist.js";
+import { SPAN_ATTRIBUTE_ALLOWLIST } from "../src/telemetry/allowlist.js";
 import { loggerOptions } from "../src/telemetry/logger.js";
 import { startTelemetry } from "../src/telemetry/sdk.js";
 
@@ -104,25 +98,6 @@ describe("metrics", () => {
     metrics.disable();
     resetMetricsForTest();
   });
-});
-
-describe("allowlist mirrors the collector config", () => {
-  const configs = ["deploy/k8s/otel-collector/configmap.yaml", "deploy/compose/otel-config.yaml"];
-  const lists: Record<string, readonly string[]> = {
-    span: SPAN_ATTRIBUTE_ALLOWLIST,
-    log: LOG_ATTRIBUTE_ALLOWLIST,
-    datapoint: METRIC_ATTRIBUTE_ALLOWLIST,
-  };
-  for (const file of configs) {
-    it(`${file} keeps exactly the TS allowlists`, () => {
-      const text = readFileSync(fileURLToPath(new URL(`../../${file}`, import.meta.url)), "utf8");
-      for (const [ctx, list] of Object.entries(lists)) {
-        const m = new RegExp(`context: ${ctx}\\s+statements:\\s+- keep_keys\\(attributes, (\\[[^\\]]*\\])\\)`).exec(text);
-        expect(m, `${ctx} keep_keys in ${file}`).not.toBeNull();
-        expect(JSON.parse(m![1]!)).toEqual([...list]);
-      }
-    });
-  }
 });
 
 describe("fastify logging does not leak user input", () => {

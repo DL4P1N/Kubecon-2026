@@ -159,15 +159,15 @@ test("appTicketUrl adds &avatar=<param> last when given", () => {
 });
 
 test("auth: providers, start and return URLs", () => {
-  assert.deepEqual(parseProviders({ providers: [{ id: "github", enabled: true }, { id: "google", enabled: false }, { id: "evil", enabled: true }, null] }), { github: true, google: false });
+  assert.deepEqual(parseProviders({ providers: [{ id: "github", enabled: true }, { id: "evil", enabled: true }, null] }), { github: true });
   assert.deepEqual(parseProviders(null), {});
   assert.equal(startUrl("github", "/site/profile.html"), "/api/auth/github/start?return=%2Fsite%2Fprofile.html");
   assert.equal(startUrl("github", "/site/profile.html", "https://auth.example.org"), "https://auth.example.org/api/auth/github/start?return=%2Fsite%2Fprofile.html");
-  assert.equal(registerReturnPath("a b", "google"), "/site/register.html?c=a%20b&via=google");
+  assert.equal(registerReturnPath("a b", "github"), "/site/register.html?c=a%20b&via=github");
 });
 
 test("linked accounts: only known providers with a name; unlink; initials", () => {
-  const l = parseLinked(JSON.stringify({ github: { displayName: " Mia Okafor ", handle: "mia", avatarUrl: "https://x/y.png", linkedAt: "t" }, google: { displayName: "" }, other: { displayName: "x" } }));
+  const l = parseLinked(JSON.stringify({ github: { displayName: " Mia Okafor ", handle: "mia", avatarUrl: "https://x/y.png", linkedAt: "t" }, other: { displayName: "x" } }));
   assert.deepEqual(Object.keys(l), ["github"]);
   assert.equal(l.github.displayName, "Mia Okafor");
   assert.ok(!("avatarUrl" in l.github));

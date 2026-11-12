@@ -2,16 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../app
-  - ../otel-collector
 configMapGenerator:
   - name: companion-nginx-tls
     files:
       - default.conf.template=nginx.conf.template
-  - name: companion-collector-tls-config
-    files:
-      - tls.yaml=collector-tls.yaml
 patches:
-  - path: app-config.yaml
   - path: api-tls.yaml
   - path: web-tls.yaml
-  - path: collector-tls-patch.yaml

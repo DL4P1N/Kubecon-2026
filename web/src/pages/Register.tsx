@@ -17,7 +17,7 @@ function linkedDisplayName(): string {
   try {
     const linked = JSON.parse(localStorage.getItem(LINKED_KEY) ?? "null");
     if (!linked || typeof linked !== "object") return "";
-    for (const provider of ["github", "google", "linkedin"]) {
+    for (const provider of ["github"]) {
       const name = linked[provider]?.displayName;
       if (typeof name === "string" && name.trim()) return name.trim().slice(0, 80);
     }
@@ -32,7 +32,7 @@ function clearIdentityClaim(): void {
 
 
 function providerName(id: string): string {
-  return id === "github" ? "GitHub" : id === "google" ? "Google" : "LinkedIn";
+  return id === "github" ? "GitHub" : id;
 }
 export function Register() {
   const [name, setName] = useState(linkedDisplayName);

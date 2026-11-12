@@ -6,9 +6,9 @@
  *    header, so the API's server span joins the browser trace
  *  - a `browser.error` span for uncaught errors and unhandled rejections
  *    (error type only; messages can contain user input)
- * Spans go over OTLP/HTTP to VITE_OTLP_ENDPOINT (default `/otlp`, proxied to
- * the collector's :4318 by Vite in dev and nginx in the container).
- * Set VITE_OTLP_ENDPOINT=off to disable.
+ * Spans go over OTLP/HTTP to VITE_OTLP_ENDPOINT, which is OFF unless set at build time
+ * (for example `/otlp` with a collector behind the Vite dev server). The deployed site
+ * has no collector, so nothing is sent.
  */
 import { context, propagation, trace, SpanStatusCode } from "@opentelemetry/api";
 import { W3CTraceContextPropagator } from "@opentelemetry/core";
@@ -25,7 +25,7 @@ import { registerVitals } from "./vitals.js";
 const SERVICE_NAME = "companion-web";
 
 function otlpBase(): string | null {
-  const raw = (import.meta.env.VITE_OTLP_ENDPOINT as string | undefined) ?? "/otlp";
+  const raw = (import.meta.env.VITE_OTLP_ENDPOINT as string | undefined) ?? "off";
   if (raw === "off" || raw === "") return null;
   return raw.replace(/\/+$/, "");
 }

@@ -1,28 +1,37 @@
-# Observability (OpenTelemetry -> collector -> Dash0)
+# Observability (OpenTelemetry, optional)
 
-Both apps speak plain OTLP/HTTP to the OTel collector
-(`deploy/compose`, `deploy/k8s/otel-collector`). The collector enforces the
-attribute allowlist (`docs/telemetry-allowlist.md`) and forwards to Dash0.
-Dash0 credentials live only in the collector's env / K8s Secret.
+Telemetry is optional and disabled unless `OTEL_EXPORTER_OTLP_ENDPOINT` (API) or `VITE_OTLP_ENDPOINT` (browser build)
+is configured. When enabled, attributes pass an in-process allowlist (`docs/telemetry-allowlist.md`) before export.
+
+When you do want traces, point both apps at any OTLP/HTTP collector you run yourself (the old setup was
+a collector that scrubbed with the same allowlist and forwarded to a backend such as Dash0):
 
 ```
 browser (companion-web) --traceparent--> api (companion-api) --SQL--> Postgres
-      |  OTLP/HTTP via /otlp proxy             |  OTLP/HTTP :4318
-      +---------------> otel-collector <-------+ ---> Dash0
+      |  OTLP/HTTP (VITE_OTLP_ENDPOINT)        |  OTLP/HTTP (OTEL_EXPORTER_OTLP_ENDPOINT)
+      +---------------> your collector <-------+ ---> backend
 ```
 
 ## Run locally
 
 ```sh
-# 1. Collector (debug exporter prints everything it forwards)
-docker compose -f deploy/compose/docker-compose.yml up otel-collector
-#    To also ship to Dash0 locally: export DASH0_OTLP_ENDPOINT / DASH0_AUTH_TOKEN first.
+# 1. A throwaway collector that prints everything it receives
+cat > /tmp/otel-debug.yaml <<'EOF'
+receivers: { otlp: { protocols: { http: { endpoint: 0.0.0.0:4318 } } } }
+exporters: { debug: { verbosity: detailed } }
+service:
+  pipelines:
+    traces: { receivers: [otlp], exporters: [debug] }
+    logs: { receivers: [otlp], exporters: [debug] }
+    metrics: { receivers: [otlp], exporters: [debug] }
+EOF
+docker run --rm -p 4318:4318 -v /tmp/otel-debug.yaml:/c.yaml otel/opentelemetry-collector-contrib:0.116.1 --config=/c.yaml
 
 # 2. API with telemetry on
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 npm run dev:api
 
-# 3. Web (Vite proxies /api -> :3000 and /otlp -> :4318)
-npm run dev:web
+# 3. Web with browser RUM on (Vite proxies /api -> :3000 and /otlp -> :4318)
+VITE_OTLP_ENDPOINT=/otlp npm run dev:web
 ```
 
 Open http://localhost:5173, run a search, and look for one trace id in the
@@ -114,15 +123,13 @@ OpenTelemetry web SDK (`@opentelemetry/sdk-trace` `TracerProvider`,
   a child of the browser span
 - `browser.error` spans for uncaught errors / unhandled rejections (`error.type` only)
 
-Export target: `VITE_OTLP_ENDPOINT` (build-time, default `/otlp`; `off`
-disables). `/otlp/*` is proxied to the collector by Vite in dev
-(`OTLP_URL`, default `http://localhost:4318`) and by nginx in the container
-(`OTLP_UPSTREAM`, default `http://otel-collector:4318`). nginx resolves that
-host at startup, so the collector Service must exist in the same namespace as
-the web pod (or set `OTLP_UPSTREAM` to an FQDN).
+Export target: `VITE_OTLP_ENDPOINT` (build-time; **off by default**). Set it to `/otlp` to send spans
+through a proxy to a collector: Vite proxies `/otlp/*` to `OTLP_URL` (default `http://localhost:4318`)
+in dev; the production nginx config no longer has an `/otlp` route, so add one (and rebuild with the
+variable set) if you run a collector next to the container.
 
-We used the upstream OTel web SDK rather than a Dash0-specific browser SDK so
-everything goes through our own collector and its allowlist, with no vendor
+We used the upstream OTel web SDK rather than a vendor-specific browser SDK so
+everything can go through your own collector and its allowlist, with no vendor
 token in the browser bundle.
 
 ## Runtime requirements

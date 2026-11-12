@@ -1,9 +1,11 @@
 # Telemetry attribute allowlist
 
-The collector drops every resource, trace, log, and metric attribute that is
-not listed below. This protects attendee data by default: `attendee.id`,
-`geo.location`, free-text answers, authorization tokens, and any future
-unreviewed fields cannot leave the collector.
+The API drops every resource, trace, log, and metric attribute that is
+not listed below, in process, before anything is exported. This protects attendee
+data by default: `attendee.id`, `geo.location`, free-text answers, authorization
+tokens, and any future unreviewed fields cannot leave the API. The deployed demo
+has no collector and exports nothing; if you run one, mirror these lists in its
+attribute filter.
 
 | Signal | Allowed attributes |
 | --- | --- |
@@ -26,18 +28,16 @@ spans put the full request target, including query text, under this key.
 Dropping `url.query` or `url.full` alone is insufficient. Use `http.route`
 from a known route template, never a request URL, for endpoint diagnostics.
 
-The same lists live in code as `SPAN_ATTRIBUTE_ALLOWLIST`,
+The lists live in code as `SPAN_ATTRIBUTE_ALLOWLIST`,
 `LOG_ATTRIBUTE_ALLOWLIST` and `METRIC_ATTRIBUTE_ALLOWLIST` in
 `api/src/telemetry/allowlist.ts`. `withSpan()` and the metric helpers drop
-anything else in-process. The synchronization checks in
-`api/test/telemetry.test.ts` and `api/test/telemetry-privacy.test.ts` ensure the
-code, documentation and both collector configurations agree. Exported-span/log
-tests and captured live output provide separate enforcement evidence.
+anything else in-process. `api/test/telemetry.test.ts` and
+`api/test/telemetry-privacy.test.ts` exercise that enforcement on real spans,
+metrics and logs.
 
-Log message bodies are not attributes, so `keep_keys` does not cover them.
-The collector therefore also runs `replace_pattern(body, "\\?\\S*", "?[redacted]")`
-on logs, so a URL query string inside a message never reaches Dash0 (the API
-already strips them in `api/src/telemetry/logger.ts`).
+Log message bodies are not attributes. The API's logger strips URL query strings
+from message text before they are written or exported
+(`api/src/telemetry/logger.ts`).
 
 ## Local validation
 
@@ -52,14 +52,13 @@ attendees. Metric IDs, performance entries, DOM selectors, URLs and queries
 are never recorded. No interaction means INP may be absent. Live Dash0
 receipt remains a deployment check.
 
-Start the debug-enabled collector with `docker compose -f deploy/compose/docker-compose.yml up`.
-Send an OTLP trace that includes `attendee.id`, `geo.location`, and
-`search.mode`. The collector's `debug` exporter must display `search.mode` but
-not the two sensitive attributes. For Kubernetes, apply the manifests and
-inspect `kubectl logs deploy/otel-collector` the same way.
+To check a change, send a request that would carry `attendee.id`, `geo.location`
+and `search.mode` through the instrumented code with an in-memory exporter (see
+`api/test/telemetry-privacy.test.ts`): `search.mode` must appear and the two
+sensitive attributes must not.
 
-Before adding an attribute, document why it is necessary here and update both
-collector configurations and `api/src/telemetry/allowlist.ts`. Sensitive or identifier-like fields are never
+Before adding an attribute, document why it is necessary here and update
+`api/src/telemetry/allowlist.ts`. Sensitive or identifier-like fields are never
 allowlisted.
 
 ## Cluster map attributes

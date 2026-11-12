@@ -17,7 +17,7 @@ let sdk: NodeSDK | undefined;
 
 /**
  * Starts the OpenTelemetry Node SDK if OTEL_EXPORTER_OTLP_ENDPOINT is set
- * (e.g. http://otel-collector:4318). Otherwise does nothing: the API's
+ * (e.g. http://localhost:4318 for a local collector). Otherwise does nothing: the API's
  * tracer/meter calls are no-ops, so tests and plain `npm run dev` are unaffected.
  *
  * Exporters are OTLP/HTTP (JSON) and read the standard OTEL_EXPORTER_OTLP_*

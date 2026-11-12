@@ -165,11 +165,11 @@ test("scripted flow: re-asks on unclear answers, 'Change something' fixes one fi
 });
 
 test("scripted flow: via acknowledgement only on the opening message", () => {
-  const first = scriptedTurn({ conference: { name: "X" }, via: "linkedin", messages: [] });
-  assert.match(first.reply, /signed in with LinkedIn/);
+  const first = scriptedTurn({ conference: { name: "X" }, via: "github", messages: [] });
+  assert.match(first.reply, /signed in with GitHub/);
   const qr = scriptedTurn({ conference: { name: "X" }, via: "qr", messages: [] });
   assert.match(qr.reply, /scanned/);
-  const second = scriptedTurn({ conference: { name: "X" }, via: "linkedin", messages: [{ role: "assistant", content: "..." }, { role: "user", content: "Lin" }] });
+  const second = scriptedTurn({ conference: { name: "X" }, via: "github", messages: [{ role: "assistant", content: "..." }, { role: "user", content: "Lin" }] });
   assert.ok(!/signed in/.test(second.reply));
   assert.equal(scriptedTurn({ conference: { name: "X" }, via: "bogus", messages: [] }).reply.includes("signed in"), false);
 });

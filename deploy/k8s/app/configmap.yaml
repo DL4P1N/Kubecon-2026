@@ -11,9 +11,7 @@ data:
   PORT: "3000"
   # One trusted nginx hop on the local web -> API path; not arbitrary proxies.
   TRUST_PROXY: "1"
-  # DATABASE_URL is a secret (companion-app-secrets). System trust roots are used by default;
-  # private database CAs are mounted and configured by an environment overlay.
+  # DATABASE_URL is a secret (companion-app-secrets). Database TLS uses system roots by default;
+  # a deployment with a private database CA sets DATABASE_CA_FILE in its environment overlay.
   MODEL_CACHE_DIR: /app/models
   MODEL_ALLOW_DOWNLOAD: "false"
-  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-  OTEL_SERVICE_NAME: companion-api

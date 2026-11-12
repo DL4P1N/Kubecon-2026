@@ -1,11 +1,8 @@
 # TLS transport overlay
 
-This overlay encrypts attendee HTTPS -> nginx -> API and browser/API OTLP ->
-collector. Nginx verifies the transport CA and upstream DNS names. Node trusts
-a bundle containing the transport CA (the database connection pins its own CA).
-The collector keeps its
-existing allowlist/exporter config and merges only TLS receiver settings from
-a second file. Dash0 export already uses its authenticated HTTPS endpoint.
+This overlay encrypts attendee HTTPS -> nginx -> API. Nginx verifies the
+transport CA and upstream DNS names. The database connection is separate: it
+pins its own CA (`DATABASE_CA_FILE`).
 
 The base app/Compose setup remains suitable for local HTTP development; apply
 this overlay for the attendee deployment. Do not claim live TLS acceptance
@@ -26,7 +23,7 @@ directory outside the repository. Do not commit generated material.
 Render first with `kubectl kustomize deploy/k8s/tls`. Set the API/web images to
 the release being deployed (the base uses cc-api:local / cc-web:local) and apply
 with `kubectl --context "$KUBE_CONTEXT" -n "$KUBE_NAMESPACE" apply -k deploy/k8s/tls`.
-API, web and collector each need to roll out. Secret updates require restarts
+API and web each need to roll out. Secret updates require restarts
 of those deployments. The public certificate covers localhost/127.0.0.1 and
 the web Service DNS names. For a public hostname, issue a certificate covering
 that hostname from an appropriate trusted CA before exposing the Service.
@@ -53,22 +50,15 @@ trust that public CA in the test browser/OS trust store through the owner's
 approved local trust procedure; never use ignore-certificate-errors flags.
 
 Check the API from inside the namespace using a client with the public CA:
-`https://api:3000/healthz`. Check collector `https://otel-collector:4318/v1/traces`
-with an empty valid OTLP JSON payload. Verify API export reaches Dash0 with
-zero send failures. Repeat with a wrong CA and wrong DNS name; both must fail.
-Nginx `/healthz` exercises its CA-verified API connection. Query `/otlp/v1/traces`
-through web to exercise its CA-verified collector connection.
+`https://api:3000/healthz`. Repeat with a wrong CA and wrong DNS name; both must
+fail. Nginx `/healthz` exercises its CA-verified API connection.
 
 Kubernetes HTTPS probes encrypt transport but kubelet does not validate server
 certificates; they are availability checks, not the TLS trust evidence above.
-The collector's own metrics/admin ports are private management surfaces, not
-attendee transport endpoints. Existing standalone seed/retention jobs are not
-included by the base app Kustomization: if deploying them, mount the API TLS
-Secret's CA bundle and set their Node trust/OTLP endpoint as in api-tls.yaml.
-Do not run an instrumented job against a plaintext collector address after
-enabling this overlay.
+Existing standalone seed/retention jobs are not included by the base app
+Kustomization: if deploying them, they talk to the database only, not to the
+API, so they need no transport certificates.
 
-References: [Fastify HTTPS](https://fastify.dev/docs/latest/Reference/Server/#https),
-[Collector merged configuration and TLS](https://opentelemetry.io/docs/collector/configuration/).
+References: [Fastify HTTPS](https://fastify.dev/docs/latest/Reference/Server/#https).
 
 Live rollout and browser trust verification: pending deployment owner.

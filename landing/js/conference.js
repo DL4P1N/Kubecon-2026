@@ -65,7 +65,7 @@ function fill(c) {
   const suffix = document.body.getAttribute('data-conference-title') || 'register by QR code or sign-in';
   document.title = `${c.name}: ${suffix}`;
   const when = `${formatDates(c)}, ${c.venue}, ${c.city}`;
-  setMeta('meta[name="description"]', 'content', `${c.name}, ${when}. Scan the QR code to register from your phone, or continue with GitHub, Google or LinkedIn.`);
+  setMeta('meta[name="description"]', 'content', `${c.name}, ${when}. Scan the QR code to register from your phone, or continue with GitHub.`);
   setMeta('meta[property="og:title"]', 'content', document.title);
   setMeta('meta[property="og:description"]', 'content', `${when}. Register from your phone.`);
 }

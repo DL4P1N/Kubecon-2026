@@ -23,8 +23,6 @@ const ENV = {
   NODE_ENV: "test",
   IDENTITY_HASH_KEY: "identity-hash-key-long-enough-for-tests",
   GITHUB_CLIENT_ID: "gh-id", GITHUB_CLIENT_SECRET: SECRET, GITHUB_OAUTH_REDIRECT_URI: "http://localhost:5173/auth/github/callback",
-  GOOGLE_CLIENT_ID: "g-id", GOOGLE_CLIENT_SECRET: SECRET, GOOGLE_OAUTH_REDIRECT_URI: "http://localhost:5173/auth/google/callback",
-  LINKEDIN_CLIENT_ID: "li-id", LINKEDIN_CLIENT_SECRET: SECRET, LINKEDIN_OAUTH_REDIRECT_URI: "http://localhost:5173/auth/linkedin/callback",
 };
 
 const jsonRes = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -63,47 +61,36 @@ const callback = (app: ReturnType<typeof setup>, provider: string, payload: unkn
   });
 
 describe("GET /api/auth/providers", () => {
-  it("lists the three providers and whether each is fully configured", async () => {
+  it("reports whether GitHub is fully configured", async () => {
     const all = await setup().inject({ url: "/api/auth/providers" });
-    expect(all.json<AuthProvidersResponse>().providers).toEqual([
-      { id: "github", enabled: true }, { id: "google", enabled: true }, { id: "linkedin", enabled: true },
-    ]);
-    const partial = await setup({ NODE_ENV: "test", IDENTITY_HASH_KEY: ENV.IDENTITY_HASH_KEY, GITHUB_CLIENT_ID: "x", GITHUB_CLIENT_SECRET: "y", GOOGLE_CLIENT_ID: "x", GOOGLE_CLIENT_SECRET: "y", GOOGLE_OAUTH_REDIRECT_URI: "http://localhost/cb" }).inject({ url: "/api/auth/providers" });
-    expect(partial.json<AuthProvidersResponse>().providers.map((p) => p.enabled)).toEqual([false, true, false]);
+    expect(all.json<AuthProvidersResponse>().providers).toEqual([{ id: "github", enabled: true }]);
+    const partial = await setup({ NODE_ENV: "test", IDENTITY_HASH_KEY: ENV.IDENTITY_HASH_KEY, GITHUB_CLIENT_ID: "x", GITHUB_CLIENT_SECRET: "y" }).inject({ url: "/api/auth/providers" });
+    expect(partial.json<AuthProvidersResponse>().providers.map((p) => p.enabled)).toEqual([false]);
     expect(JSON.stringify(all.json())).not.toContain(SECRET);
   });
 });
 
 describe("GET /api/auth/:provider/start", () => {
-  it("redirects to each provider with client_id, redirect_uri, state and the right scope, and never the secret", async () => {
-    const app = setup();
-    const cases = [
-      ["github", "github.com", "read:user", false],
-      ["google", "accounts.google.com", "openid profile", true],
-      ["linkedin", "www.linkedin.com", "openid profile", false],
-    ] as const;
-    for (const [id, host, scope, pkce] of cases) {
-      const { res, loc } = await start(app, id);
-      expect(res.statusCode).toBe(302);
-      expect(loc!.host).toBe(host);
-      expect(loc!.searchParams.get("scope")).toBe(scope);
-      expect(loc!.searchParams.get("client_id")).toBeTruthy();
-      expect(loc!.searchParams.get("redirect_uri")).toBe(`http://localhost:5173/auth/${id}/callback`);
-      expect(loc!.searchParams.get("state")!.length).toBeGreaterThan(20);
-      expect(loc!.searchParams.has("code_challenge")).toBe(pkce);
-      expect(String(res.headers.location)).not.toContain(SECRET);
-      expect(loc!.searchParams.get("scope")).not.toMatch(/email/);
-    }
+  it("redirects to GitHub with client_id, redirect_uri, state and the right scope, and never the secret", async () => {
+    const { res, loc } = await start(setup(), "github");
+    expect(res.statusCode).toBe(302);
+    expect(loc!.host).toBe("github.com");
+    expect(loc!.searchParams.get("scope")).toBe("read:user");
+    expect(loc!.searchParams.get("client_id")).toBeTruthy();
+    expect(loc!.searchParams.get("redirect_uri")).toBe("http://localhost:5173/auth/github/callback");
+    expect(loc!.searchParams.get("state")!.length).toBeGreaterThan(20);
+    expect(String(res.headers.location)).not.toContain(SECRET);
+    expect(loc!.searchParams.get("scope")).not.toMatch(/email/);
   });
 
   it("404s an unknown or unconfigured provider with the shared error shape", async () => {
     const app = setup({ NODE_ENV: "test", IDENTITY_HASH_KEY: ENV.IDENTITY_HASH_KEY, GITHUB_CLIENT_ID: "x", GITHUB_CLIENT_SECRET: "y", GITHUB_OAUTH_REDIRECT_URI: "http://localhost/cb" });
-    for (const p of ["myspace", "google"]) {
+    for (const p of ["myspace", "linkedin"]) {
       const res = await app.inject({ url: `/api/auth/${p}/start` });
       expect(res.statusCode).toBe(404);
       expect(res.json()).toEqual({ error: "not_found", message: "unknown or disabled sign-in provider" });
     }
-    expect((await callback(app, "google", { code: "c", state: "s" })).statusCode).toBe(404);
+    expect((await callback(app, "linkedin", { code: "c", state: "s" })).statusCode).toBe(404);
   });
 
   it.each([
@@ -147,32 +134,8 @@ describe("POST /api/auth/:provider/callback", () => {
     expect((await callback(app, "github", { code: "c", state })).json<AuthCallbackResponse>()).toMatchObject({ displayName: "octo", handle: "octo", claim: { token: expect.any(String) } });
   });
 
-  it("google: sends the PKCE verifier and reads userinfo; app flag round-trips", async () => {
-    const f = fakeFetch({ name: "Ada Lovelace", picture: "https://lh3.example/a.png", sub: "1" });
-    const app = setup(ENV, f.fn);
-    const { state, loc } = await start(app, "google", "?app=1");
-    const res = await callback(app, "google", { code: "c", state });
-    expect(res.json<AuthCallbackResponse>()).toMatchObject({ provider: "google", displayName: "Ada Lovelace", avatarUrl: "https://lh3.example/a.png", return: "/site/profile.html", app: true, claim: { token: expect.any(String) } });
-    const body = new URLSearchParams(String(f.calls[0]!.init!.body));
-    expect(f.calls[0]!.url).toBe("https://oauth2.googleapis.com/token");
-    expect(body.get("grant_type")).toBe("authorization_code");
-    expect(body.get("code_verifier")!.length).toBeGreaterThan(20);
-    expect(body.get("code_verifier")).not.toBe(loc!.searchParams.get("code_challenge"));
-    expect(f.calls[1]!.url).toBe("https://openidconnect.googleapis.com/v1/userinfo");
-  });
-
-  it("linkedin: reads OpenID userinfo", async () => {
-    const f = fakeFetch({ name: "Linus T", sub: "urn:li:123", picture: "http://insecure.example/p.png" });
-    const app = setup(ENV, f.fn);
-    const { state } = await start(app, "linkedin");
-    const res = await callback(app, "linkedin", { code: "c", state });
-    expect(res.json<AuthCallbackResponse>()).toMatchObject({ provider: "linkedin", displayName: "Linus T", return: "/site/profile.html", app: false, claim: { token: expect.any(String) } });
-    expect(f.calls[0]!.url).toBe("https://www.linkedin.com/oauth/v2/accessToken");
-    expect(f.calls[1]!.url).toBe("https://api.linkedin.com/v2/userinfo");
-  });
-
   it("rejects provider profiles without a valid stable subject", async () => {
-    for (const [provider, profile] of [["github", { login: "octo", name: "Octo" }], ["github", { id: 1.5, login: "octo" }], ["google", { name: "Ada" }], ["linkedin", { name: "Linus" }]] as const) {
+    for (const [provider, profile] of [["github", { login: "octo", name: "Octo" }], ["github", { id: 1.5, login: "octo" }]] as const) {
       const app = setup(ENV, fakeFetch(profile).fn);
       const { state } = await start(app, provider);
       expect((await callback(app, provider, { code: "c", state })).statusCode).toBe(502);
@@ -251,7 +214,7 @@ describe("POST /api/auth/:provider/callback", () => {
     await app.close();
   });
 
-  it("consumes state: a second use is rejected, and so are a made-up state and another provider's", async () => {
+  it("consumes state: a second use is rejected, and so is a made-up state", async () => {
     const f = fakeFetch({ id: 71, login: "x" });
     const app = setup(ENV, f.fn);
     const { state } = await start(app, "github");
@@ -260,8 +223,6 @@ describe("POST /api/auth/:provider/callback", () => {
     expect(again.statusCode).toBe(400);
     expect(again.json()).toMatchObject({ error: "invalid_state" });
     expect((await callback(app, "github", { code: "c", state: "nope" })).statusCode).toBe(400);
-    const other = await start(app, "github");
-    expect((await callback(app, "google", { code: "c", state: other.state })).statusCode).toBe(400);
     expect(f.calls).toHaveLength(2);
   });
 

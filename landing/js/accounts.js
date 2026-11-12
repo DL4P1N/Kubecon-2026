@@ -1,4 +1,4 @@
-// Linked accounts: GitHub, Google and LinkedIn sign-in done by the API (/api/auth/*).
+// Linked accounts: GitHub sign-in done by the API (/api/auth/*).
 // A completed sign-in leaves localStorage `cc.linked.v1` = { [provider]: { displayName, handle, avatarUrl, linkedAt } }.
 // Provider avatar images are never loaded: initials only. Pure helpers first, DOM glue for conference.html at the end.
 
@@ -7,8 +7,6 @@ import { authUrl } from "./auth.js";
 export const LINKED_KEY = "cc.linked.v1";
 export const PROVIDERS = [
   { id: "github", name: "GitHub" },
-  { id: "google", name: "Google" },
-  { id: "linkedin", name: "LinkedIn" },
 ];
 const IDS = PROVIDERS.map((p) => p.id);
 export const providerName = (id) => PROVIDERS.find((p) => p.id === id)?.name ?? id;

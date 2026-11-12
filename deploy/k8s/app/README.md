@@ -17,7 +17,7 @@ specific distribution, node topology, or hosting provider is required.
   | `DATABASE_URL` | PostgreSQL connection string; URL-encode the password |
   | `TOKEN_SIGNING_KEY` | Random, at least 32 bytes; required in production |
   | `IDENTITY_HASH_KEY` | Random, at least 32 characters; required when an OAuth provider is configured |
-  | `<PROVIDER>_CLIENT_ID`, `_CLIENT_SECRET`, `_OAUTH_REDIRECT_URI` | Optional OAuth settings for `GITHUB`, `GOOGLE`, `LINKEDIN`; incomplete providers are disabled |
+  | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_OAUTH_REDIRECT_URI` | Optional OAuth settings for GitHub sign-in; incomplete settings disable it |
 
 - If the database certificate chains to a private CA, a ConfigMap named `companion-database-ca` with key
   `database-ca.crt` and `DATABASE_CA_FILE=/etc/database/database-ca.crt` in `companion-app-config`. The base works

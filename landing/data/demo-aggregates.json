@@ -439,10 +439,8 @@
   "registrations": {
     "total": 184,
     "byVia": {
-      "qr": 95,
-      "github": 23,
-      "google": 30,
-      "linkedin": 36
+      "qr": 100,
+      "github": 84
     },
     "returning": 62,
     "arrivalsPer15Min": [
