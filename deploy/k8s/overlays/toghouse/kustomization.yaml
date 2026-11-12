@@ -40,3 +40,6 @@ configMapGenerator:
       - database-ca.crt=supabase-ca.crt
     options:
       disableNameSuffixHash: true
+      annotations:
+        # Live object carries a stray supabase-ca.crt key added outside apply; Replace drops it.
+        argocd.argoproj.io/sync-options: Replace=true
