@@ -15,4 +15,5 @@ data:
   # private database CAs are mounted and configured by an environment overlay.
   MODEL_CACHE_DIR: /app/models
   MODEL_ALLOW_DOWNLOAD: "false"
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
   OTEL_SERVICE_NAME: companion-api
