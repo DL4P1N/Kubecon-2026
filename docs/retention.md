@@ -66,10 +66,10 @@ The CronJob runs hourly (and, while retention is off, only removes already-expir
 the app's database connection (`DATABASE_URL`) and fails on any error
 so failed Jobs remain visible. Rerunning is safe.
 
-Apply `deploy/k8s/app/retention-cronjob.yaml` in the app namespace after replacing
+Apply `deploy/k8s/app/retention-cronjob.yaml` in the application namespace after replacing
 the image tag to match the API Deployment. It expects
-`companion-app-config`, `companion-app-secrets` and, for Supabase, the
-`companion-database-ca` ConfigMap. Never commit credentials.
+`companion-app-config` and `companion-app-secrets`; provide `companion-database-ca` only when the database uses a
+private CA. Never commit credentials.
 
 Output contains only the deleted count. The CLI starts telemetry as
 `companion-retention` before loading application modules and always awaits SDK

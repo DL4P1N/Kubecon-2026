@@ -6,7 +6,7 @@ A personal demo, originally a Cloud Native Hackathon entry for "make conferences
 
 [![CI](https://github.com/DL4P1N/Kubecon-2026/actions/workflows/ci.yml/badge.svg)](https://github.com/DL4P1N/Kubecon-2026/actions/workflows/ci.yml)
 
-**[Open the app](https://conference-companion.ecan.pro)** (the site and the API are the same origin) · [Design document](Conference%20Companion_%20Design%20Doc.md) · [Hackathon evidence](docs/track-evidence.md)
+The deployed origin is operator-configured; the site and API share one origin. · [Design document](Conference%20Companion_%20Design%20Doc.md) · [Hackathon evidence](docs/track-evidence.md)
 
 ![Conference Companion landing page](docs/demo/submission-landing.png)
 
@@ -14,32 +14,27 @@ A personal demo, originally a Cloud Native Hackathon entry for "make conferences
 
 | Step | Where |
 | --- | --- |
-| **Register** | [Chat sign-up](https://conference-companion.ecan.pro/site/register.html?c=cloud-native-hackathon-slc-2026) explains what is kept, collects interests, and creates a ticket and recommended schedule. Optional sign-in with GitHub, Google or LinkedIn links an account to the profile ([docs/sign-in.md](docs/sign-in.md)). |
-| **Find a talk** | [Search](https://conference-companion.ecan.pro/search) compares keyword and hybrid retrieval over 417 real KubeCon NA 2026 sessions. |
-| **Plan the day** | [Schedule](https://conference-companion.ecan.pro/schedule) saves selected talks without overlaps and shows a short-lived room-access QR. |
-| **Check the door** | [Kiosk](https://conference-companion.ecan.pro/kiosk) accepts a camera scan or token text and checks current entitlements on every scan. |
-| **Understand demand** | [Interest map](https://conference-companion.ecan.pro/map), [clusters](https://conference-companion.ecan.pro/clusters) and [organizer view](https://conference-companion.ecan.pro/organizer) show aggregates; protected views need the organizer key. Groups smaller than five are suppressed. |
-| **Inspect health** | [Status](https://conference-companion.ecan.pro/status) reports application health and in-process search measurements. |
+| **Register** | `/site/register.html?c=cloud-native-hackathon-slc-2026` explains what is kept, collects interests, and creates a ticket and recommended schedule. Optional sign-in with GitHub, Google or LinkedIn links an account to the profile ([docs/sign-in.md](docs/sign-in.md)). |
+| **Find a talk** | `/search` compares keyword and hybrid retrieval over 417 real KubeCon NA 2026 sessions. |
+| **Plan the day** | `/schedule` saves selected talks without overlaps and shows a short-lived room-access QR. |
+| **Check the door** | `/kiosk` accepts a camera scan or token text and checks current entitlements on every scan. |
+| **Understand demand** | `/map`, `/clusters` and `/organizer` show aggregates; protected views need the organizer key. Groups smaller than five are suppressed. |
+| **Inspect health** | `/status` reports application health and in-process search measurements. |
 
 The [native iOS companion](ios/README.md) is a separate Xcode build. Indoor positioning and other-attendee scenes use explicitly simulated data. Seven of the landing page's eight conference listings are fictional demo events.
 
 ## Architecture
 
-![Deployment diagram: clients reach Cloudflare, a named tunnel leads to cloudflared, web (nginx) and api (Fastify) in the conference-companion namespace on the toghouse kubeadm cluster, the api queries Supabase Postgres with pgvector over TLS, telemetry stays in an in-cluster OpenTelemetry collector, and Argo CD, ghcr.io, cert-manager, external-secrets and Vault handle delivery and secrets](docs/architecture.png)
+![Current deployment diagram](docs/architecture.png)
 
-Source: [docs/architecture.drawio](docs/architecture.drawio) (edit in draw.io, then re-export the PNG).
-
-```
-browser -> Cloudflare -> cloudflared (toghouse) -> nginx (web) -> Fastify API -> Postgres (Supabase)
-                                                          \-> OpenTelemetry collector
-```
+Source: [docs/architecture.drawio](docs/architecture.drawio).
 
 - **Web:** React 18, TypeScript, Vite; vanilla ES modules and Three.js for the landing scene. Served by nginx from the same pod that proxies `/api` to the API.
 - **API:** Node.js 22, Fastify 5, Zod, signed JWT sessions and QR tokens.
-- **Data:** one Postgres database with `pgvector`: Supabase's free tier in the toghouse deployment. Hybrid search fuses full-text and trigram matching with vector similarity (reciprocal rank fusion) in SQL. Query and profile embeddings come from multilingual-e5-small, run inside the API process. See [docs/database.md](docs/database.md).
-- **Jobs:** retention and interest-cluster CronJobs use the API image.
-- **Hosting:** a single kubeadm worker on the toghouse homelab; the only public path is a Cloudflare named tunnel. Manifests are in [deploy/k8s](deploy/k8s), reconciled by Argo CD from `deploy/k8s/overlays/toghouse`.
-- **Telemetry:** OpenTelemetry SDKs and a collector that keeps data in the cluster (no exporter is configured in the toghouse overlay). Explicit allowlists exclude attendee identifiers and free text.
+- **Data:** PostgreSQL with `pgvector` and `pg_trgm`; the API creates the schema. Hybrid search fuses full-text, trigram and vector results in SQL. See [docs/database.md](docs/database.md).
+- **Jobs:** Optional retention and interest-cluster Kubernetes CronJobs use the API image.
+- **Hosting:** Portable Kubernetes base manifests define the app workloads. The environment supplies the database, public ingress, TLS, secret delivery and image-pull access as needed. Deployment configuration lives in this repository; app releases do not require edits to a separate infrastructure repository.
+- **Telemetry:** Optional OpenTelemetry instrumentation; explicit allowlists exclude attendee identifiers and free text.
 
 ## Run it locally
 
@@ -69,11 +64,11 @@ npm run test:a11y -w web     # needs the Playwright browser
 
 ## Deploy
 
-Container images for the API and web are built from `api/Dockerfile` and `web/Dockerfile` (the API image bakes in the embedding model). The toghouse overlay in [deploy/k8s/overlays/toghouse](deploy/k8s/overlays/toghouse) adds cert-manager TLS between pods, secrets from Vault through external-secrets, and the Cloudflare tunnel. Secrets and the database URL are never committed: [deploy/k8s/app/README.md](deploy/k8s/app/README.md) lists the Secret keys.
+Container images for the API and web are built from `api/Dockerfile` and `web/Dockerfile` (the API image includes its embedding model). The [Kubernetes base manifests](deploy/k8s/app/README.md) declare the app workloads and their configuration contract. Environment operators provide infrastructure integrations such as ingress, TLS, database trust roots, and secret delivery; deployment-specific values belong in Kustomize overlays, not in the application base.
 
 | Guide | Contents |
 | --- | --- |
-| [Database](docs/database.md) | Schema, Supabase connection, seeding, search, embeddings |
+| [Database](docs/database.md) | PostgreSQL requirements, schema, seeding, search and embeddings |
 | [Kubernetes deployment](deploy/k8s/app/README.md) | Secrets, images, rollout, seed |
 | [Sign-in](docs/sign-in.md) | OAuth providers and the account-link design |
 | [Chat](docs/chat.md) | Scripted flow; optional Claude CLI mode |
@@ -83,11 +78,11 @@ Container images for the API and web are built from `api/Dockerfile` and `web/Do
 
 ## Data, privacy, and demo boundaries
 
-- **Storage:** profiles, schedules, entitlements, HMAC-only identity links, and aggregate results are rows in the Supabase database, a third-party host outside the homelab. Browser-local kept profiles and history are separate from server storage.
+- **Storage:** profiles, schedules, entitlements, HMAC-only identity links and aggregates are stored in the configured PostgreSQL database. Browser-local profiles and history are separate from server storage.
 - **Retention:** registering keeps the profile by default and includes aggregate-interest use; it is not a separate opt-in. A positive `ATTENDEE_RETENTION_HOURS` enables timed retention. `DELETE /api/me` deletes a profile. See [docs/retention.md](docs/retention.md).
 - **Access:** signed attendee sessions last eight hours; room QR tokens last about 60 seconds, use a separate audience, and are checked against current entitlements. Organizer access uses a separate key.
-- **Telemetry:** allowlists exclude attendee identifiers, tokens, precise locations, and free-text answers. Pod-to-pod traffic is TLS verified against an internal CA; the database connection verifies Supabase's CA.
-- **Availability:** one worker and one API replica. A free Supabase project pauses after about a week of inactivity and the API answers 503 until it is restored.
+- **Transport security:** external database TLS certificates are verified. In-cluster TLS and public ingress are environment-level configuration.
+- **Availability:** the example manifests use one API and one web replica. Availability also depends on the database and target cluster; the example is not an HA claim.
 - **Known hardening work:** stored opt-out handling, deletion-error handling, and expired-record cleanup when timed retention is off. This is a demo, not a production-readiness claim.
 
 ## License

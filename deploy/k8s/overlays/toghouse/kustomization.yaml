@@ -25,6 +25,9 @@ patches:
       - op: replace
         path: /data/TRUST_PROXY
         value: "2"
+      - op: add
+        path: /data/DATABASE_CA_FILE
+        value: /etc/database/database-ca.crt
   - path: collector-patch.yaml
     target: {kind: Deployment, name: otel-collector}
 configMapGenerator:
@@ -34,6 +37,6 @@ configMapGenerator:
   # Supabase publishes its own root CA; the API connects with certificate verification on and this CA as the trust root.
   - name: companion-database-ca
     files:
-      - supabase-ca.crt
+      - database-ca.crt=supabase-ca.crt
     options:
       disableNameSuffixHash: true

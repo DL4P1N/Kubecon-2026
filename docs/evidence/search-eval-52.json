@@ -2,7 +2,7 @@
   "task": 52,
   "measured_at": "2026-11-09T22:40Z",
   "environment": {
-    "cluster": "kind-conference-companion (single node, arm64)",
+    "cluster": "kind-conference-companion (single-node local cluster)",
     "elasticsearch": "8.19.6 via port-forward https://127.0.0.1:19201, CA-verified",
     "index": "talks alias, 417 real KubeCon NA 2026 sessions",
     "inference": ".multilingual-e5-small-elasticsearch (semantic_text)",
