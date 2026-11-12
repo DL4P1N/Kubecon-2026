@@ -11,11 +11,11 @@ resources:
   - cloudflared.yaml
 images:
   - name: cc-api
-    newName: ghcr.io/ecan0/conference-companion-api
-    newTag: 639a73d2f2a40c93b14e20327849ccc0a44f153b
+    newName: ghcr.io/dl4p1n/conference-companion-api
+    newTag: 99f440e8cb3766f992ec8032d69fdf99d01485c7
   - name: cc-web
-    newName: ghcr.io/ecan0/conference-companion-web
-    newTag: eb025c581684db87e4422c57ced4982ccd3872c1
+    newName: ghcr.io/dl4p1n/conference-companion-web
+    newTag: 99f440e8cb3766f992ec8032d69fdf99d01485c7
 patches:
   - path: api-trust-patch.yaml
     target: {kind: Deployment, name: api}
