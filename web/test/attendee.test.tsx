@@ -7,7 +7,7 @@ import { Register } from "../src/pages/Register.js";
 import { api, ApiError, getToken, setToken } from "../src/api.js";
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); sessionStorage.clear(); });
-beforeEach(() => { vi.spyOn(api, "catalogTopics").mockResolvedValue({ topics: ["kubernetes"] }); });
+beforeEach(() => { localStorage.clear(); vi.spyOn(api, "catalogTopics").mockResolvedValue({ topics: ["kubernetes"] }); });
 const talk = { id: "talk-1", title: "Secure Kubernetes", speaker: "Speaker", abstract: "", track: "Security",
   room: "A", start: "2026-11-09T10:00:00Z", end: "2026-11-09T11:00:00Z", tags: ["kubernetes"] };
 // /register is now the static site (/site/register.html), so the legacy React form is exercised directly,
@@ -54,6 +54,18 @@ describe("attendee journey", () => {
     await screen.findByRole("heading", { name: "Onboarding" });
     expect(register).toHaveBeenCalledWith(expect.objectContaining({ identityClaim: "claim.jwt" }));
     expect(sessionStorage.getItem("cc.identity-claim")).toBeNull();
+  });
+  it("prefills the linked provider name and offers only enabled sign-in providers", async () => {
+    localStorage.setItem("cc.linked.v1", JSON.stringify({ github: { displayName: "Ada Lovelace" } }));
+    vi.spyOn(api, "authProviders").mockResolvedValue({ providers: [
+      { id: "github", enabled: true }, { id: "google", enabled: false }, { id: "linkedin", enabled: true },
+    ] });
+    renderRegisterForm();
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Ada Lovelace");
+    expect((await screen.findByRole("link", { name: "Sign in with GitHub" })).getAttribute("href")).toBe("/api/auth/github/start?return=/schedule");
+    expect(screen.getByRole("link", { name: "Sign in with LinkedIn" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Sign in with Google" })).toBeNull();
+    localStorage.clear();
   });
   it("explains a duplicate profile and an expired claim without ending in a generic failure", async () => {
     vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "keyword", tookMs: 1, hits: [] });
