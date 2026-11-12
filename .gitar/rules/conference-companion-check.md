@@ -19,10 +19,10 @@ requirement does not apply, state why rather than inventing evidence.
 - Never log, emit in telemetry, or expose attendee IDs or location data.
 - Onboarding asks no health, politics, or identity questions; collect only
   required fields and preserve consent checks on reads and writes.
-- No secrets in the repository; signing keys, Elastic credentials, and Dash0
+- No secrets in the repository; signing keys, database URLs and passwords, and Dash0
   tokens come from Kubernetes Secrets or local environment variables.
-- Application Elasticsearch access uses the least-privilege `companion_svc`
-  account, never the `elastic` superuser.
+- Database access uses parameterised SQL only, over a TLS-verified connection;
+  SQL text, parameter values and driver messages never reach logs or responses.
 - Every API endpoint creates or continues an OpenTelemetry span.
 - Telemetry attributes are on the collector allowlist; flag new attributes
   until they are explicitly added.

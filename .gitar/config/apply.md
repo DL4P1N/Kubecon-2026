@@ -5,7 +5,7 @@ behavior: formatting, imports, lint fixes, obvious type corrections, and
 missing or corrected tests for already-specified behavior.
 
 Never auto-apply a change that touches authentication, authorization,
-attendee data, consent, telemetry fields, Elasticsearch roles or mappings,
+attendee data, consent, telemetry fields, database schema or roles,
 Kubernetes Secrets, dependencies, CI permissions, or deployment
 configuration. Those changes require a human review.
 

@@ -12,10 +12,10 @@ resources:
 images:
   - name: cc-api
     newName: ghcr.io/ecan0/conference-companion-api
-    newTag: 84521d2583f8e672704945770aeeb8b37f2bce56
+    newTag: eb025c581684db87e4422c57ced4982ccd3872c1
   - name: cc-web
     newName: ghcr.io/ecan0/conference-companion-web
-    newTag: 84521d2583f8e672704945770aeeb8b37f2bce56
+    newTag: eb025c581684db87e4422c57ced4982ccd3872c1
 patches:
   - path: api-trust-patch.yaml
     target: {kind: Deployment, name: api}
