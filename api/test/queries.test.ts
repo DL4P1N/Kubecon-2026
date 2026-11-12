@@ -43,6 +43,24 @@ describe("keyword plan", () => {
     expect(rows).toEqual([]);
   });
 
+  it("keeps excluded terms as exclusions while any positive term matches", async () => {
+    const db = await seededDb();
+    const ids = async (q: string) => (await keyword(db, q, 10, {}, { ...DEFAULT_TUNING, fuzzyThreshold: undefined })).map((r) => r.id).sort();
+    // kubernetes: c and e; security appears in a's and b's title/tags only.
+    expect(await ids("kubernetes -security")).toEqual(["c", "e"]);
+    expect(await ids("kubernetes security -autoscaling")).toEqual(["a", "b", "e"]);
+    expect(await ids("-kubernetes")).toEqual([]); // only exclusions: nothing positive to match, no error
+    expect(await ids("kubernetes -kubernetes")).toEqual([]);
+  });
+
+  it("plain multi-word queries and quoted phrases behave as before", async () => {
+    const db = await seededDb();
+    const t = { ...DEFAULT_TUNING, fuzzyThreshold: undefined };
+    expect((await keyword(db, "autoscaling opentelemetry", 10, {}, t)).map((r) => r.id).sort()).toEqual(["c", "d"]);
+    expect((await keyword(db, '"supply chain"', 10, {}, t)).map((r) => r.id).sort()).toEqual(["a", "b"]);
+    expect(await keyword(db, '"chain supply"', 10, {}, t)).toEqual([]);
+  });
+
   it("weights title above abstract", async () => {
     const db = await seededDb([
       mk("t", 9, 10, { title: "Observability pipelines", abstract: "plain" }),

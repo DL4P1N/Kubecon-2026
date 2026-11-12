@@ -176,11 +176,15 @@ const FUZZY_WEIGHT = 0.3;
 function keywordLeg(p: Params, text: string, filters: SearchFilters, tuning: SearchTuning): string {
   const t = p.add(text);
   const rawQuery = `websearch_to_tsquery('english', ${t})`;
-  const tsq =
-    tuning.keywordMatch === "all"
-      ? rawQuery
-      // websearch_to_tsquery already stemmed the lexemes: re-parse with 'simple' so they are not stemmed twice.
-      : `to_tsquery('simple', replace(${rawQuery}::text, '&', '|'))`;
+  // "any": at least one positive term matches, but every excluded term (`-word`, printed `!'word'`) still excludes:
+  // (pos1 | pos2 ...) & !neg1 & !neg2. websearch_to_tsquery already stemmed the lexemes, so the text is re-parsed with
+  // 'simple' to avoid stemming twice. A query of only exclusions has no positive part and matches nothing.
+  const parts = `regexp_split_to_table(${rawQuery}::text, ' & ')`;
+  const anyText =
+    `case when exists (select 1 from ${parts} as x(p) where x.p <> '' and left(x.p, 1) <> '!') then ` +
+    `'(' || (select string_agg(x.p, ' | ') from ${parts} as x(p) where x.p <> '' and left(x.p, 1) <> '!') || ')' || ` +
+    `coalesce((select ' & ' || string_agg(x.p, ' & ') from ${parts} as x(p) where left(x.p, 1) = '!'), '') else '' end`;
+  const tsq = tuning.keywordMatch === "all" ? rawQuery : `to_tsquery('simple', ${anyText})`;
   const where = eligibilityConditions(p, filters, tuning);
   const terms = tuning.fuzzyThreshold !== undefined ? fuzzyTerms(text) : [];
   let scoreExpr = `ts_rank_cd('${RANK_WEIGHTS}', t.fts, ${tsq}, 32)`;

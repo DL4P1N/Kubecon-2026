@@ -79,14 +79,14 @@ describe("GET /api/search", () => {
     expect(body.hits).toHaveLength(2);
   });
 
-  it("debug=1 describes the executed plan without parameter values or the query text", async () => {
+  it("debug=1 describes the plan (engine, mode, parameter count) without SQL, parameter values or the query text", async () => {
     const { app } = await server();
     const q = "zebra-secret-query";
     const res = await app.inject({ method: "GET", url: `/api/search?q=${q}&mode=hybrid&debug=1` });
-    const debug = (res.json() as SearchResponse).debug as { engine: string; mode: string; sql: string; paramCount: number };
+    const debug = (res.json() as SearchResponse).debug as Record<string, unknown>;
+    expect(Object.keys(debug).sort()).toEqual(["engine", "mode", "paramCount"]);
     expect(debug).toMatchObject({ engine: "postgres", mode: "hybrid", paramCount: expect.any(Number) });
-    expect(debug.sql).toContain("$1");
-    expect(debug.sql).not.toContain(q);
+    expect(JSON.stringify(debug)).not.toMatch(/select|from talks|\$1|tsquery/i);
     expect(JSON.stringify(debug)).not.toContain(q);
   });
 
@@ -211,7 +211,7 @@ describe("POST /api/onboarding", () => {
     const got = body.hits.map((h) => h.talk.id);
     expect(got).not.toContain("d");
     expect(got.slice(0, 2).sort()).toEqual(["a", "b"]);
-    expect(body.debug).toMatchObject({ engine: "postgres" });
+    expect(Object.keys(body.debug as object).sort()).toEqual(["engine", "mode", "paramCount"]);
   });
 
   it("applies the availability window to start and end", async () => {

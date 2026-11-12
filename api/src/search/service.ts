@@ -93,11 +93,10 @@ export interface RunSearchOptions {
   tuning?: SearchTuning;
 }
 
-/** What `?debug=1` returns: the executed statement with `$n` placeholders, never parameter values or query text. */
+/** What `?debug=1` returns: the engine, mode and parameter count. Never SQL text, parameter values or query text. */
 export interface SearchDebug {
   engine: "postgres";
   mode: SearchMode;
-  sql: string;
   paramCount: number;
 }
 
@@ -131,7 +130,7 @@ export async function runSearch(db: Db, embedder: Embedder, opts: RunSearchOptio
     return {
       hits,
       tookMs: Date.now() - started,
-      debug: { engine: "postgres" as const, mode: opts.mode, sql: plan.hits.text, paramCount: plan.hits.params.length },
+      debug: { engine: "postgres" as const, mode: opts.mode, paramCount: plan.hits.params.length },
       ...(facetRows ? { facets: parseFacets(facetRows) } : {}),
     };
   }));

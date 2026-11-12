@@ -135,7 +135,7 @@ Do not demo the five queries from the earlier draft of this document (supply cha
 
 ## Exact Elasticsearch request
 
-Code: `api/src/search/queries.ts` (bodies), `api/src/search/service.ts` (execution), `api/src/routes/search.ts` (routes). `GET /api/search?q=...&mode=hybrid&debug=1` returns the body it sent in the `debug` field; that is the "show the query" demo step. Hybrid, production config, size 10:
+Code: `api/src/search/queries.ts` (SQL plans), `api/src/search/service.ts` (execution), `api/src/routes/search.ts` (routes). `GET /api/search?q=...&mode=hybrid&debug=1` returns `{engine, mode, paramCount}` in the `debug` field (never SQL text, parameters or the query). Hybrid, production config, size 10:
 
 ```json
 {
