@@ -1,10 +1,12 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { InterestAggregateResponse } from "@cc/shared";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
 import { buildTopicCounts, splitBuckets } from "../src/interests/aggregate.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
-import { fakeEs, type FakeHandler } from "./helpers.js";
+import type { Db } from "../src/db/client.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import { testDb } from "./pg.js";
 
 describe("k >= 5 suppression", () => {
   const buckets = [
@@ -48,84 +50,100 @@ afterEach(() => {
   spans.length = 0;
 });
 
-function aggEs(total: number, buckets: { key: string; doc_count: number }[], otherCount: number) {
-  const handler: FakeHandler = (call) => {
-    if (call.path === "/attendees/_search") {
-      return { body: { hits: { total: { value: total }, hits: [] }, aggregations: { topics: { buckets } } } };
-    }
-    if (call.path === "/attendees/_count") return { body: { count: otherCount } };
-    if (call.path.startsWith("/interest_clusters/_delete_by_query")) return { body: { deleted: 0 } };
-    return undefined;
-  };
-  const es = fakeEs(handler);
-  const bulked: object[][] = [];
-  es.bulk = async (lines) => {
-    bulked.push(lines);
-    return { errors: false, items: [] };
-  };
-  return { es, bulked };
+const NOW = "2026-11-09T12:00:00.000Z";
+let db: Db;
+beforeEach(async () => (db = await testDb()));
+afterEach(async () => db.close());
+
+/** Inserts `n` attendees holding exactly `interests`. */
+let seq = 0;
+async function addAttendees(n: number, interests: string[], opts: { consent?: boolean; expires?: string } = {}) {
+  for (let i = 0; i < n; i++) {
+    await db.query(
+      `insert into attendees (id, display_name, interests, consent_cluster_map, consent_qr_checkin, created_at, expires_at)
+       values ($1, 'x', $2, $3, false, $4, $5)`,
+      [`a-${seq++}`, interests, opts.consent ?? true, NOW, opts.expires ?? "2026-11-10T00:00:00Z"],
+    );
+  }
 }
+const server = () => buildServer(loadConfig({}), { db, embedder: new LocalHashEmbedder(), search: { now: () => new Date(NOW) } });
+const get = async () => server().inject({ method: "GET", url: "/api/interests/aggregate" });
 
 describe("GET /api/interests/aggregate", () => {
   it("aggregates opted-in interests, suppresses small groups and stores the result", async () => {
-    const { es, bulked } = aggEs(
-      20,
-      [
-        { key: "kubernetes", doc_count: 14 },
-        { key: "security", doc_count: 7 },
-        { key: "wasm", doc_count: 3 },
-        { key: "ebpf", doc_count: 2 },
-      ],
-      5,
-    );
-    const app = buildServer(loadConfig({}), { es, search: { now: () => new Date("2026-11-09T12:00:00Z") } });
-    const res = await app.inject({ method: "GET", url: "/api/interests/aggregate" });
+    await addAttendees(14, ["kubernetes"]);
+    await addAttendees(7, ["security"]);
+    await addAttendees(3, ["wasm", "ebpf"]);
+    await addAttendees(2, ["ebpf"]);
+    // wasm 3 + ebpf 5 would pass k on their own if counted per topic; ebpf is exactly 5 -> kept.
+    const res = await get();
     expect(res.statusCode).toBe(200);
     const body = res.json() as InterestAggregateResponse;
     expect(body.topics).toEqual([
       { topic: "kubernetes", count: 14 },
       { topic: "security", count: 7 },
-      { topic: "other", count: 5 },
+      { topic: "ebpf", count: 5 },
     ]);
-    expect(body.totalOptedIn).toBe(20);
+    expect(body.totalOptedIn).toBe(26);
     expect(body.suppressedBelow).toBe(5);
-
-    const search = es.calls[0]!;
-    // Explicit opt-outs (stored false) are excluded in both queries; a missing field counts as consenting.
-    const optOut = { bool: { must_not: [{ term: { "consent.cluster_map": false } }] } };
-    expect((search.body as { query: { bool: { filter: unknown[] } } }).query.bool.filter).toContainEqual(optOut);
-    expect((es.calls[1]!.body as { query: { bool: { filter: unknown[] } } }).query.bool.filter).toContainEqual(optOut);
-    // Attendees past an expiry (only set when ATTENDEE_RETENTION_HOURS is configured) are treated as deleted in both queries.
-    const notExpired = { range: { expires_at: { gt: "2026-11-09T12:00:00.000Z" } } };
-    expect((search.body as { query: { bool: { filter: unknown[] } } }).query.bool.filter).toContainEqual(notExpired);
-    expect((es.calls[1]!.body as { query: { bool: { filter: unknown[] } } }).query.bool.filter).toContainEqual(notExpired);
-    expect(search.body).toMatchObject({ size: 0, aggs: { topics: { terms: { field: "interests" } } } });
-    expect(JSON.stringify(es.calls[1]!.body)).toContain('"interests":["wasm","ebpf"]');
+    expect(body.generatedAt).toBe(NOW);
 
     expect(spans.map((s) => s.name)).toEqual(["interests.aggregate"]);
     const allowed = new Set(["db.system", "db.namespace", "db.operation.name"]);
     expect(Object.keys({ ...spans[0]!.attrs, ...spans[0]!.set }).every((k) => allowed.has(k))).toBe(true);
 
-    expect(bulked).toHaveLength(1);
-    expect(bulked[0]![0]).toEqual({ index: { _index: "interest_clusters", _id: "aggregate:kubernetes" } });
-    expect(bulked[0]![1]).toMatchObject({ label: "kubernetes", size: 14, top_interests: ["kubernetes"] });
-    // Older aggregate runs are removed so the index does not grow per request.
-    const cleanup = es.calls.find((c) => c.path.startsWith("/interest_clusters/_delete_by_query"));
-    expect(cleanup?.body).toMatchObject({ query: { bool: { must_not: [{ term: { run_id: "aggregate-2026-11-09T12:00:00.000Z" } }] } } });
-    expect(JSON.stringify(bulked)).not.toMatch(/attendee/);
+    const stored = (await db.query<Record<string, unknown>>("select * from interest_clusters order by doc_id")).rows;
+    expect(stored.map((r) => r.doc_id)).toEqual(["aggregate:ebpf", "aggregate:kubernetes", "aggregate:security"]);
+    expect(stored.find((r) => r.label === "kubernetes")).toMatchObject({ size: 14, top_interests: ["kubernetes"], run_id: `aggregate-${NOW}` });
+    expect(JSON.stringify(stored)).not.toMatch(/attendee|a-\d/);
+  });
+
+  it("pools small topics into one 'other' counted by distinct attendees", async () => {
+    await addAttendees(9, ["kubernetes"]);
+    await addAttendees(3, ["wasm", "ebpf"]); // 3 people, two rare topics: other = 3, not 6
+    await addAttendees(2, ["rust"]);
+    let body = (await get()).json() as InterestAggregateResponse;
+    expect(body.topics).toEqual([
+      { topic: "kubernetes", count: 9 },
+      { topic: "other", count: 5 },
+    ]);
+    // below 5 distinct people, other disappears
+    await db.query("delete from attendees where interests = array['rust']::text[]");
+    body = (await server().inject({ method: "GET", url: "/api/interests/aggregate" })).json() as InterestAggregateResponse;
+    expect(body.topics).toEqual([{ topic: "kubernetes", count: 9 }]);
+  });
+
+  it("excludes opted-out and expired attendees, and counts a repeated interest once per person", async () => {
+    await addAttendees(5, ["kubernetes", "kubernetes"]);
+    await addAttendees(4, ["kubernetes"], { consent: false });
+    await addAttendees(4, ["kubernetes"], { expires: "2026-11-09T11:59:59Z" });
+    const body = (await get()).json() as InterestAggregateResponse;
+    expect(body.topics).toEqual([{ topic: "kubernetes", count: 5 }]);
+    expect(body.totalOptedIn).toBe(5);
+  });
+
+  it("replaces the previous stored aggregate so the table does not grow per request", async () => {
+    await addAttendees(6, ["kubernetes"]);
+    await db.query(
+      `insert into interest_clusters (doc_id, cluster_id, run_id, label, size, top_interests, computed_at) values
+       ('aggregate:gone','topic:gone','aggregate-2026-11-01T00:00:00.000Z','gone',9,'{gone}','2026-11-01'),
+       ('run-1:c1','c1','run-1','keep',9,'{}','2026-11-01')`,
+    );
+    await get();
+    const ids = (await db.query<{ doc_id: string }>("select doc_id from interest_clusters order by doc_id")).rows.map((r) => r.doc_id);
+    expect(ids).toEqual(["aggregate:kubernetes", "run-1:c1"]);
   });
 
   it("drops a small other group and hides a total under 5", async () => {
-    const { es } = aggEs(3, [{ key: "wasm", doc_count: 3 }], 3);
-    const app = buildServer(loadConfig({}), { es });
-    const body = (await app.inject({ method: "GET", url: "/api/interests/aggregate" })).json() as InterestAggregateResponse;
+    await addAttendees(3, ["wasm"]);
+    const body = (await get()).json() as InterestAggregateResponse;
     expect(body.topics).toEqual([]);
     expect(body.totalOptedIn).toBe(0);
   });
 
-  it("returns 502 when Elasticsearch fails", async () => {
-    const es = fakeEs(() => ({ status: 503, body: {} }));
-    const app = buildServer(loadConfig({}), { es });
+  it("returns 502 without leaking driver text when the database fails", async () => {
+    const failing = { ...db, query: async () => { throw new Error("select secret failed"); } } as Db;
+    const app = buildServer(loadConfig({}), { db: failing, embedder: new LocalHashEmbedder() });
     const res = await app.inject({ method: "GET", url: "/api/interests/aggregate" });
     expect(res.statusCode).toBe(502);
     expect(res.json()).toEqual({ error: "aggregate_unavailable" });

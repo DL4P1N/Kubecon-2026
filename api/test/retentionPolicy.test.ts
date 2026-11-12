@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NO_EXPIRY, expiresAtFor, parseRetentionHours, retentionMsFromEnv } from "../src/retentionPolicy.js";
 import { loadConfig } from "../src/config.js";
 import { createScheduleStore } from "../src/search/service.js";
-import type { EsClient } from "../src/es/client.js";
+import { testDb } from "./pg.js";
 
 describe("ATTENDEE_RETENTION_HOURS", () => {
   it("defaults to keeping profiles: unset, blank and 0 all mean off", () => {
@@ -37,16 +37,17 @@ describe("schedule TTL follows the setting", () => {
     const prev = process.env.ATTENDEE_RETENTION_HOURS;
     if (env === undefined) delete process.env.ATTENDEE_RETENTION_HOURS; else process.env.ATTENDEE_RETENTION_HOURS = env;
     try {
-      let body: Record<string, unknown> = {};
-      const es = { request: async (_m: string, _p: string, b: Record<string, unknown>) => { body = b; return { status: 200, body: {} }; } };
-      await createScheduleStore(es as unknown as EsClient).save("a1", ["t1"], now);
-      return body.expires_at;
+      const db = await testDb();
+      await createScheduleStore(db).save("a1", ["t1"], now);
+      const row = (await db.query<{ expires_at: Date | string }>("select expires_at from schedules where attendee_id = 'a1'")).rows[0]!;
+      await db.close();
+      return new Date(row.expires_at).toISOString();
     } finally {
       if (prev === undefined) delete process.env.ATTENDEE_RETENTION_HOURS; else process.env.ATTENDEE_RETENTION_HOURS = prev;
     }
   }
   it("is kept by default and expires after 24 hours when the setting is 24", async () => {
-    expect(await savedExpiry(undefined)).toBe(NO_EXPIRY);
+    expect(await savedExpiry(undefined)).toBe(new Date(NO_EXPIRY).toISOString());
     expect(await savedExpiry("24")).toBe("2026-11-10T12:00:00.000Z");
   });
 });

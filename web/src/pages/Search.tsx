@@ -28,7 +28,7 @@ export function Search() {
   const [results, setResults] = useState<Partial<Record<SearchMode, Result>>>({});
   const [errors, setErrors] = useState<Partial<Record<SearchMode, string>>>({});
   const [pending, setPending] = useState(false);
-  // Hybrid was overloaded (503) or failing in Elasticsearch (502): keyword results are shown in its place.
+  // Hybrid was overloaded (503) or failing in the database (502): keyword results are shown in its place.
   const [hybridFellBack, setHybridFellBack] = useState(false);
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -85,7 +85,7 @@ export function Search() {
     <form onSubmit={onSubmit} role="search" aria-busy={pending}>
       <label htmlFor="q">Query</label>
       <SuggestInput id="q" value={q} onChange={setQ} maxLength={1000} placeholder="Securing my Kubernetes supply chain" />
-      <label><input type="checkbox" checked={debug} onChange={(event) => setDebug(event.target.checked)} /> Include Elasticsearch query details</label>
+      <label><input type="checkbox" checked={debug} onChange={(event) => setDebug(event.target.checked)} /> Include query details</label>
       <button type="submit" disabled={pending}>{pending ? "Searching…" : "Search"}</button>
     </form>
     <SearchFilters facets={facets} state={filters} onChange={onFiltersChange} disabled={pending} />
@@ -104,7 +104,7 @@ export function Search() {
           <h3><a href={talkHref(talk.id)}>{talk.title}</a></h3><p>{talk.speaker} · {talk.room}</p><p>{talk.abstract}</p>
           <p>Score: {score.toFixed(2)}</p>
         </li>)}</ol>
-        {debug && !(mode === "hybrid" && hybridFellBack) && <details><summary>Elasticsearch query</summary>
+        {debug && !(mode === "hybrid" && hybridFellBack) && <details><summary>SQL query</summary>
           {results[mode]!.debug === undefined ? <p>Query details are unavailable from this server. Enable details and search again.</p>
             : <pre>{JSON.stringify(results[mode]!.debug, null, 2)}</pre>}
         </details>}

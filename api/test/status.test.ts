@@ -5,7 +5,9 @@ import { buildServer } from "../src/server.js";
 import { STATUS_CACHE_MS } from "../src/routes/status.js";
 import { HYBRID_RECOVERY_SECONDS, createStatusTracker, percentile } from "../src/status/tracker.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
-import { esHit, fakeEs, talk, type FakeHandler } from "./helpers.js";
+import type { Db } from "../src/db/client.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import { mk, seededDb } from "./search-fixtures.js";
 
 const spans: { name: string; attrs: Record<string, unknown>; set: Record<string, unknown> }[] = [];
 setSpanRunner(async (name, attrs, fn) => {
@@ -17,33 +19,40 @@ afterEach(() => {
   spans.length = 0;
 });
 
-const A = talk("a", 9, 10);
-
 interface World {
-  esUp: boolean;
+  dbUp: boolean;
   hybridFails: "none" | "overload" | "other";
   clock: number;
 }
 
-function setup() {
-  const world: World = { esUp: true, hybridFails: "none", clock: 1_000_000 };
-  const handler: FakeHandler = (call) => {
-    if (call.path === "/talks/_count") return world.esUp ? { body: { count: 417 } } : { status: 503, body: { error: { type: "unavailable_shards_exception" } } };
-    if (call.path.startsWith("/talks/_search")) {
-      const isHybrid = JSON.stringify(call.body).includes("rrf");
-      if (isHybrid && world.hybridFails === "overload") return { status: 429, body: { error: { type: "inference_exception" } } };
-      if (isHybrid && world.hybridFails === "other") return { status: 500, body: { error: { type: "boom" } } };
-      return { body: { took: 3, hits: { hits: [esHit(A, 1)] } } };
-    }
-    return undefined;
+/** A live PGlite whose availability and hybrid (vector) queries the test can break. */
+async function setup() {
+  const world: World = { dbUp: true, hybridFails: "none", clock: 1_000_000 };
+  const real = await seededDb([mk("a", 9, 10)]);
+  const probes: string[] = [];
+  const gate = async <T>(text: string, run: () => Promise<T>): Promise<T> => {
+    if (!world.dbUp) throw Object.assign(new Error("connection refused"), { code: "ECONNREFUSED" });
+    if (text.includes("<=>") && world.hybridFails === "overload") throw Object.assign(new Error("too many connections"), { code: "53300" });
+    if (text.includes("<=>") && world.hybridFails === "other") throw Object.assign(new Error("boom"), { code: "XX000" });
+    return run();
   };
-  const es = fakeEs(handler);
+  const db: Db = {
+    query: (text, params) => {
+      if (text.startsWith("select count(*) from talks")) probes.push(text);
+      return gate(text, () => real.query(text, params));
+    },
+    exec: (text) => real.exec(text),
+    transaction: (fn) => real.transaction(fn),
+    close: () => real.close(),
+  };
   const tracker = createStatusTracker(() => world.clock);
-  const app = buildServer(loadConfig({ NODE_ENV: "test" } as NodeJS.ProcessEnv), { es, status: tracker, search: { now: () => new Date(world.clock) } });
-  return { app, world, es, tracker };
+  const app = buildServer(loadConfig({ NODE_ENV: "test" } as NodeJS.ProcessEnv), {
+    db, embedder: new LocalHashEmbedder(), status: tracker, search: { now: () => new Date(world.clock) },
+  });
+  return { app, world, probes, tracker };
 }
 
-async function getStatus(app: ReturnType<typeof setup>["app"]) {
+async function getStatus(app: Awaited<ReturnType<typeof setup>>["app"]) {
   const res = await app.inject({ method: "GET", url: "/api/status" });
   return { res, body: res.json() as StatusResponse };
 }
@@ -79,13 +88,13 @@ describe("tracker", () => {
 });
 
 describe("GET /api/status", () => {
-  it("is public, reports ES reachable and ok on a fresh server, and spans it with allowlisted attributes", async () => {
-    const { app } = setup();
+  it("is public, reports the database reachable and ok on a fresh server, and spans it with allowlisted attributes", async () => {
+    const { app } = await setup();
     const { res, body } = await getStatus(app);
     expect(res.statusCode).toBe(200);
     expect(body.status).toBe("ok");
     expect(body.api).toEqual({ up: true, version: "0.1.0" });
-    expect(body.elasticsearch.reachable).toBe(true);
+    expect(body.database.reachable).toBe(true);
     expect(body.search.hybrid.state).toBe("unknown");
     expect(body.search.keyword).toEqual({ samples: 0, p95Ms: null });
     expect(spans.find((s) => s.name === "status")?.set).toEqual({ "http.response.status_code": 200 });
@@ -93,7 +102,7 @@ describe("GET /api/status", () => {
   });
 
   it("shows live search latency and ready hybrid after real searches, with no query text in the body", async () => {
-    const { app, world } = setup();
+    const { app, world } = await setup();
     for (const mode of ["keyword", "hybrid"]) {
       const r = await app.inject({ method: "GET", url: `/api/search?q=secret-attendee-question&mode=${mode}` });
       expect(r.statusCode).toBe(200);
@@ -108,7 +117,7 @@ describe("GET /api/status", () => {
   });
 
   it("goes degraded with hybrid warming up after a 503 search_overloaded, keyword still ok", async () => {
-    const { app, world } = setup();
+    const { app, world } = await setup();
     world.hybridFails = "overload";
     const failed = await app.inject({ method: "GET", url: "/api/search?q=x&mode=hybrid" });
     expect(failed.statusCode).toBe(503);
@@ -123,26 +132,26 @@ describe("GET /api/status", () => {
     expect(body.search.hybrid.samples).toBe(0); // latency only counts successful searches
   });
 
-  it("goes down when Elasticsearch is unreachable", async () => {
-    const { app, world } = setup();
-    world.esUp = false;
+  it("goes down when the database is unreachable", async () => {
+    const { app, world } = await setup();
+    world.dbUp = false;
     const { body } = await getStatus(app);
     expect(body.status).toBe("down");
-    expect(body.elasticsearch.reachable).toBe(false);
+    expect(body.database.reachable).toBe(false);
   });
 
   it("caches for 10 seconds and refreshes afterwards", async () => {
-    const { app, world, es } = setup();
+    const { app, world, probes } = await setup();
     await getStatus(app);
     await getStatus(app);
-    expect(es.calls.filter((c) => c.path === "/talks/_count")).toHaveLength(1);
+    expect(probes).toHaveLength(1);
     world.clock += STATUS_CACHE_MS + 1;
     await getStatus(app);
-    expect(es.calls.filter((c) => c.path === "/talks/_count")).toHaveLength(2);
+    expect(probes).toHaveLength(2);
   });
 
   it("counts 5xx responses as an error rate (but not /healthz or /api/status) and degrades past 5% over 20+ requests", async () => {
-    const { app, world } = setup();
+    const { app, world } = await setup();
     world.hybridFails = "other";
     for (let i = 0; i < 18; i++) await app.inject({ method: "GET", url: "/api/search?q=x&mode=keyword" });
     await app.inject({ method: "GET", url: "/healthz" });
@@ -156,15 +165,13 @@ describe("GET /api/status", () => {
     expect(body.status).toBe("degraded");
   });
 
-  it("does not count an empty onboarding submit (never reaches ES) as a hybrid success", async () => {
-    const { app, world, es } = setup();
+  it("does not count an empty onboarding submit (never reaches the database) as a hybrid success", async () => {
+    const { app, world, probes } = await setup();
     world.hybridFails = "overload";
     const failed = await app.inject({ method: "GET", url: "/api/search?q=x&mode=hybrid" });
     expect(failed.statusCode).toBe(503);
-    const searchesBefore = es.calls.filter((c) => c.path.startsWith("/talks/_search")).length;
     const empty = await app.inject({ method: "POST", url: "/api/onboarding", payload: { answers: { topics: [] } } });
     expect(empty.statusCode).toBe(200);
-    expect(es.calls.filter((c) => c.path.startsWith("/talks/_search"))).toHaveLength(searchesBefore); // no ES query ran
     world.clock += STATUS_CACHE_MS + 1;
     const { body } = await getStatus(app);
     expect(body.search.hybrid.state).toBe("warming_up");

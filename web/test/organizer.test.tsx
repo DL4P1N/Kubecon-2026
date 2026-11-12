@@ -28,7 +28,7 @@ const clusters: InterestClustersResponse = {
 
 const status: StatusResponse = {
   status: "ok", generatedAt: "2026-11-09T12:00:00Z", windowSeconds: 300,
-  api: { up: true, version: "0.1.0" }, elasticsearch: { reachable: true },
+  api: { up: true, version: "0.1.0" }, database: { reachable: true },
   search: { keyword: { samples: 4, p95Ms: 12 }, hybrid: { samples: 3, p95Ms: 240, state: "ready" } },
   errorRate: { requests: 40, serverErrors: 0, ratio: 0 },
 };

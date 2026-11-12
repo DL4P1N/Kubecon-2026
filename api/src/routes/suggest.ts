@@ -1,16 +1,16 @@
 import type { FastifyPluginAsync } from "fastify";
 import { SUGGEST_PATH, type SuggestResponse } from "@cc/shared";
-import { EsError, isEsOverload, type EsClient } from "../es/client.js";
+import type { Db } from "../db/client.js";
+import { sendDbError } from "../search/errors.js";
 import { MAX_SUGGEST_CHARS, MIN_SUGGEST_CHARS, suggest } from "../suggest/suggest.js";
 import { withSpan } from "../telemetry/span.js";
 import { applyRateLimit, sendIfRateLimited } from "../http/rateLimit.js";
-import { RETRY_AFTER_SECONDS } from "./search.js";
 
 export const SUGGEST_CACHE_MS = 30_000;
 const MAX_CACHE_ENTRIES = 500;
 
 export interface SuggestRouteOptions {
-  es: EsClient;
+  db: Db;
   /** Per client IP per minute. Default 120: a person typing fires several requests. */
   rateLimitPerMinute?: number;
   now?: () => number;
@@ -29,11 +29,7 @@ export const suggestRoutes: FastifyPluginAsync<SuggestRouteOptions> = async (app
 
   app.setErrorHandler((err: Error, req, reply) => {
     if (sendIfRateLimited(err, reply)) return reply;
-    if (err instanceof EsError) {
-      req.log.warn({ "error.type": err.errorType, "http.route": req.routeOptions?.url }, `elasticsearch request failed with status ${err.status}`);
-      if (isEsOverload(err)) return reply.code(503).header("Retry-After", String(RETRY_AFTER_SECONDS)).send({ error: "search_overloaded" });
-      return reply.code(502).send({ error: "search_unavailable" });
-    }
+    if (sendDbError(err, req, reply)) return reply;
     const status = (err as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) return reply.code(status).send({ error: status === 429 ? "rate_limited" : "invalid_request" });
     return reply.code(500).send({ error: "internal_error" });
@@ -54,7 +50,7 @@ export const suggestRoutes: FastifyPluginAsync<SuggestRouteOptions> = async (app
           span.setAttribute("http.response.status_code", 400);
           return reply.code(400).send({ error: "invalid_request", message: `q must be one string of at most ${MAX_SUGGEST_CHARS} characters` });
         }
-        // Too short to suggest anything useful: answer without touching Elasticsearch.
+        // Too short to suggest anything useful: answer without touching the database.
         if (q.length < MIN_SUGGEST_CHARS) {
           span.setAttribute("http.response.status_code", 200);
           return reply.send({ suggestions: [] } satisfies SuggestResponse);
@@ -63,7 +59,7 @@ export const suggestRoutes: FastifyPluginAsync<SuggestRouteOptions> = async (app
         const hit = cache.get(key);
         let value = hit && now() - hit.at < SUGGEST_CACHE_MS ? hit.value : undefined;
         if (!value) {
-          value = { suggestions: await suggest(opts.es, q) };
+          value = { suggestions: await suggest(opts.db, q) };
           if (cache.size >= MAX_CACHE_ENTRIES) cache.delete(cache.keys().next().value as string);
           cache.set(key, { at: now(), value });
         }

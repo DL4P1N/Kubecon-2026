@@ -4,56 +4,32 @@ import { trace } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
 import type { MeResponse, RegisterResponse } from "@cc/shared";
 import { createTokenService } from "../src/auth/token.js";
-import { createEsClient } from "../src/es/client.js";
+import type { Db } from "../src/db/client.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import { testDb } from "./pg.js";
 import { registerRoutes, registerBodySchema } from "../src/routes/register.js";
 import { NO_EXPIRY } from "../src/retentionPolicy.js";
 
 const KEY = "test-signing-key-that-is-long-enough-0123456789";
 
-/** In-memory fake of the ES document endpoints the routes use. */
-function fakeEs() {
-  const docs = new Map<string, Record<string, unknown>>();
-  const calls: string[] = [];
-  /** Index names whose PUTs fail with 500 ("*" = all). */
-  const failWrites = new Set<string>();
-  const fetchImpl = (async (url: string, init: RequestInit) => {
-    const u = new URL(url);
-    const method = init.method ?? "GET";
-    calls.push(`${method} ${u.pathname}`);
-    if (method === "POST" && u.pathname === "/identities/_delete_by_query") {
-      const query = JSON.parse(String(init.body)) as { query?: { term?: { attendee_id?: string } } };
-      for (const [key, value] of docs) if (key.startsWith("identities/") && value.attendee_id === query.query?.term?.attendee_id) docs.delete(key);
-      return new Response(JSON.stringify({ deleted: 1 }), { status: 200 });
-    }
-    const m = /^\/(\w+)\/(_create|_doc)\/([^/]+)$/.exec(u.pathname);
-    if (!m) return new Response("{}", { status: 400 });
-    const [, index, op, id] = m;
-    const key = `${index}/${decodeURIComponent(id!)}`;
-    if (method === "PUT") {
-      if (failWrites.has("*") || failWrites.has(index!)) return new Response(`{"error":"boom ${u.pathname}"}`, { status: 500 });
-      if (op === "_create" && docs.has(key)) return new Response("{}", { status: 409 });
-      docs.set(key, JSON.parse(String(init.body)));
-      return new Response(JSON.stringify({ result: "created" }), { status: 201 });
-    }
-    if (method === "GET") {
-      const src = docs.get(key);
-      if (!src) return new Response(JSON.stringify({ found: false }), { status: 404 });
-      const { interest_vector: _omit, ...rest } = src;
-      return new Response(JSON.stringify({ found: true, _source: rest }), { status: 200 });
-    }
-    if (method === "DELETE") {
-      const existed = docs.delete(key);
-      return new Response(JSON.stringify({ result: existed ? "deleted" : "not_found" }), { status: existed ? 200 : 404 });
-    }
-    return new Response("{}", { status: 405 });
-  }) as unknown as typeof fetch;
-  return {
-    docs,
-    calls,
-    setFailWrites: (index: string) => failWrites.add(index),
-    client: createEsClient({ esUrl: "http://es:9200", esUsername: "u", esPassword: "p" }, fetchImpl),
-  };
+const embedder = new LocalHashEmbedder();
+const embed = (text: string) => embedder.embed(text, "passage");
+
+/** Wraps a Db so statements matching `fail` throw a (non-unique) driver error, inside transactions too. */
+function failing(db: Db, fail: (sql: string) => boolean): Db {
+  const wrap = (d: Db): Db => ({
+    ...d,
+    query: ((sql: string, params?: readonly unknown[]) => {
+      if (fail(sql)) return Promise.reject(Object.assign(new Error(`boom ${sql}`), { code: "XX000" }));
+      return d.query(sql, params);
+    }) as Db["query"],
+    transaction: (fn) => d.transaction((tx) => fn(wrap(tx))),
+  });
+  return wrap(db);
 }
+
+const count = async (db: Db, table: string) => Number((await db.query<{ n: string }>(`select count(*)::int as n from ${table}`)).rows[0]!.n);
+const iso = (v: unknown) => new Date(v as string).toISOString();
 
 const validBody = {
   name: "Ada",
@@ -67,7 +43,7 @@ const provider = new TracerProvider({ spanProcessors: [new SimpleSpanProcessor({
 
 describe("POST /api/register and GET /api/me", () => {
   let app: FastifyInstance;
-  let es: ReturnType<typeof fakeEs>;
+  let db: Db;
   let t = Date.parse("2026-11-09T12:00:00Z");
   const now = () => t;
 
@@ -79,15 +55,20 @@ describe("POST /api/register and GET /api/me", () => {
     trace.disable();
   });
 
+  afterEach(async () => {
+    await app.close();
+    await db.close();
+  });
+
   beforeEach(async () => {
     t = Date.parse("2026-11-09T12:00:00Z");
     exporter.reset();
-    es = fakeEs();
+    db = await testDb();
     app = Fastify({ logger: false });
     await app.register(registerRoutes, {
-      es: es.client,
+      db,
       tokens: createTokenService({ key: KEY, now }),
-      embed: async () => [1, 0, 0, 0],
+      embed,
       rateLimitPerMinute: 3,
       now,
     });
@@ -96,25 +77,30 @@ describe("POST /api/register and GET /api/me", () => {
 
   const register = (payload: unknown = validBody) => app.inject({ method: "POST", url: "/api/register", payload: payload as object });
 
+  const attendeeRow = async (id: string) =>
+    (await db.query<Record<string, unknown>>("select id, display_name, interests, interest_vector is not null as has_vector, consent_cluster_map, consent_qr_checkin, created_at, expires_at from attendees where id = $1", [id])).rows[0];
+  const claimFor = (id: string, ttlSeconds = 900) => createTokenService({ key: KEY, now }).sign(id, { audience: "identity-claim", ttlSeconds });
+
   it("round-trips register -> me and stores only allowed fields", async () => {
     const res = await register();
     expect(res.statusCode).toBe(201);
     const reg = res.json() as RegisterResponse;
     expect(reg.attendeeId).toMatch(/^[0-9a-f-]{36}$/);
 
-    const attendee = es.docs.get(`attendees/${reg.attendeeId}`)!;
-    expect(Object.keys(attendee).sort()).toEqual(
-      ["consent", "created_at", "display_name", "expires_at", "id", "interest_vector", "interests"].sort(),
-    );
+    const attendee = (await attendeeRow(reg.attendeeId))!;
     expect(attendee.interests).toEqual(["kubernetes", "opentelemetry"]);
+    expect(attendee.has_vector).toBe(true);
     expect(JSON.stringify(attendee)).not.toContain("ada@example.com");
     // Default policy: profiles are kept, so expires_at is the far-future NO_EXPIRY sentinel.
-    expect(attendee.expires_at).toBe(NO_EXPIRY);
-    // Consent is no longer a gate: stored true/true whatever a legacy client sent.
+    expect(iso(attendee.expires_at)).toBe(iso(NO_EXPIRY));
     // The body sent qrCheckin: false; the explicit opt-out is stored, not overridden.
-    expect(attendee.consent).toEqual({ cluster_map: true, qr_checkin: false });
-    expect(es.docs.get(`entitlements/${reg.attendeeId}`)!.expires_at).toBe(NO_EXPIRY);
-    expect(es.docs.get(`entitlements/${reg.attendeeId}`)).toMatchObject({ pass_type: "general", rooms: ["*"] });
+    expect([attendee.consent_cluster_map, attendee.consent_qr_checkin]).toEqual([true, false]);
+    const ent = (await db.query<{ pass_type: string; rooms: string[]; expires_at: unknown }>("select * from entitlements where attendee_id = $1", [reg.attendeeId])).rows[0]!;
+    expect(ent).toMatchObject({ pass_type: "general", rooms: ["*"] });
+    expect(iso(ent.expires_at)).toBe(iso(NO_EXPIRY));
+    // Nothing else is created for a plain registration.
+    expect(await count(db, "identities")).toBe(0);
+    expect(await count(db, "schedules")).toBe(0);
 
     const me = await app.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${reg.token}` } });
     expect(me.statusCode).toBe(200);
@@ -127,54 +113,59 @@ describe("POST /api/register and GET /api/me", () => {
     });
   });
 
-  it("consumes a valid identity claim by creating one identity document for the registered attendee", async () => {
-    const claim = await createTokenService({ key: KEY, now }).sign("provider-hmac-id", { audience: "identity-claim", ttlSeconds: 900 });
+  it("consumes a valid identity claim by creating one identity row for the registered attendee", async () => {
+    const claim = await claimFor("provider-hmac-id");
     const res = await register({ ...validBody, identityClaim: claim.token });
     expect(res.statusCode).toBe(201);
     const registration = res.json<RegisterResponse>();
-    expect(es.docs.get("identities/provider-hmac-id")).toMatchObject({
-      attendee_id: registration.attendeeId,
-      created_at: new Date(t).toISOString(),
-      expires_at: NO_EXPIRY,
-    });
+    const rows = (await db.query<{ id: string; attendee_id: string; created_at: unknown; expires_at: unknown }>("select * from identities")).rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: "provider-hmac-id", attendee_id: registration.attendeeId });
+    expect(iso(rows[0]!.created_at)).toBe(new Date(t).toISOString());
+    expect(iso(rows[0]!.expires_at)).toBe(iso(NO_EXPIRY));
   });
 
-  it("rejects an invalid or expired identity claim before writing any document", async () => {
+  it("rejects an invalid or expired identity claim before writing any row", async () => {
     const invalid = await register({ ...validBody, identityClaim: "invalid.claim.token" });
     expect(invalid.statusCode).toBe(400);
     expect(invalid.json()).toMatchObject({ error: "invalid_identity_claim", message: "identityClaim: expired or invalid, sign in again" });
-    expect(es.docs.size).toBe(0);
-    const claim = await createTokenService({ key: KEY, now }).sign("expired-id", { audience: "identity-claim", ttlSeconds: 1 });
+    const claim = await claimFor("expired-id", 1);
     t += 2_000;
     const expired = await register({ ...validBody, identityClaim: claim.token });
     expect(expired.statusCode).toBe(400);
     expect(expired.json()).toMatchObject({ error: "invalid_identity_claim" });
-    expect(es.docs.size).toBe(0);
+    // A session token is not an identity claim either.
+    const session = await createTokenService({ key: KEY, now }).sign("someone");
+    expect((await register({ ...validBody, identityClaim: session.token })).statusCode).toBe(400);
+    for (const table of ["attendees", "entitlements", "identities"]) expect(await count(db, table)).toBe(0);
   });
 
-  it("rejects a replayed identity claim and cleans up the losing attendee", async () => {
-    const claim = await createTokenService({ key: KEY, now }).sign("single-use-identity", { audience: "identity-claim", ttlSeconds: 900 });
-    expect((await register({ ...validBody, identityClaim: claim.token })).statusCode).toBe(201);
-    const replay = await register({ ...validBody, identityClaim: claim.token });
+  it("rejects a replayed identity claim with 409 and rolls the losing attendee back", async () => {
+    const claim = await claimFor("single-use-identity");
+    const first = (await register({ ...validBody, identityClaim: claim.token })).json<RegisterResponse>();
+    const replay = await register({ ...validBody, name: "Mallory", identityClaim: claim.token });
     expect(replay.statusCode).toBe(409);
-    expect(replay.json()).toMatchObject({ error: "already_registered" });
-    expect([...es.docs.keys()].filter((key) => key.startsWith("attendees/"))).toHaveLength(1);
-    expect(es.docs.has("identities/single-use-identity")).toBe(true);
+    expect(replay.json()).toEqual({ error: "already_registered", message: "this account already has a profile, sign in again" });
+    expect((await db.query<{ id: string }>("select id from attendees")).rows.map((r) => r.id)).toEqual([first.attendeeId]);
+    expect(await count(db, "entitlements")).toBe(1);
+    expect((await db.query<{ attendee_id: string }>("select attendee_id from identities where id = 'single-use-identity'")).rows[0]!.attendee_id).toBe(first.attendeeId);
   });
 
   it("accepts a body with no consent field and stores true/true", async () => {
     const { consent: _omitted, ...noConsent } = validBody;
     const res = await register(noConsent);
     expect(res.statusCode).toBe(201);
-    const reg = res.json() as RegisterResponse;
-    expect(es.docs.get(`attendees/${reg.attendeeId}`)!.consent).toEqual({ cluster_map: true, qr_checkin: true });
+    const row = (await attendeeRow((res.json() as RegisterResponse).attendeeId))!;
+    expect([row.consent_cluster_map, row.consent_qr_checkin]).toEqual([true, true]);
   });
 
   it("stores an explicit false for each consent flag and defaults only an absent flag to true", async () => {
     const both = (await register({ ...validBody, consent: { clusterMap: false, qrCheckin: false } })).json() as RegisterResponse;
-    expect(es.docs.get(`attendees/${both.attendeeId}`)!.consent).toEqual({ cluster_map: false, qr_checkin: false });
+    const a = (await attendeeRow(both.attendeeId))!;
+    expect([a.consent_cluster_map, a.consent_qr_checkin]).toEqual([false, false]);
     const mapOnly = (await register({ ...validBody, consent: { clusterMap: false, qrCheckin: true } })).json() as RegisterResponse;
-    expect(es.docs.get(`attendees/${mapOnly.attendeeId}`)!.consent).toEqual({ cluster_map: false, qr_checkin: true });
+    const b = (await attendeeRow(mapOnly.attendeeId))!;
+    expect([b.consent_cluster_map, b.consent_qr_checkin]).toEqual([false, true]);
   });
 
   describe("ATTENDEE_RETENTION_HOURS=24 restores timed expiry", () => {
@@ -183,9 +174,10 @@ describe("POST /api/register and GET /api/me", () => {
     it("sets expires_at 24 hours after registration on the attendee and entitlement", async () => {
       vi.stubEnv("ATTENDEE_RETENTION_HOURS", "24");
       const reg = (await register()).json() as RegisterResponse;
-      const attendee = es.docs.get(`attendees/${reg.attendeeId}`)!;
-      expect(Date.parse(attendee.expires_at as string) - Date.parse(attendee.created_at as string)).toBe(24 * 3600 * 1000);
-      expect(es.docs.get(`entitlements/${reg.attendeeId}`)!.expires_at).toBe(attendee.expires_at);
+      const attendee = (await attendeeRow(reg.attendeeId))!;
+      expect(Date.parse(iso(attendee.expires_at)) - Date.parse(iso(attendee.created_at))).toBe(24 * 3600 * 1000);
+      const ent = (await db.query<{ expires_at: unknown }>("select expires_at from entitlements where attendee_id = $1", [reg.attendeeId])).rows[0]!;
+      expect(iso(ent.expires_at)).toBe(iso(attendee.expires_at));
     });
   });
 
@@ -193,61 +185,61 @@ describe("POST /api/register and GET /api/me", () => {
     const del = (token?: string) =>
       app.inject({ method: "DELETE", url: "/api/me", headers: token ? { authorization: `Bearer ${token}` } : {} });
     const me = (token: string) => app.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${token}` } });
+    const seedSchedule = (id: string) =>
+      db.query("insert into schedules (attendee_id, talk_ids, updated_at, expires_at) values ($1, $2, $3, $4)", [id, ["a"], new Date(t), NO_EXPIRY]);
+    const rowsFor = async (table: string, col: string, id: string) => (await db.query(`select 1 from ${table} where ${col} = $1`, [id])).rows.length;
 
-    it("deletes only the caller's profile, schedule and entitlement, answers 204, and the token stops working", async () => {
-      const ada = (await register()).json() as RegisterResponse;
-      const bob = (await register({ ...validBody, name: "Bob" })).json() as RegisterResponse;
-      for (const r of [ada, bob]) {
-        es.docs.set(`schedules/${r.attendeeId}`, { attendee_id: r.attendeeId, talk_ids: ["a"], updated_at: "x", expires_at: NO_EXPIRY });
-      }
+    it("deletes every row of the caller (profile, schedule, entitlement, identities), none of anyone else's, answers 204, and the token stops working", async () => {
+      const claim = await claimFor("ada-identity");
+      const ada = (await register({ ...validBody, identityClaim: claim.token })).json() as RegisterResponse;
+      await db.query("insert into identities (id, attendee_id, created_at, expires_at) values ('ada-second', $1, $2, $3)", [ada.attendeeId, new Date(t), NO_EXPIRY]);
+      const bobClaim = await claimFor("bob-identity");
+      const bob = (await register({ ...validBody, name: "Bob", identityClaim: bobClaim.token })).json() as RegisterResponse;
+      for (const r of [ada, bob]) await seedSchedule(r.attendeeId);
+
       const res = await del(ada.token);
       expect(res.statusCode).toBe(204);
       expect(res.body).toBe("");
-      for (const index of ["attendees", "schedules", "entitlements"]) expect(es.docs.has(`${index}/${ada.attendeeId}`)).toBe(false);
-      for (const index of ["attendees", "schedules", "entitlements"]) expect(es.docs.has(`${index}/${bob.attendeeId}`)).toBe(true);
+      for (const [table, col] of [["attendees", "id"], ["schedules", "attendee_id"], ["entitlements", "attendee_id"], ["identities", "attendee_id"]] as const) {
+        expect(await rowsFor(table, col, ada.attendeeId)).toBe(0);
+        expect(await rowsFor(table, col, bob.attendeeId)).toBe(1);
+      }
       // Same token: the profile is gone.
       expect((await del(ada.token)).statusCode).toBe(404);
       expect((await me(ada.token)).statusCode).toBe(401);
       expect((await me(bob.token)).statusCode).toBe(200);
     });
 
-    it("deletes every identity link for the attendee during profile erasure", async () => {
-      const ada = (await register()).json() as RegisterResponse;
-      es.docs.set("identities/one", { attendee_id: ada.attendeeId, created_at: new Date(t).toISOString(), expires_at: NO_EXPIRY });
-      es.docs.set("identities/two", { attendee_id: ada.attendeeId, created_at: new Date(t).toISOString(), expires_at: NO_EXPIRY });
-      expect((await del(ada.token)).statusCode).toBe(204);
-      expect(es.docs.has("identities/one")).toBe(false);
-      expect(es.docs.has("identities/two")).toBe(false);
-    });
-
     it("answers 401 without a token or with a bad token and deletes nothing", async () => {
       const ada = (await register()).json() as RegisterResponse;
       expect((await del()).statusCode).toBe(401);
       expect((await del("a.b.c")).statusCode).toBe(401);
-      expect(es.docs.has(`attendees/${ada.attendeeId}`)).toBe(true);
+      expect(await rowsFor("attendees", "id", ada.attendeeId)).toBe(1);
     });
 
-    it("a second call cleans stray documents but answers 404", async () => {
+    it("a second call cleans stray rows but answers 404", async () => {
       const ada = (await register()).json() as RegisterResponse;
       expect((await del(ada.token)).statusCode).toBe(204);
-      es.docs.set(`schedules/${ada.attendeeId}`, { attendee_id: ada.attendeeId, talk_ids: [] });
+      await seedSchedule(ada.attendeeId);
       expect((await del(ada.token)).statusCode).toBe(404);
-      expect(es.docs.has(`schedules/${ada.attendeeId}`)).toBe(false);
+      expect(await rowsFor("schedules", "attendee_id", ada.attendeeId)).toBe(0);
     });
 
-    it("keeps the profile and answers 503 when a delete fails, so the caller can retry", async () => {
-      const ada = (await register()).json() as RegisterResponse;
-      const real = es.client.request.bind(es.client);
-      let fail = true;
-      es.client.request = (async (method: string, path: string, ...rest: unknown[]) => {
-        if (fail && method === "DELETE" && path.startsWith("/schedules/")) throw new Error(`boom ${path}`);
-        return (real as (...a: unknown[]) => unknown)(method, path, ...rest);
-      }) as typeof es.client.request;
-      const failed = await del(ada.token);
+    it("deletes nothing and answers 503 when a statement fails mid-way (one transaction), so the caller can retry", async () => {
+      const claim = await claimFor("retry-identity");
+      const ada = (await register({ ...validBody, identityClaim: claim.token })).json() as RegisterResponse;
+      await seedSchedule(ada.attendeeId);
+      const app2 = Fastify({ logger: false });
+      await app2.register(registerRoutes, { db: failing(db, (sql) => /delete from identities/.test(sql)), tokens: createTokenService({ key: KEY, now }), embed });
+      const failed = await app2.inject({ method: "DELETE", url: "/api/me", headers: { authorization: `Bearer ${ada.token}` } });
       expect(failed.statusCode).toBe(503);
       expect(JSON.stringify(failed.json())).not.toContain(ada.attendeeId);
-      expect(es.docs.has(`attendees/${ada.attendeeId}`)).toBe(true);
-      fail = false;
+      expect(failed.body).not.toMatch(/delete from/i);
+      await app2.close();
+      // Entitlement and schedule were deleted before the failing statement; the rollback restored them.
+      for (const [table, col] of [["attendees", "id"], ["schedules", "attendee_id"], ["entitlements", "attendee_id"], ["identities", "attendee_id"]] as const) {
+        expect(await rowsFor(table, col, ada.attendeeId)).toBe(1);
+      }
       expect((await del(ada.token)).statusCode).toBe(204);
     });
 
@@ -275,46 +267,56 @@ describe("POST /api/register and GET /api/me", () => {
     expect(expired.json().message).toBe("token expired");
   });
 
-  it("returns 401 when the attendee no longer exists", async () => {
+  it("returns 401 when the attendee no longer exists or has expired", async () => {
     const reg = (await register()).json() as RegisterResponse;
-    es.docs.clear();
+    await db.query("update attendees set expires_at = $1", [new Date(t - 1000)]);
+    const expired = await app.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${reg.token}` } });
+    expect(expired.statusCode).toBe(401);
+    await db.query("delete from attendees");
     const me = await app.inject({ method: "GET", url: "/api/me", headers: { authorization: `Bearer ${reg.token}` } });
     expect(me.statusCode).toBe(401);
   });
 
-  it("returns 503 without leaking the attendee ID when ES writes fail", async () => {
-    es.setFailWrites("*");
-    const res = await register();
+  it("returns 503 without leaking the attendee ID or SQL when the database fails", async () => {
+    const app2 = Fastify({ logger: false });
+    await app2.register(registerRoutes, { db: failing(db, () => true), tokens: createTokenService({ key: KEY, now }), embed });
+    const res = await app2.inject({ method: "POST", url: "/api/register", payload: validBody });
     expect(res.statusCode).toBe(503);
-    expect(res.body).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/);
+    expect(res.json()).toEqual({ error: "storage_unavailable", message: "could not store registration" });
+    expect(res.body).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-|insert into|boom/);
+    await app2.close();
   });
 
-  it("cleans up the attendee doc when the entitlement write fails", async () => {
-    es.setFailWrites("entitlements");
-    const res = await register();
-    expect(res.statusCode).toBe(503);
-    expect(es.docs.size).toBe(0);
-    expect(es.calls.filter((c) => c.startsWith("DELETE"))).toHaveLength(2);
-    const span = exporter.getFinishedSpans().find((s) => s.name === "register")!;
+  it("rolls everything back (no attendee row) when the entitlement or identity insert fails", async () => {
+    for (const pattern of [/insert into entitlements/, /insert into identities/]) {
+      const app2 = Fastify({ logger: false });
+      await app2.register(registerRoutes, { db: failing(db, (sql) => pattern.test(sql)), tokens: createTokenService({ key: KEY, now }), embed });
+      const claim = await claimFor("rollback-identity");
+      const res = await app2.inject({ method: "POST", url: "/api/register", payload: { ...validBody, identityClaim: claim.token } });
+      expect(res.statusCode).toBe(503);
+      for (const table of ["attendees", "entitlements", "identities"]) expect(await count(db, table)).toBe(0);
+      await app2.close();
+    }
+    const span = exporter.getFinishedSpans().filter((s) => s.name === "register").at(-1)!;
     expect(span.attributes["http.response.status_code"]).toBe(503);
   });
 
   it("returns 5xx, writes nothing and still ends the span when signing fails", async () => {
     const app2 = Fastify({ logger: false });
     await app2.register(registerRoutes, {
-      es: es.client,
+      db,
       tokens: {
         sign: async () => {
           throw new Error("kms down");
         },
         verify: async () => "x",
       },
-      embed: async () => [1],
+      embed,
     });
     const res = await app2.inject({ method: "POST", url: "/api/register", payload: validBody });
     expect(res.statusCode).toBe(500);
     expect(res.body).not.toContain("kms down");
-    expect(es.docs.size).toBe(0);
+    expect(await count(db, "attendees")).toBe(0);
     const spans = exporter.getFinishedSpans().filter((s) => s.name === "register");
     expect(spans).toHaveLength(1);
     expect(spans[0]!.attributes["http.response.status_code"]).toBe(500);
@@ -328,15 +330,11 @@ describe("POST /api/register and GET /api/me", () => {
 
     expect((await app.inject({ method: "GET", url: "/api/me", headers: auth })).statusCode).toBe(200);
     expect((await app.inject({ method: "GET", url: "/api/me" })).statusCode).toBe(401);
-    es.docs.clear();
+    await db.query("delete from attendees");
     expect((await app.inject({ method: "GET", url: "/api/me", headers: auth })).statusCode).toBe(401);
 
-    const failing = createEsClient(
-      { esUrl: "http://es:9200", esUsername: "", esPassword: "" },
-      (async () => new Response("boom", { status: 500 })) as unknown as typeof fetch,
-    );
     const app2 = Fastify({ logger: false });
-    await app2.register(registerRoutes, { es: failing, tokens: createTokenService({ key: KEY, now }), embed: async () => [1] });
+    await app2.register(registerRoutes, { db: failing(db, () => true), tokens: createTokenService({ key: KEY, now }), embed });
     expect((await app2.inject({ method: "GET", url: "/api/me", headers: auth })).statusCode).toBe(503);
     await app2.close();
 
@@ -348,10 +346,10 @@ describe("POST /api/register and GET /api/me", () => {
     }
   });
 
-  it("still registers when the embedder is down, without interest_vector", async () => {
+  it("still registers when the embedder is down, without an interest vector", async () => {
     const app2 = Fastify({ logger: false });
     await app2.register(registerRoutes, {
-      es: es.client,
+      db,
       tokens: createTokenService({ key: KEY }),
       embed: async () => {
         throw new Error("inference down");
@@ -359,7 +357,7 @@ describe("POST /api/register and GET /api/me", () => {
     });
     const res = await app2.inject({ method: "POST", url: "/api/register", payload: validBody });
     expect(res.statusCode).toBe(201);
-    expect(es.docs.get(`attendees/${res.json().attendeeId}`)).not.toHaveProperty("interest_vector");
+    expect((await attendeeRow(res.json().attendeeId))!.has_vector).toBe(false);
     await app2.close();
   });
 
@@ -413,14 +411,12 @@ describe("register body validation", () => {
 
   it("returns 400 over HTTP without echoing values", async () => {
     const app = Fastify({ logger: false });
-    await app.register(registerRoutes, {
-      es: fakeEs().client,
-      tokens: createTokenService({ key: KEY }),
-      embed: async () => [1],
-    });
+    const db = await testDb();
+    await app.register(registerRoutes, { db, tokens: createTokenService({ key: KEY }), embed });
     const res = await app.inject({ method: "POST", url: "/api/register", payload: { ...validBody, name: "", interests: ["secret-value".repeat(10)] } });
     expect(res.statusCode).toBe(400);
     expect(res.body).not.toContain("secret-value");
     await app.close();
+    await db.close();
   });
 });

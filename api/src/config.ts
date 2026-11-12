@@ -1,6 +1,6 @@
 /**
  * Runtime configuration, read from environment variables only.
- * Secrets (ES_PASSWORD, TOKEN_SIGNING_KEY) come from a Kubernetes Secret in
+ * Secrets (DATABASE_URL, TOKEN_SIGNING_KEY) come from a Kubernetes Secret in
  * deployment and must never be committed.
  */
 import { parseRetentionHours } from "./retentionPolicy.js";
@@ -17,11 +17,12 @@ export interface OAuthProviderConfig {
 export interface Config {
   port: number;
   host: string;
-  esUrl: string;
-  esUsername: string;
-  esPassword: string;
+  /** DATABASE_URL: Postgres connection string (Supabase session pooler or any Postgres with pgvector). Required in production; contains the password, never log it. */
+  databaseUrl: string;
+  /** DATABASE_CA_FILE: PEM CA for the database server certificate (Supabase root CA); unset uses the system roots. */
+  databaseCaFile: string | undefined;
   tokenSigningKey: string;
-  /** IDENTITY_HASH_KEY: HMAC key for the provider-account -> attendee link (identities index). Required when any OAuth provider is configured. */
+  /** IDENTITY_HASH_KEY: HMAC key for the provider-account -> attendee link (identities table). Required when any OAuth provider is configured. */
   identityHashKey: string;
   otelExporterOtlpEndpoint: string | undefined;
   /** NODE_ENV; "production" turns on strict secret checks. */
@@ -52,8 +53,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`Invalid PORT: ${env.PORT}`);
   }
   if (env.NODE_ENV === "production") {
-    // Fail closed: never run production with the public dev key or without ES credentials.
-    const missing = ["TOKEN_SIGNING_KEY", "ES_URL", "ES_USERNAME", "ES_PASSWORD"].filter((k) => !env[k]);
+    // Fail closed: never run production with the public dev key or without a database.
+    const missing = ["TOKEN_SIGNING_KEY", "DATABASE_URL"].filter((k) => !env[k]);
     if (missing.length > 0) {
       throw new Error(`Missing required environment variables in production: ${missing.join(", ")}`);
     }
@@ -76,9 +77,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     port,
     host: env.HOST ?? "0.0.0.0",
-    esUrl: env.ES_URL ?? "http://localhost:9200",
-    esUsername: env.ES_USERNAME ?? "",
-    esPassword: env.ES_PASSWORD ?? "",
+    databaseUrl: env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/postgres",
+    databaseCaFile: env.DATABASE_CA_FILE || undefined,
     tokenSigningKey: env.TOKEN_SIGNING_KEY || "dev-only-insecure-key",
     otelExporterOtlpEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT || undefined,
     nodeEnv: env.NODE_ENV ?? "development",

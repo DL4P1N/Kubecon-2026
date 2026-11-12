@@ -56,20 +56,20 @@ from the environment, like the API; set it on the CronJob's ConfigMap
 `schedules`, `entitlements`, and `identities`; talk catalogs and aggregate interest clusters
 are kept. Identity link `expires_at` matches its attendee profile; without a
 timed retention setting, identities are kept alongside their profiles. With a
-positive setting the job deletes documents whose `created_at` is older than
+positive setting the job deletes rows whose `created_at` is older than
 that many hours or whose `expires_at` has passed. The latter supports the
 existing strict schedule and entitlement mappings, which have no `created_at`
 field. Missing timestamps do not match; writers must always supply an expiry
 or creation timestamp.
 
-The CronJob runs hourly (and, while retention is off, only removes already-expired documents), so cleanup can lag expiry by up to one hour. It uses
-the app's Elasticsearch credentials and fails on conflicts, partial failures
-or timeout so failed Jobs remain visible. Rerunning is safe.
+The CronJob runs hourly (and, while retention is off, only removes already-expired rows), so cleanup can lag expiry by up to one hour. It uses
+the app's database connection (`DATABASE_URL`) and fails on any error
+so failed Jobs remain visible. Rerunning is safe.
 
 Apply `deploy/k8s/app/retention-cronjob.yaml` in the app namespace after replacing
-the image tag and CA Secret name to match the API Deployment. It expects
-`companion-app-config`, `companion-app-secrets`, and the `elasticsearch-http-ca`
-Secret with a `ca.crt` entry. Never commit credentials.
+the image tag to match the API Deployment. It expects
+`companion-app-config`, `companion-app-secrets` and, for Supabase, the
+`companion-database-ca` ConfigMap. Never commit credentials.
 
 Output contains only the deleted count. The CLI starts telemetry as
 `companion-retention` before loading application modules and always awaits SDK

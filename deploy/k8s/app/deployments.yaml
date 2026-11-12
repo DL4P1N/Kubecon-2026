@@ -45,16 +45,17 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 128Mi
+              memory: 512Mi
             limits:
               cpu: "1"
-              memory: 512Mi
+              memory: 1Gi
           startupProbe:
             httpGet:
               path: /healthz
               port: http
-            periodSeconds: 2
-            failureThreshold: 30
+            periodSeconds: 3
+            # Schema migration and loading the embedding model run before the server listens.
+            failureThreshold: 40
           readinessProbe:
             httpGet:
               path: /healthz
@@ -66,15 +67,18 @@ spec:
               port: http
             periodSeconds: 10
           volumeMounts:
-            - name: es-ca
-              mountPath: /etc/elasticsearch
+            - name: database-ca
+              mountPath: /etc/database
               readOnly: true
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: es-ca
-          secret:
-            secretName: elasticsearch-http-ca
+        # CA that signed the database server certificate (Supabase root CA). Optional so a
+        # database with a publicly trusted certificate needs no ConfigMap.
+        - name: database-ca
+          configMap:
+            name: companion-database-ca
+            optional: true
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi

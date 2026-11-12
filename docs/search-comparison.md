@@ -1,5 +1,7 @@
 # Hybrid vs keyword search: measured
 
+> **Historical record (Elasticsearch).** Everything below was measured on the earlier Elasticsearch backend (the request bodies, `rrf` retrievers and `es:init` commands no longer exist). Search now runs on Postgres; its measurements and method are in [evidence/search-eval-pg.md](evidence/search-eval-pg.md), and the design is in [database.md](database.md#search).
+
 Track evidence for the Elasticsearch track (design doc section 7): compare hybrid and keyword search on paraphrased attendee questions, with the query shown. Everything below was measured on the live index; nothing here is a hypothesis.
 
 ## Measured result (task #36)
@@ -133,7 +135,7 @@ Do not demo the five queries from the earlier draft of this document (supply cha
 
 ## Exact Elasticsearch request
 
-Code: `api/src/search/queries.ts` (bodies), `api/src/search/service.ts` (execution), `api/src/routes/search.ts` (routes). `GET /api/search?q=...&mode=hybrid&debug=1` returns the body it sent in the `debug` field; that is the "show the query" demo step. Hybrid, production config, size 10:
+Code: `api/src/search/queries.ts` (SQL plans), `api/src/search/service.ts` (execution), `api/src/routes/search.ts` (routes). `GET /api/search?q=...&mode=hybrid&debug=1` returns `{engine, mode, paramCount}` in the `debug` field (never SQL text, parameters or the query). Hybrid, production config, size 10:
 
 ```json
 {

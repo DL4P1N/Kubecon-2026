@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 const hooks = vi.hoisted(() => ({ start: vi.fn(), stop: vi.fn(), run: vi.fn() }));
 vi.mock("../src/telemetry/sdk.js", () => ({ startTelemetry: hooks.start, shutdownTelemetry: hooks.stop }));
 vi.mock("../src/config.js", () => ({ loadConfig: () => ({}) }));
-vi.mock("../src/es/client.js", () => ({ createEsClient: () => ({}) }));
+vi.mock("../src/db/client.js", () => ({ createPgDb: () => ({ close: async () => undefined }) }));
 vi.mock("../src/clusters/job.js", () => ({ runClusterJob: hooks.run }));
 const originalExitCode = process.exitCode;
 afterEach(() => { vi.restoreAllMocks(); vi.clearAllMocks(); vi.resetModules(); process.exitCode = originalExitCode; });
@@ -20,17 +20,17 @@ it("starts telemetry before the job and flushes after success", async () => {
   expect(process.exitCode).toBe(originalExitCode);
 });
 
-it("flushes on failure and prints no error message or ES body", async () => {
+it("flushes on failure and prints no error message or driver text", async () => {
   const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
-  hooks.run.mockRejectedValueOnce(Object.assign(new Error("private document data"), { errorType: "inference_exception" }));
+  hooks.run.mockRejectedValueOnce(Object.assign(new Error("private document data"), { code: "57P01" }));
   await import("../src/clusters/cli.js");
   expect(process.exitCode).toBe(1);
   expect(hooks.stop).toHaveBeenCalledOnce();
-  expect(errorLog).toHaveBeenCalledWith("Cluster job failed (inference_exception)");
+  expect(errorLog).toHaveBeenCalledWith("Cluster job failed (57P01)");
   expect(JSON.stringify(errorLog.mock.calls)).not.toContain("private document data");
 });
 
-it("falls back to the error class name when there is no safe ES type", async () => {
+it("falls back to the error class name when there is no SQLSTATE code", async () => {
   const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
   hooks.run.mockRejectedValueOnce(new TypeError("secret"));
   await import("../src/clusters/cli.js");

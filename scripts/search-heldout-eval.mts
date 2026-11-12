@@ -1,11 +1,7 @@
 import { EVAL_SET } from "./search-eval-set.js";
-import { loadConfig } from "../api/src/config.ts";
-import { createEsClient } from "../api/src/es/client.ts";
-import {
-  DEFAULT_TUNING,
-  buildHybridBody,
-  buildKeywordBody,
-} from "../api/src/search/queries.ts";
+import { DEFAULT_TUNING, type SearchTuning } from "../api/src/search/queries.ts";
+import { runSearch } from "../api/src/search/service.ts";
+import { connect } from "./search-eval.js";
 
 interface Judged {
   q: string;
@@ -25,20 +21,11 @@ const HELD_OUT: Judged[] = [
   { q: "isolating ai generated code so it cannot reach production", relevant: ["kcna26-1247804", "kcna26-1301749", "kcna26-1249842", "kcna26-1247753"] },
 ];
 
-interface EsHitSource {
-  id?: unknown;
-}
-const es = createEsClient(loadConfig());
+// Read-only: DATABASE_URL / DATABASE_CA_FILE as for search-eval.ts; queries embedded with the configured embedder (e5 by default).
+const { db, embedder } = connect();
 
-async function ids(body: object): Promise<string[]> {
-  const response = await es.request<{ hits: { hits: Array<{ _id: string; _source?: EsHitSource }> } }>(
-    "POST",
-    "/talks/_search",
-    body,
-  );
-  return response.body.hits.hits.map((entry) =>
-    typeof entry._source?.id === "string" ? entry._source.id : String(entry._id),
-  );
+async function ids(mode: "keyword" | "hybrid", q: string, tuning: SearchTuning): Promise<string[]> {
+  return (await runSearch(db, embedder, { text: q, mode, size: 10, tuning })).hits.map((h) => h.talk.id);
 }
 
 const OFF = { ...DEFAULT_TUNING, queryExpansion: "off" as const };
@@ -51,10 +38,10 @@ async function measure(label: string, set: Judged[]) {
   for (const judged of set) {
     const rankOf = (list: string[]) => list.findIndex((id) => judged.relevant.includes(id));
     const rr = (list: string[]) => (rankOf(list) < 0 ? 0 : 1 / (rankOf(list) + 1));
-    const kOff = await ids(buildKeywordBody(judged.q, 10, {}, OFF));
-    const kOn = await ids(buildKeywordBody(judged.q, 10, {}, ON));
-    const hOff = await ids(buildHybridBody(judged.q, 10, {}, OFF));
-    const hOn = await ids(buildHybridBody(judged.q, 10, {}, ON));
+    const kOff = await ids("keyword", judged.q, OFF);
+    const kOn = await ids("keyword", judged.q, ON);
+    const hOff = await ids("hybrid", judged.q, OFF);
+    const hOn = await ids("hybrid", judged.q, ON);
     kwRrOff += rr(kOff); kwRrOn += rr(kOn); hyRrOff += rr(hOff); hyRrOn += rr(hOn);
     if (kOff.slice(0, 3).some((id) => judged.relevant.includes(id))) kwOff++;
     if (kOn.slice(0, 3).some((id) => judged.relevant.includes(id))) kwOn++;
@@ -72,6 +59,10 @@ async function measure(label: string, set: Judged[]) {
   console.log(rows.join("\n"));
 }
 
-await ids(buildHybridBody("warm up", 1, {}, ON));
-await measure("TUNED SET (12 original judged queries)", EVAL_SET);
-await measure("HELD-OUT SET (8 new questions)", HELD_OUT);
+try {
+  await ids("hybrid", "warm up", ON);
+  await measure("TUNED SET (12 original judged queries)", EVAL_SET);
+  await measure("HELD-OUT SET (8 new questions)", HELD_OUT);
+} finally {
+  await db.close();
+}

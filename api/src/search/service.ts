@@ -1,81 +1,84 @@
-import type {
-  OnboardingAnswers,
-  OnboardingResponse,
-  ScheduleResponse,
-  SearchHit,
-  SearchLeg,
-  SearchMode,
-  SearchFacets,
-  SearchResponse,
-  Talk,
+import {
+  type OnboardingAnswers,
+  type OnboardingResponse,
+  type ScheduleResponse,
+  type SearchHit,
+  type SearchLeg,
+  type SearchMode,
+  type SearchFacets,
+  type SearchResponse,
+  type Talk,
 } from "@cc/shared";
-import type { EsClient } from "../es/client.js";
+import { vectorLiteral, type Db } from "../db/client.js";
+import type { Embedder } from "../embed/embedder.js";
 import { withSpan } from "../telemetry/span.js";
 import { timeSearch } from "../telemetry/metrics.js";
 import {
-  LEG_KEYWORD,
-  LEG_SEMANTIC,
-  SOURCE_FIELDS,
-  TALKS_INDEX,
-  buildHybridBody,
-  buildKeywordBody,
+  TALK_COLUMNS,
+  buildHybridPlan,
+  buildKeywordPlan,
+  expandedText,
   onboardingFilters,
   onboardingText,
-  type EsBody,
+  DEFAULT_TUNING,
   type SearchFilters,
+  type SearchPlan,
+  type SearchTuning,
 } from "./queries.js";
 import { DEFAULT_MAX_TALKS, buildSchedule, type ScoredTalk } from "./schedule.js";
-import { facetAggs, parseFacets } from "./facets.js";
+import { facetQuery, parseFacets, type FacetRow } from "./facets.js";
+import { runQuery } from "./errors.js";
 import { expiresAtFor } from "../retentionPolicy.js";
 
-export const SCHEDULES_INDEX = "schedules";
 export const ONBOARDING_RESULT_SIZE = 50;
 
-interface EsHit {
-  _id: string;
-  _score: number | null;
-  _source?: Record<string, unknown>;
-  matched_queries?: string[] | Record<string, number>;
-}
-interface EsSearchResponse {
-  took?: number;
-  hits: { hits: EsHit[] };
-  aggregations?: unknown;
+/** A `talks` row as the driver returns it (timestamptz arrive as Date; strings are accepted too). */
+export interface TalkRow {
+  id: string;
+  title: string;
+  abstract: string | null;
+  speaker: string | null;
+  track: string | null;
+  level: string | null;
+  room: string | null;
+  start_at: Date | string | null;
+  end_at: Date | string | null;
+  tags: string[] | null;
 }
 
-const str = (v: unknown): string => (typeof v === "string" ? v : "");
-const strList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+const iso = (v: Date | string | null | undefined): string => {
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? "" : v.toISOString();
+  if (typeof v === "string") return v;
+  return "";
+};
 
-/** Map an indexed talk document to the API `Talk`. Accepts `speaker` or `speakers`. */
-export function toTalk(id: string, src: Record<string, unknown>): Talk {
-  const speakers = Array.isArray(src.speakers)
-    ? src.speakers
-        .map((s) => (typeof s === "string" ? s : str((s as { name?: unknown } | null)?.name)))
-        .filter(Boolean)
-        .join(", ")
-    : "";
-  const level = src.level;
+/** Map a `talks` row to the API `Talk` (`start_at`/`end_at` become ISO `start`/`end`). */
+export function toTalk(row: TalkRow): Talk {
+  const level = row.level;
   return {
-    id: str(src.id) || id,
-    title: str(src.title),
-    speaker: str(src.speaker) || speakers,
-    abstract: str(src.abstract),
-    track: str(src.track),
-    room: str(src.room),
-    start: str(src.start),
-    end: str(src.end),
-    tags: strList(src.tags),
+    id: row.id,
+    title: row.title,
+    speaker: row.speaker ?? "",
+    abstract: row.abstract ?? "",
+    track: row.track ?? "",
+    room: row.room ?? "",
+    start: iso(row.start_at),
+    end: iso(row.end_at),
+    tags: Array.isArray(row.tags) ? row.tags : [],
     ...(level === "beginner" || level === "intermediate" || level === "advanced" ? { level } : {}),
   };
 }
 
-function legsOf(hit: EsHit): SearchLeg[] | undefined {
-  const mq = hit.matched_queries;
-  if (!mq) return undefined;
-  const names = Array.isArray(mq) ? mq : Object.keys(mq);
+interface HitRow extends TalkRow {
+  score: number | string;
+  in_keyword: boolean;
+  in_semantic: boolean;
+}
+
+function legsOf(row: HitRow): SearchLeg[] {
   const legs: SearchLeg[] = [];
-  if (names.includes(LEG_KEYWORD)) legs.push("keyword");
-  if (names.includes(LEG_SEMANTIC)) legs.push("semantic");
+  if (row.in_keyword) legs.push("keyword");
+  if (row.in_semantic) legs.push("semantic");
   return legs;
 }
 
@@ -84,90 +87,102 @@ export interface RunSearchOptions {
   mode: SearchMode;
   size: number;
   filters?: SearchFilters;
-  /** Adds track/level/day facet aggregations (GET /api/search only). */
+  /** Adds track/level/day facet counts (GET /api/search only). */
   facets?: boolean;
+  /** Ranking knobs; production always uses DEFAULT_TUNING, the offline eval passes variants. */
+  tuning?: SearchTuning;
+}
+
+/** What `?debug=1` returns: the engine, mode and parameter count. Never SQL text, parameter values or query text. */
+export interface SearchDebug {
+  engine: "postgres";
+  mode: SearchMode;
+  paramCount: number;
 }
 
 export interface RunSearchResult {
   hits: SearchHit[];
   facets?: SearchFacets;
   tookMs: number;
-  body: EsBody;
+  debug: SearchDebug;
 }
 
-/** Runs one search against the talks index inside a `search` span. */
-export async function runSearch(es: EsClient, opts: RunSearchOptions): Promise<RunSearchResult> {
-  const built =
-    opts.mode === "hybrid"
-      ? buildHybridBody(opts.text, opts.size, opts.filters)
-      : buildKeywordBody(opts.text, opts.size, opts.filters);
-  const body = opts.facets ? { ...built, aggs: facetAggs() } : built;
+/** Runs one search against the talks table inside a `search` span. */
+export async function runSearch(db: Db, embedder: Embedder, opts: RunSearchOptions): Promise<RunSearchResult> {
   return timeSearch(opts.mode, () => withSpan("search", { "search.mode": opts.mode }, async (span) => {
     const started = Date.now();
-    const call = () => es.request<EsSearchResponse>("POST", `/${TALKS_INDEX}/_search`, body);
-    // In hybrid mode Elasticsearch embeds the query text itself (semantic_text
-    // inference), so the `embed` span covers the whole inference-backed request.
-    const res = opts.mode === "hybrid" ? await withSpan("embed", {}, call) : await call();
-    const hits: SearchHit[] = res.body.hits.hits.map((h) => ({
-      talk: toTalk(h._id, h._source ?? {}),
-      score: h._score ?? 0,
-      matched: legsOf(h),
-    }));
+    const tuning = opts.tuning ?? DEFAULT_TUNING;
+    let plan: SearchPlan;
+    if (opts.mode === "hybrid") {
+      // Same expanded text for both legs: the keyword leg ranks it, the semantic leg embeds it.
+      const vector = await withSpan("embed", {}, () => embedder.embed(expandedText(opts.text, tuning), "query"));
+      plan = buildHybridPlan(opts.text, vectorLiteral(vector), opts.size, opts.filters, tuning);
+    } else {
+      plan = buildKeywordPlan(opts.text, opts.size, opts.filters, tuning);
+    }
+    const facetSql = opts.facets ? facetQuery(plan) : undefined;
+    const [rows, facetRows] = await Promise.all([
+      runQuery<HitRow>(db, plan.hits.text, plan.hits.params),
+      facetSql ? runQuery<FacetRow>(db, facetSql.text, facetSql.params) : Promise.resolve(undefined),
+    ]);
+    const hits: SearchHit[] = rows.map((r) => ({ talk: toTalk(r), score: Number(r.score), matched: legsOf(r) }));
     span.setAttribute("search.hits", hits.length);
-    const facets = opts.facets ? parseFacets(res.body.aggregations) : undefined;
-    return { hits, tookMs: res.body.took ?? Date.now() - started, body, ...(facets ? { facets } : {}) };
+    return {
+      hits,
+      tookMs: Date.now() - started,
+      debug: { engine: "postgres" as const, mode: opts.mode, paramCount: plan.hits.params.length },
+      ...(facetRows ? { facets: parseFacets(facetRows) } : {}),
+    };
   }));
 }
 
 export async function searchTalks(
-  es: EsClient,
+  db: Db,
+  embedder: Embedder,
   q: string,
   mode: SearchMode,
   size: number,
   debug: boolean,
   filters: SearchFilters = {},
 ): Promise<SearchResponse> {
-  const r = await runSearch(es, { text: q, mode, size, filters, facets: true });
+  const r = await runSearch(db, embedder, { text: q, mode, size, filters, facets: true });
   return {
     q,
     mode,
     tookMs: r.tookMs,
     hits: r.hits,
     ...(r.facets ? { facets: r.facets } : {}),
-    ...(debug ? { debug: r.body } : {}),
+    ...(debug ? { debug: r.debug } : {}),
   };
 }
 
 export async function onboardingSearch(
-  es: EsClient,
+  db: Db,
+  embedder: Embedder,
   answers: OnboardingAnswers,
   debug: boolean,
 ): Promise<OnboardingResponse> {
   const text = onboardingText(answers);
   const query = { text, topics: answers.topics, mode: "hybrid" as const };
   if (text === "") return { query, hits: [] };
-  const r = await runSearch(es, {
+  const r = await runSearch(db, embedder, {
     text,
     mode: "hybrid",
     size: ONBOARDING_RESULT_SIZE,
     filters: onboardingFilters(answers),
   });
-  return { query, hits: r.hits, ...(debug ? { debug: r.body } : {}) };
+  return { query, hits: r.hits, ...(debug ? { debug: r.debug } : {}) };
 }
 
 /** Fetch talks by id, keeping the caller's order; unknown ids are omitted. */
-export function getTalksByIds(es: EsClient, ids: string[]): Promise<Talk[]> {
+export function getTalksByIds(db: Db, ids: string[]): Promise<Talk[]> {
   if (ids.length === 0) return Promise.resolve([]);
-  return withSpan("talks.fetch", {}, () => fetchTalksByIds(es, ids));
+  return withSpan("talks.fetch", {}, () => fetchTalksByIds(db, ids));
 }
 
-async function fetchTalksByIds(es: EsClient, ids: string[]): Promise<Talk[]> {
-  const res = await es.request<EsSearchResponse>("POST", `/${TALKS_INDEX}/_search`, {
-    size: ids.length,
-    _source: SOURCE_FIELDS,
-    query: { terms: { id: ids } },
-  });
-  const byId = new Map(res.body.hits.hits.map((h) => [str(h._source?.id) || h._id, toTalk(h._id, h._source ?? {})]));
+async function fetchTalksByIds(db: Db, ids: string[]): Promise<Talk[]> {
+  const rows = await runQuery<TalkRow>(db, `select ${TALK_COLUMNS} from talks where id = any($1::text[])`, [ids]);
+  const byId = new Map(rows.map((r) => [r.id, toTalk(r)]));
   return ids.flatMap((id) => {
     const t = byId.get(id);
     return t ? [t] : [];
@@ -180,32 +195,31 @@ export interface ScheduleStore {
   load(attendeeId: string, now?: Date): Promise<{ talkIds: string[]; updatedAt: string } | undefined>;
 }
 
-/** `schedules` index store, one document per attendee (doc id = attendee id). */
-export function createScheduleStore(es: EsClient): ScheduleStore {
-  const path = (id: string) => `/${SCHEDULES_INDEX}/_doc/${encodeURIComponent(id)}`;
+/** `schedules` table store, one row per attendee. */
+export function createScheduleStore(db: Db): ScheduleStore {
   return {
     async save(attendeeId, talkIds, now) {
-      await es.request("PUT", `${path(attendeeId)}?refresh=wait_for`, {
-        attendee_id: attendeeId,
-        talk_ids: talkIds,
-        updated_at: now.toISOString(),
-        // Follows ATTENDEE_RETENTION_HOURS (kept by default; NO_EXPIRY sentinel).
-        expires_at: expiresAtFor(now.getTime()),
-      });
+      await runQuery(
+        db,
+        `insert into schedules (attendee_id, talk_ids, updated_at, expires_at)
+         values ($1, $2::text[], $3::timestamptz, $4::timestamptz)
+         on conflict (attendee_id) do update set
+           talk_ids = excluded.talk_ids, updated_at = excluded.updated_at, expires_at = excluded.expires_at`,
+        // expires_at follows ATTENDEE_RETENTION_HOURS (kept by default; NO_EXPIRY sentinel).
+        [attendeeId, talkIds, now.toISOString(), expiresAtFor(now.getTime())],
+      );
     },
     async load(attendeeId, now = new Date()) {
-      const res = await es.request<{ found?: boolean; _source?: Record<string, unknown> }>(
-        "GET",
-        path(attendeeId),
-        undefined,
-        [404],
+      const [row] = await runQuery<{ talk_ids: string[] | null; updated_at: Date | string; expires_at: Date | string }>(
+        db,
+        "select talk_ids, updated_at, expires_at from schedules where attendee_id = $1",
+        [attendeeId],
       );
-      if (res.status === 404 || !res.body.found || !res.body._source) return undefined;
-      const src = res.body._source;
-      // Expired schedules are treated as missing; the real purge is a separate task.
-      const expires = Date.parse(str(src.expires_at));
+      if (!row) return undefined;
+      // Expired schedules are treated as missing; the real purge is the retention job.
+      const expires = Date.parse(iso(row.expires_at));
       if (Number.isFinite(expires) && expires <= now.getTime()) return undefined;
-      return { talkIds: strList(src.talk_ids), updatedAt: str(src.updated_at) };
+      return { talkIds: row.talk_ids ?? [], updatedAt: iso(row.updated_at) };
     },
   };
 }
@@ -251,7 +265,7 @@ function reasonFor(c: ScoredTalk): string | undefined {
 }
 
 export async function loadSchedule(
-  es: EsClient,
+  db: Db,
   store: ScheduleStore,
   attendeeId: string,
   now: Date = new Date(),
@@ -259,6 +273,6 @@ export async function loadSchedule(
   // No attributes: the attendee id must never appear on spans.
   const saved = await withSpan("schedule.load", {}, () => store.load(attendeeId, now));
   if (!saved) return { items: [], updatedAt: new Date(0).toISOString() };
-  const talks = await getTalksByIds(es, saved.talkIds);
+  const talks = await getTalksByIds(db, saved.talkIds);
   return { items: talks.map((talk) => ({ talk })), updatedAt: saved.updatedAt };
 }

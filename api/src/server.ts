@@ -5,9 +5,9 @@ import {
   type HealthResponse,
 } from "@cc/shared";
 import type { Config } from "./config.js";
-import { createEsClient, type EsClient } from "./es/client.js";
+import { createPgDb, type Db } from "./db/client.js";
 import { createTokenService, type TokenService } from "./auth/token.js";
-import { createEmbedder } from "./es/embeddings.js";
+import { createEmbedder, type Embedder } from "./embed/embedder.js";
 import { loggerOptions } from "./telemetry/logger.js";
 import { accessRoutes } from "./routes/access.js";
 import { registerInterestRoutes } from "./routes/interests.js";
@@ -32,10 +32,12 @@ import { createClaudeRunner, findOnPath, isExecutableFile, type ClaudeRunner } f
 const VERSION = "0.1.0";
 
 export interface ServerDeps {
-  /** Elasticsearch client; tests inject a fake. Defaults to one built from config. */
-  es?: EsClient;
+  /** Database handle; tests inject a PGlite-backed one (test/pg.ts). Defaults to a pooled connection built from DATABASE_URL. */
+  db?: Db;
+  /** Text embedder for query and profile vectors; tests inject the offline hashed one. Defaults from EMBEDDINGS_PROVIDER. */
+  embedder?: Embedder;
   /** Overrides for the search/onboarding/schedule routes (attendee resolver, store, clock). */
-  search?: Omit<SearchRouteDeps, "es">;
+  search?: Omit<SearchRouteDeps, "db" | "embedder">;
   /** Attendee token service; defaults to HS256 with TOKEN_SIGNING_KEY. */
   tokens?: TokenService;
   roomActivity?: RoomActivityCounter;
@@ -60,15 +62,15 @@ export function resolveChatRunner(config: Pick<Config, "chatMode" | "claudeBin">
 
 /**
  * Builds the Fastify app. Search, onboarding and schedule are real
- * (Elasticsearch, see routes/search.ts), as are registration and /api/me
+ * (Postgres, see routes/search.ts), as are registration and /api/me
  * (routes/register.ts); the remaining /api routes are STUBS
  * returning contract-shaped mock data until their tasks land.
  */
 export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInstance {
   // Refuses to start with a missing (or, in production, placeholder) signing key.
   const tokens = deps.tokens ?? createTokenService({ key: config.tokenSigningKey, nodeEnv: config.nodeEnv });
-  const es = deps.es ?? createEsClient(config);
-  const embedder = createEmbedder(process.env, es);
+  const db = deps.db ?? createPgDb(config.databaseUrl, { caFile: config.databaseCaFile });
+  const embedder = deps.embedder ?? createEmbedder(process.env);
   const roomActivity = deps.roomActivity ?? new RoomActivityCounter();
   const app = Fastify({
     ...(config.apiTlsCertFile ? { https: {
@@ -104,10 +106,11 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   // Module 1: POST /api/register + GET /api/me (routes/register.ts).
   const hub = deps.events ?? new EventHub();
   app.addHook("onClose", async () => hub.close());
+  if (!deps.db) app.addHook("onClose", async () => db.close());
   app.register(registerRoutes, {
-    es,
+    db,
     tokens,
-    embed: (text) => embedder.embed(text),
+    embed: (text) => embedder.embed(text, "passage"),
     rateLimitPerMinute: config.registerRateLimitPerMinute,
     onRegistered: (info) => hub.broadcast("registered", buildRegisteredEvent(info, info.conference ?? "unknown", info.returning, config.eventsShowNames)),
   });
@@ -116,25 +119,27 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   app.register(chatRoutes, { runClaude: deps.runClaude === undefined ? resolveChatRunner(config) : deps.runClaude, rateLimit: limits.chat });
   app.register(eventsRoutes, { hub, rateLimit: limits.events });
   // Sign in with GitHub / Google / LinkedIn to link an account to an attendee profile (docs/sign-in.md). Stores only an HMAC link.
-  app.register(authRoutes, { oauth: config.oauth, es, tokens, identityHashKey: config.identityHashKey, rateLimit: limits.auth, ...deps.auth });
+  app.register(authRoutes, { oauth: config.oauth, db, tokens, identityHashKey: config.identityHashKey, rateLimit: limits.auth, ...deps.auth });
 
-  registerSearchRoutes(app, { es, tokens, tracker, rateLimits: limits, ...deps.search });
-  app.register(talkRoutes, { es, tracker, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/talks/:id, /related, /alternatives
-  registerStatusRoutes(app, { es, tracker, version: VERSION, rateLimit: limits.status, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/status
-  registerClusterRoutes(app, { es, rateLimit: limits.interestsClusters }); // Module 4: GET /api/interests/clusters
-  app.register(suggestRoutes, { es, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/suggest
-  registerCatalogRoutes(app, es, { rateLimit: limits.catalogTopics, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined });
+  registerSearchRoutes(app, { db, embedder, tokens, tracker, rateLimits: limits, ...deps.search });
+  app.register(talkRoutes, { db, tracker, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/talks/:id, /related, /alternatives
+  registerStatusRoutes(app, { db, tracker, version: VERSION, rateLimit: limits.status, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/status
+  registerClusterRoutes(app, { db, rateLimit: limits.interestsClusters }); // Module 4: GET /api/interests/clusters
+  app.register(suggestRoutes, { db, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined }); // GET /api/suggest
+  registerCatalogRoutes(app, db, { rateLimit: limits.catalogTopics, now: deps.search?.now ? () => deps.search!.now!().getTime() : undefined });
 
   // Module 3: POST /api/access/token + POST /api/access/scan (routes/access.ts).
-  app.register(accessRoutes, { es, tokens, roomActivity });
-  registerRoomRoutes(app, es, roomActivity);
+  app.register(accessRoutes, { db, tokens, roomActivity });
+  registerRoomRoutes(app, db, roomActivity);
   // GET /api/rooms/placement: organizer-only room suggestions from aggregate interest counts.
-  registerRoomPlacementRoutes(app, { es, roomCapacities: config.roomCapacities, rateLimit: limits.roomPlacement, now: deps.search?.now });
+  registerRoomPlacementRoutes(app, { db, roomCapacities: config.roomCapacities, rateLimit: limits.roomPlacement, now: deps.search?.now });
 
-  registerInterestRoutes(app, { es, now: deps.search?.now, rateLimit: limits.interestsAggregate });
+  registerInterestRoutes(app, { db, now: deps.search?.now, rateLimit: limits.interestsAggregate });
 
-  // `config` is wired for later tasks (ES client, token signing, OTel).
+  // `config` and `db` are decorated for startup code (schema migration, warm-up) and for tests.
   app.decorate("config", config);
+  app.decorate("db", db);
+  app.decorate("embedder", embedder);
 
   return app;
 }
@@ -142,5 +147,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
 declare module "fastify" {
   interface FastifyInstance {
     config: Config;
+    db: Db;
+    embedder: Embedder;
   }
 }

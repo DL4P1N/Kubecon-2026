@@ -11,9 +11,9 @@
 | `GET /api/talks/:id/alternatives?size=` | Similar talks at the same time in other rooms (see `room-alternatives.md`) |
 
 - `:id` must match `[A-Za-z0-9._:-]{1,100}`; anything else is 400. `size` outside 1–10 is 400.
-- **Related** uses the same semantic query as alternatives (`content_semantic`, built from title + start of abstract), with no time restriction. It excludes the talk itself and non-session tracks (Contribfest). `sharedTags` explains the match; empty means "similar topic".
+- **Related** uses the same nearest-neighbour query as alternatives (the talk's stored embedding, made from title + abstract), with no time restriction. It excludes the talk itself and non-session tracks (Contribfest). `sharedTags` explains the match; empty means "similar topic".
 - All three routes share one plugin (`api/src/routes/talks.ts`): 60 s in-memory cache per route/id/size, `Cache-Control: public, max-age=60`, and a per-route per-client rate limit (60/min).
-- Elasticsearch overload or inference warm-up maps to `503` + `Retry-After: 5`; other ES failures map to `502`.
+- An unreachable database maps to `503` + `Retry-After: 5`; other database failures map to `502`.
 - Spans: `talks.detail`, `talks.related`, `talks.alternatives`. They carry only allowlisted attributes (`http.request.method`, the route template in `http.route`, `http.response.status_code`, `search.hits`). The talk id is never put on a span.
 
 ## Web

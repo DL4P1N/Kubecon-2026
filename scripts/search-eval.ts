@@ -1,14 +1,16 @@
 /**
- * Offline relevance eval: keyword (BM25) vs hybrid (BM25 + semantic, fused) on
- * the real talks index, using the API's own body builders so it measures what
- * the app sends. Prints a markdown report (hit@3, MRR@10, per-query top 3).
+ * Offline relevance eval: keyword (full text + trigram) vs hybrid (keyword +
+ * pgvector semantic, fused) on the real talks table, running the API's own
+ * search service so it measures what the app does. Prints a markdown report
+ * (hit@3, MRR@10, per-query top 3). Read-only: it only runs SELECTs.
  *
- * Usage (repo root, against a seeded index):
- *   ES_URL=https://localhost:9200 ES_USERNAME=... ES_PASSWORD=... \
- *   NODE_EXTRA_CA_CERTS=deploy/compose/certs/ca.crt \
+ * Usage (repo root, against a seeded database; queries are embedded with the
+ * same e5 model the API uses, EMBEDDINGS_PROVIDER=local for the offline one):
+ *   DATABASE_URL=postgresql://... DATABASE_CA_FILE=supabase-ca.crt \
+ *   MODEL_CACHE_DIR=/tmp/cc/hf MODEL_ALLOW_DOWNLOAD=true \
  *   npx tsx scripts/search-eval.ts [--variants baseline,excl] [--out report.md]
  *
- *   npx tsx scripts/search-eval.ts --check   # no ES: validate judgments, print the bodies
+ *   npx tsx scripts/search-eval.ts --check   # no database: validate judgments, print the SQL
  *
  * Judgments were hand-picked by reading titles and abstracts in
  * data/talks.json; the `why` line records the reason for each. Queries are
@@ -16,25 +18,20 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { loadConfig } from "../api/src/config.js";
-import { createEsClient, type EsClient } from "../api/src/es/client.js";
-import {
-  DEFAULT_TUNING,
-  TALKS_INDEX,
-  buildHybridBody,
-  buildKeywordBody,
-  type EsBody,
-  type SearchTuning,
-} from "../api/src/search/queries.js";
+import { createPgDb, vectorLiteral, type Db } from "../api/src/db/client.js";
+import { createEmbedder, type Embedder } from "../api/src/embed/embedder.js";
+import { DEFAULT_TUNING, buildHybridPlan, expandedText, buildKeywordPlan, type SearchTuning } from "../api/src/search/queries.js";
+import { runSearch } from "../api/src/search/service.js";
 import { EVAL_SET } from "./search-eval-set.js";
 
-/** Tuning variants measured side by side. `baseline` is what production sent before #36. */
+/** Tuning variants measured side by side. `baseline` is exact stemmed matching, no expansion (the pre-#36 behaviour). */
 const BASELINE: SearchTuning = {
   excludeTracks: [],
   fusion: "rrf",
   rankConstant: 60,
   rankWindowSize: 50,
   semanticWeight: 1,
+  keywordMatch: "any",
 };
 const EXCL: SearchTuning = { ...BASELINE, excludeTracks: ["Contribfest"] };
 export const VARIANTS: Record<string, SearchTuning> = {
@@ -42,8 +39,7 @@ export const VARIANTS: Record<string, SearchTuning> = {
   excl: EXCL,
   "excl-k20": { ...EXCL, rankConstant: 20 },
   "excl-w100": { ...EXCL, rankWindowSize: 100 },
-  "excl-msm30": { ...EXCL, hybridKeywordMinimumShouldMatch: "30%" },
-  "excl-msm30-k20": { ...EXCL, hybridKeywordMinimumShouldMatch: "30%", rankConstant: 20 },
+  "excl-all-terms": { ...EXCL, keywordMatch: "all" },
   "excl-linear": { ...EXCL, fusion: "linear", semanticWeight: 1 },
   "excl-linear-sem2": { ...EXCL, fusion: "linear", semanticWeight: 2 },
   /** Production tuning before #52: fuzzy matching but no query expansion. */
@@ -69,17 +65,18 @@ export function hitAt(ids: string[], relevant: string[], k: number): boolean {
   return ids.slice(0, k).some((id) => relevant.includes(id));
 }
 
-async function search(es: EsClient, body: EsBody): Promise<Hit[]> {
-  const res = await es.request<{ hits: { hits: { _id: string; _source?: Record<string, unknown> }[] } }>(
-    "POST",
-    `/${TALKS_INDEX}/_search`,
-    body,
-  );
-  return res.body.hits.hits.map((h) => ({
-    id: String(h._source?.id ?? h._id),
-    title: String(h._source?.title ?? ""),
-    track: String(h._source?.track ?? ""),
-  }));
+async function search(db: Db, embedder: Embedder, mode: "keyword" | "hybrid", text: string, tuning: SearchTuning): Promise<Hit[]> {
+  const r = await runSearch(db, embedder, { text, mode, size: SIZE, tuning });
+  return r.hits.map((h) => ({ id: h.talk.id, title: h.talk.title, track: h.talk.track }));
+}
+
+/** Connects to DATABASE_URL (TLS verified; DATABASE_CA_FILE trusts a private CA) and builds the configured embedder. */
+export function connect(env: NodeJS.ProcessEnv = process.env): { db: Db; embedder: Embedder } {
+  if (!env.DATABASE_URL) throw new Error("DATABASE_URL is required");
+  return {
+    db: createPgDb(env.DATABASE_URL, { caFile: env.DATABASE_CA_FILE || undefined, max: 2 }),
+    embedder: createEmbedder(env),
+  };
 }
 
 const short = (h: Hit, relevant: string[]) =>
@@ -106,8 +103,8 @@ function check(): void {
     }
   }
   for (const [name, t] of Object.entries(VARIANTS)) {
-    console.log(`\n## ${name}\nkeyword: ${JSON.stringify(buildKeywordBody("q", SIZE, {}, t))}`);
-    console.log(`hybrid: ${JSON.stringify(buildHybridBody("q", SIZE, {}, t))}`);
+    console.log(`\n## ${name}\nkeyword: ${buildKeywordPlan("q", SIZE, {}, t).hits.text}`);
+    console.log(`hybrid: ${buildHybridPlan("q", "[0]", SIZE, {}, t).hits.text}`);
   }
   if (bad > 0) {
     console.error(`${bad} judged id(s) not in data/talks.json`);
@@ -119,20 +116,27 @@ async function main(): Promise<void> {
   if (process.argv.includes("--check")) return check();
   const names = (arg("--variants") ?? Object.keys(VARIANTS).join(",")).split(",");
   for (const n of names) if (!VARIANTS[n]) throw new Error(`unknown variant ${n}`);
-  const es = createEsClient(loadConfig());
+  const { db, embedder } = connect();
+  try {
+    await evaluate(db, embedder, names);
+  } finally {
+    await db.close();
+  }
+}
 
-  // Warm-up: the first semantic query loads the E5 model allocation and can be slow.
-  await search(es, buildHybridBody("warm up", 1));
+async function evaluate(db: Db, embedder: Embedder, names: string[]): Promise<void> {
+  // Warm-up: the first query loads the e5 model and can be slow.
+  await search(db, embedder, "hybrid", "warm up", DEFAULT_TUNING);
 
   const out: string[] = [];
   const log = (s = "") => {
     out.push(s);
     console.log(s);
   };
-  const count = await es.request<{ count: number }>("GET", `/${TALKS_INDEX}/_count`);
-  log(`# search-eval: keyword vs hybrid`);
+  const count = Number((await db.query<{ n: string }>("select count(*) as n from talks")).rows[0]?.n);
+  log(`# search-eval: keyword vs hybrid (Postgres)`);
   log();
-  log(`Index \`${TALKS_INDEX}\`: ${count.body.count} docs. ${EVAL_SET.length} queries, size ${SIZE}. Run at ${new Date().toISOString()}.`);
+  log(`Table \`talks\`: ${count} rows, ${embedder.provider} embeddings. ${EVAL_SET.length} queries, size ${SIZE}. Run at ${new Date().toISOString()}.`);
   log(`Win = hybrid reciprocal rank (MRR@10 contribution) > keyword's for that query.`);
   log();
 
@@ -147,7 +151,7 @@ async function main(): Promise<void> {
     let kwAll = kwCache.get(kwKey);
     if (!kwAll) {
       kwAll = [];
-      for (const j of EVAL_SET) kwAll.push(await search(es, buildKeywordBody(j.q, SIZE, {}, tuning)));
+      for (const j of EVAL_SET) kwAll.push(await search(db, embedder, "keyword", j.q, tuning));
       kwCache.set(kwKey, kwAll);
     }
     let kwHit = 0, hyHit = 0, kwMrr = 0, hyMrr = 0, wins = 0, ties = 0, losses = 0;
@@ -158,7 +162,7 @@ async function main(): Promise<void> {
       const kw = kwAll[i]!;
       let hy: Hit[];
       try {
-        hy = await search(es, buildHybridBody(j.q, SIZE, {}, tuning));
+        hy = await search(db, embedder, "hybrid", j.q, tuning);
       } catch (e) {
         details.push(`| ${i + 1} | ${j.q} | | ERROR: ${(e as Error).message.slice(0, 160).replace(/\|/g, "/")} | | |`);
         hy = [];
@@ -194,9 +198,13 @@ async function main(): Promise<void> {
     let hit = 0, mrr = 0;
     const rrs: string[] = [];
     for (const j of EVAL_SET) {
-      const legs = (buildHybridBody(j.q, SIZE, {}, tuning) as { retriever: { rrf: { retrievers: { standard: { query: unknown } }[] } } })
-        .retriever.rrf.retrievers;
-      const ids = (await search(es, { size: SIZE, _source: ["id", "title", "track"], query: legs[1]!.standard.query })).map((h) => h.id);
+      const qvec = vectorLiteral(await embedder.embed(expandedText(j.q, tuning), "query"));
+      const ids = (
+        await db.query<{ id: string }>(
+          `select id from talks t where embedding is not null${tuning.excludeTracks.length ? " and not (track = any($2::text[]))" : ""} order by embedding <=> $1::vector, id limit ${SIZE}`,
+          tuning.excludeTracks.length ? [qvec, [...tuning.excludeTracks]] : [qvec],
+        )
+      ).rows.map((r) => r.id);
       const rr = reciprocalRank(ids, j.relevant);
       mrr += rr;
       rrs.push(fmt(rr));

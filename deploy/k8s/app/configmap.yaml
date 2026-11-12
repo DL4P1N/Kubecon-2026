@@ -11,8 +11,11 @@ data:
   PORT: "3000"
   # One trusted nginx hop on the local web -> API path; not arbitrary proxies.
   TRUST_PROXY: "1"
-  ES_URL: https://elasticsearch:9200
-  NODE_EXTRA_CA_CERTS: /etc/elasticsearch/ca.crt
+  # DATABASE_URL is a secret (companion-app-secrets). Trust root for its TLS certificate:
+  DATABASE_CA_FILE: /etc/database/supabase-ca.crt
+  # The embedding model is baked into the image; the pod never downloads it.
+  MODEL_CACHE_DIR: /app/models
+  MODEL_ALLOW_DOWNLOAD: "false"
   OTEL_SERVICE_NAME: companion-api
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
   OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf

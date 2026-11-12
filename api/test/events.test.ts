@@ -6,7 +6,11 @@ import type { RegisteredEvent } from "@cc/shared";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
 import { EventHub, MAX_EVENT_LISTENERS, MAX_EVENT_LISTENERS_PER_IP, buildRegisteredEvent, sanitizeLabel } from "../src/chat/events.js";
-import { fakeEs } from "./helpers.js";
+import type { Db } from "../src/db/client.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import { testDb } from "./pg.js";
+
+const sharedDb = await testDb();
 
 describe("sanitizeLabel / buildRegisteredEvent", () => {
   it("first token only, A-Z a-z 0-9 only, at most 12 characters, Guest when nothing is left", () => {
@@ -34,13 +38,12 @@ const body = (extra: Record<string, unknown> = {}) => ({
 });
 
 function setup(opts: { heartbeatMs?: number; failWrites?: boolean; showNames?: boolean; maxPerIp?: number } = {}) {
-  const es = fakeEs((call) => {
-    if (opts.failWrites && call.method === "PUT") return { status: 500, body: { error: "boom" } };
-    if (call.method === "PUT") return { status: 201, body: { result: "created" } };
-    return undefined;
-  });
+  const db: Db = opts.failWrites
+    ? { ...sharedDb, query: ((sql: string, params?: readonly unknown[]) => /^\s*insert/i.test(sql) ? Promise.reject(Object.assign(new Error("boom"), { code: "ECONNREFUSED" })) : sharedDb.query(sql, params)) as Db["query"],
+        transaction: (async (fn) => sharedDb.transaction((tx) => fn({ ...tx, query: (() => Promise.reject(Object.assign(new Error("boom"), { code: "ECONNREFUSED" }))) as Db["query"] }))) as Db["transaction"] }
+    : sharedDb;
   const hub = new EventHub(opts.heartbeatMs, MAX_EVENT_LISTENERS, opts.maxPerIp);
-  const app = buildServer(loadConfig({ NODE_ENV: "test", ...(opts.showNames ? { EVENTS_SHOW_NAMES: "on" } : {}) } as NodeJS.ProcessEnv), { es, events: hub, runClaude: null });
+  const app = buildServer(loadConfig({ NODE_ENV: "test", ...(opts.showNames ? { EVENTS_SHOW_NAMES: "on" } : {}) } as NodeJS.ProcessEnv), { db, embedder: new LocalHashEmbedder(), events: hub, runClaude: null });
   return { app, hub };
 }
 
@@ -181,9 +184,8 @@ describe("GET /api/events", () => {
   });
 
   it("HEAD does not open a stream, and the route is rate limited like the others", async () => {
-    const es = fakeEs(() => undefined);
     const hub = new EventHub();
-    app = buildServer(loadConfig({ NODE_ENV: "test" } as NodeJS.ProcessEnv), { es, events: hub, runClaude: null, rateLimits: { events: { max: 2 } } });
+    app = buildServer(loadConfig({ NODE_ENV: "test" } as NodeJS.ProcessEnv), { db: sharedDb, embedder: new LocalHashEmbedder(), events: hub, runClaude: null, rateLimits: { events: { max: 2 } } });
     const head = await app.inject({ method: "HEAD", url: "/api/events" });
     expect(head.statusCode).toBe(200);
     expect(hub.size).toBe(0);

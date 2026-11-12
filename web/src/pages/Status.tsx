@@ -19,7 +19,7 @@ export function Status() {
             <caption>Live values from the API, last {Math.round(status.windowSeconds / 60)} minutes</caption>
             <tbody>
               <tr><th scope="row">API</th><td>Up (version {status.api.version})</td></tr>
-              <tr><th scope="row">Elasticsearch</th><td>{status.elasticsearch.reachable ? "Reachable" : "Not reachable"}</td></tr>
+              <tr><th scope="row">Database</th><td>{status.database.reachable ? "Reachable" : "Not reachable"}</td></tr>
               <tr><th scope="row">Keyword search</th><td>p95 {ms(status.search.keyword.p95Ms)} ({status.search.keyword.samples} searches)</td></tr>
               <tr><th scope="row">Hybrid search</th><td>{hybridText[status.search.hybrid.state]}; p95 {ms(status.search.hybrid.p95Ms)} ({status.search.hybrid.samples} searches)</td></tr>
               <tr><th scope="row">Server errors</th><td>{status.errorRate.serverErrors} of {status.errorRate.requests} requests ({(status.errorRate.ratio * 100).toFixed(1)}%)</td></tr>

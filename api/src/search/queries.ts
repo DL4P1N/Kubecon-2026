@@ -1,25 +1,15 @@
 import { EVENT_UTC_OFFSET, type ExperienceLevel, type OnboardingAnswers } from "@cc/shared";
+import { tokenize } from "../embed/hash.js";
 
-/** Alias of the talks index (see api/src/es/mappings.ts). */
-export const TALKS_INDEX = "talks";
-/** `semantic_text` field filled by Elasticsearch built-in inference (task #19). */
-export const SEMANTIC_FIELD = "content_semantic";
-
-export const KEYWORD_FIELDS = ["title^3", "tags^2", "abstract"] as const;
-export const SOURCE_FIELDS = [
-  "id", "title", "abstract", "speaker", "speakers", "track", "level", "room", "start", "end", "tags",
-];
-
-/** Retriever names; they come back in `matched_queries` and map to SearchLeg. */
-export const LEG_KEYWORD = "keyword";
-export const LEG_SEMANTIC = "semantic";
+/** Columns of `talks` the API returns (never the vector or the generated tsvector). */
+export const TALK_COLUMNS = "id, title, abstract, speaker, track, level, room, start_at, end_at, tags";
 
 export const RANK_WINDOW_SIZE = 50;
 export const RANK_CONSTANT = 60;
 
 /**
- * Knobs for how the bodies are built. Production uses DEFAULT_TUNING; the
- * offline eval (scripts/search-eval.ts) passes variants to measure them.
+ * Knobs for how the SQL is built. Production uses DEFAULT_TUNING; the offline
+ * eval (scripts/search-eval.ts) passes variants to measure them.
  */
 export interface SearchTuning {
   /** Tracks never returned in either mode (non-talk items such as Contribfest workshops). */
@@ -30,16 +20,18 @@ export interface SearchTuning {
   rankWindowSize: number;
   /** Linear fusion only: weight of the semantic leg (keyword leg weight is 1). */
   semanticWeight: number;
-  /** Hybrid keyword leg only: BM25 `minimum_should_match`, so stopword-only matches do not get fused ranks. */
-  hybridKeywordMinimumShouldMatch?: string;
   /**
-   * Typo tolerance on the BM25 leg (both modes): Elasticsearch `fuzziness`
-   * ("AUTO" = 1 edit for 3-5 letter terms, 2 for longer; 0-2 letter terms stay
-   * exact). Unset means exact matching only, as before task #55.
+   * Keyword leg term semantics. "any" (default, like the old BM25 `multi_match`
+   * OR) matches talks containing at least one query term, ranking talks with
+   * more terms higher; "all" is Postgres' `websearch_to_tsquery` AND.
    */
-  fuzziness?: string;
-  /** Leading characters that must match exactly before fuzziness applies (cheaper, fewer false hits). */
-  fuzzyPrefixLength?: number;
+  keywordMatch?: "any" | "all";
+  /**
+   * Typo tolerance on the keyword leg (both modes): pg_trgm `word_similarity`
+   * of each query word against title and tags must reach this value (0..1) for
+   * the talk to match. Unset means exact (stemmed) matching only.
+   */
+  fuzzyThreshold?: number;
   /**
    * Whether both retrieval legs receive the curated attendee-vocabulary
    * expansion of the query text (#52). The text is expanded once and both legs
@@ -89,8 +81,8 @@ export const DEFAULT_TUNING: SearchTuning = {
   rankConstant: RANK_CONSTANT,
   rankWindowSize: RANK_WINDOW_SIZE,
   semanticWeight: 1,
-  fuzziness: "AUTO",
-  fuzzyPrefixLength: 1,
+  keywordMatch: "any",
+  fuzzyThreshold: 0.45,
   queryExpansion: "both",
 };
 
@@ -100,13 +92,17 @@ export interface SearchFilters {
   from?: string;
   /** Talk must end at or before this ISO timestamp. */
   to?: string;
-  /** Talk track must be one of these (exact keyword match). */
+  /** Talk track must be one of these (exact match). */
   tracks?: string[];
   /** Talk must start on this local conference day (`YYYY-MM-DD`, EVENT_UTC_OFFSET). */
   day?: string;
 }
 
-export type EsBody = Record<string, unknown>;
+/** A parameterised statement. `text` holds `$n` placeholders only; user input lives in `params`. */
+export interface SqlQuery {
+  text: string;
+  params: unknown[];
+}
 
 /** Levels worth showing to someone of the given experience: their own and one step up. */
 const LEVELS_FOR: Record<ExperienceLevel, ExperienceLevel[]> = {
@@ -119,115 +115,169 @@ export function levelsFor(experience: ExperienceLevel): ExperienceLevel[] {
   return LEVELS_FOR[experience];
 }
 
-/** Bool-filter clauses for level and time windows. */
-export function filterClauses(f: SearchFilters = {}): object[] {
-  const clauses: object[] = [];
-  if (f.levels && f.levels.length > 0) clauses.push({ terms: { level: f.levels } });
-  if (f.from) clauses.push({ range: { start: { gte: f.from } } });
-  if (f.to) clauses.push({ range: { end: { lte: f.to } } });
-  if (f.tracks && f.tracks.length > 0) clauses.push({ terms: { track: f.tracks } });
-  if (f.day) {
-    clauses.push({
-      range: { start: { gte: f.day, lt: `${f.day}||+1d`, format: "strict_date", time_zone: EVENT_UTC_OFFSET } },
-    });
+/** Collects parameters and hands out their `$n` placeholders. */
+export class Params {
+  readonly values: unknown[] = [];
+  add(value: unknown, cast = ""): string {
+    this.values.push(value);
+    return `$${this.values.length}${cast}`;
   }
-  return clauses;
 }
 
-/** filterClauses plus the track exclusion from the tuning; shared by both modes. */
-export function eligibilityClauses(f: SearchFilters = {}, tuning: SearchTuning = DEFAULT_TUNING): object[] {
-  const clauses = filterClauses(f);
-  if (tuning.excludeTracks.length > 0) {
-    clauses.push({ bool: { must_not: [{ terms: { track: [...tuning.excludeTracks] } }] } });
+/** Midnight of a local conference day, and 24 h later, as ISO instants (fixed EVENT_UTC_OFFSET, no DST). */
+export function dayBounds(day: string): { start: string; end: string } {
+  const start = new Date(`${day}T00:00:00${EVENT_UTC_OFFSET}`);
+  return { start: start.toISOString(), end: new Date(start.getTime() + 86_400_000).toISOString() };
+}
+
+/** WHERE conditions (on alias `t`) for level, time window, track, day and the tuning's track exclusion. */
+export function eligibilityConditions(p: Params, f: SearchFilters = {}, tuning: SearchTuning = DEFAULT_TUNING): string[] {
+  const c: string[] = [];
+  if (f.levels && f.levels.length > 0) c.push(`t.level = any(${p.add(f.levels, "::text[]")})`);
+  if (f.from) c.push(`t.start_at >= ${p.add(f.from, "::timestamptz")}`);
+  if (f.to) c.push(`t.end_at <= ${p.add(f.to, "::timestamptz")}`);
+  if (f.tracks && f.tracks.length > 0) c.push(`t.track = any(${p.add(f.tracks, "::text[]")})`);
+  if (f.day) {
+    const { start, end } = dayBounds(f.day);
+    c.push(`t.start_at >= ${p.add(start, "::timestamptz")} and t.start_at < ${p.add(end, "::timestamptz")}`);
   }
-  return clauses;
+  if (tuning.excludeTracks.length > 0) c.push(`not (t.track = any(${p.add([...tuning.excludeTracks], "::text[]")}))`);
+  return c;
 }
 
 /** Text both retrieval legs rank, with the attendee-vocabulary bridge when enabled. */
-function expandedText(text: string, tuning: SearchTuning): string {
+export function expandedText(text: string, tuning: SearchTuning = DEFAULT_TUNING): string {
   return tuning.queryExpansion === "both" ? expandQueryText(text) : text;
 }
 
-function keywordQuery(text: string, tuning: SearchTuning, minimumShouldMatch?: string) {
-  return {
-    multi_match: {
-      query: text,
-      fields: [...KEYWORD_FIELDS],
-      type: "best_fields",
-      ...(tuning.fuzziness ? { fuzziness: tuning.fuzziness, prefix_length: tuning.fuzzyPrefixLength ?? 1 } : {}),
-      ...(minimumShouldMatch ? { minimum_should_match: minimumShouldMatch } : {}),
-      _name: LEG_KEYWORD,
-    },
-  };
-}
+const MAX_FUZZY_TERMS = 12;
+const MIN_FUZZY_TERM_LENGTH = 5;
 
-/** Plain BM25 multi_match over title/abstract/tags, filters applied. */
-export function buildKeywordBody(
-  text: string,
-  size: number,
-  filters: SearchFilters = {},
-  tuning: SearchTuning = DEFAULT_TUNING,
-): EsBody {
-  return {
-    size,
-    _source: SOURCE_FIELDS,
-    query: { bool: { must: [keywordQuery(expandedText(text, tuning), tuning)], filter: eligibilityClauses(filters, tuning) } },
-  };
+/** Distinct content words worth a typo-tolerant lookup (stopwords and very short words never are). */
+export function fuzzyTerms(text: string): string[] {
+  return [...new Set(tokenize(text).filter((w) => w.length >= MIN_FUZZY_TERM_LENGTH))].slice(0, MAX_FUZZY_TERMS);
 }
 
 /**
- * Hybrid body: a retriever fusing a BM25 `standard` retriever with a
- * `standard` retriever running a `semantic` query on `content_semantic`
- * (RRF by default, or `linear` with min-max normalization).
- * Embedding of the query text happens inside Elasticsearch (inference
- * endpoint attached to the semantic_text field), not in this service.
- * Filters are repeated on each leg so both only rank eligible talks.
+ * ts_rank_cd weights, {D, C, B, A}: abstract, speaker, tags, title. Mirrors the
+ * old multi_match boosts title^3, tags^2, abstract^1 (speaker was only in the
+ * catch-all field, so it counts least).
  */
-export function buildHybridBody(
+const RANK_WEIGHTS = "{0.3, 0.2, 0.67, 1.0}";
+/** Fuzzy matches add this share of their similarity to the score, so exact stems always lead. */
+const FUZZY_WEIGHT = 0.3;
+
+/**
+ * Keyword leg as a CTE body: `id, score` for every eligible talk matching the
+ * text, best first. Exact stems come from the weighted `fts` tsvector; typos
+ * come from pg_trgm word similarity of each query word against the title and
+ * the tags.
+ */
+function keywordLeg(p: Params, text: string, filters: SearchFilters, tuning: SearchTuning): string {
+  const t = p.add(text);
+  const rawQuery = `websearch_to_tsquery('english', ${t})`;
+  // "any": at least one positive term matches, but every excluded term (`-word`, printed `!'word'`) still excludes:
+  // (pos1 | pos2 ...) & !neg1 & !neg2. websearch_to_tsquery already stemmed the lexemes, so the text is re-parsed with
+  // 'simple' to avoid stemming twice. A query of only exclusions has no positive part and matches nothing.
+  const parts = `regexp_split_to_table(${rawQuery}::text, ' & ')`;
+  const anyText =
+    `case when exists (select 1 from ${parts} as x(p) where x.p <> '' and left(x.p, 1) <> '!') then ` +
+    `'(' || (select string_agg(x.p, ' | ') from ${parts} as x(p) where x.p <> '' and left(x.p, 1) <> '!') || ')' || ` +
+    `coalesce((select ' & ' || string_agg(x.p, ' & ') from ${parts} as x(p) where left(x.p, 1) = '!'), '') else '' end`;
+  const tsq = tuning.keywordMatch === "all" ? rawQuery : `to_tsquery('simple', ${anyText})`;
+  const where = eligibilityConditions(p, filters, tuning);
+  const terms = tuning.fuzzyThreshold !== undefined ? fuzzyTerms(text) : [];
+  let scoreExpr = `ts_rank_cd('${RANK_WEIGHTS}', t.fts, ${tsq}, 32)`;
+  let match = `t.fts @@ ${tsq}`;
+  if (terms.length > 0) {
+    const ts = p.add(terms, "::text[]");
+    const th = p.add(tuning.fuzzyThreshold);
+    const fuzzy =
+      `coalesce((select max(greatest(word_similarity(w, t.title), word_similarity(w, immutable_array_to_string(t.tags, ' '))))` +
+      ` from unnest(${ts}) as w), 0)`;
+    scoreExpr += ` + ${FUZZY_WEIGHT} * case when ${fuzzy} >= ${th}::real then ${fuzzy} else 0 end`;
+    match = `(${match} or ${fuzzy} >= ${th}::real)`;
+  }
+  return `select t.id, (${scoreExpr}) as score from talks t where ${[match, ...where].join(" and ")}`;
+}
+
+/** Semantic leg: nearest talks by cosine distance to the query vector (`distance`, smaller is closer). */
+function semanticLeg(p: Params, qvec: string, filters: SearchFilters, tuning: SearchTuning, window: number): string {
+  const v = p.add(qvec, "::vector");
+  const where = ["t.embedding is not null", ...eligibilityConditions(p, filters, tuning)];
+  return `select t.id, (t.embedding <=> ${v}) as distance from talks t where ${where.join(" and ")} order by distance, t.id limit ${window}`;
+}
+
+export interface SearchPlan {
+  /** Ranked page of hits: talk columns, `score`, `in_keyword`, `in_semantic`. */
+  hits: SqlQuery;
+  /** Candidate ids behind the hits (`id`): what the facets count. */
+  candidates: SqlQuery;
+  /** CTE prefix shared by `hits` and facet statements, ending with a `cand` CTE (`id`). */
+  withClause: string;
+  params: unknown[];
+}
+
+const intLiteral = (n: number) => String(Math.max(1, Math.floor(n)));
+
+/**
+ * Plain keyword search over title/tags/abstract: stemmed full text plus typo
+ * tolerance, ranked by ts_rank_cd. Every eligible match is a candidate; `size` caps the page.
+ */
+export function buildKeywordPlan(text: string, size: number, filters: SearchFilters = {}, tuning: SearchTuning = DEFAULT_TUNING): SearchPlan {
+  const p = new Params();
+  const withClause = `with kw as (${keywordLeg(p, expandedText(text, tuning), filters, tuning)}), cand as (select id from kw)`;
+  const hits =
+    `${withClause} select ${prefixed("t")}, kw.score as score, true as in_keyword, false as in_semantic ` +
+    `from kw join talks t on t.id = kw.id order by kw.score desc, t.id limit ${intLiteral(size)}`;
+  return { hits: { text: hits, params: p.values }, candidates: { text: `${withClause} select id from cand`, params: p.values }, withClause, params: p.values };
+}
+
+/**
+ * Hybrid search in one statement: a keyword leg and a semantic leg, each over the
+ * eligible talks and limited to the rank window, fused by reciprocal rank fusion
+ * (or min-max-normalized weighted sum for `linear`). `qvec` is the pgvector text
+ * of the embedded query.
+ */
+export function buildHybridPlan(
   text: string,
+  qvec: string,
   size: number,
   filters: SearchFilters = {},
   tuning: SearchTuning = DEFAULT_TUNING,
-): EsBody {
-  const filter = eligibilityClauses(filters, tuning);
-  const semanticText = expandedText(text, tuning);
-  const keywordLeg = {
-    standard: {
-      _name: LEG_KEYWORD,
-      query: {
-        bool: {
-          must: [keywordQuery(semanticText, tuning, tuning.hybridKeywordMinimumShouldMatch)],
-          filter,
-        },
-      },
-    },
-  };
-  const semanticLeg = {
-    standard: {
-      _name: LEG_SEMANTIC,
-      query: { bool: { must: [{ semantic: { field: SEMANTIC_FIELD, query: semanticText } }], filter } },
-    },
-  };
-  const rankWindowSize = Math.max(tuning.rankWindowSize, size);
-  const retriever =
-    tuning.fusion === "linear"
-      ? {
-          linear: {
-            retrievers: [
-              { retriever: keywordLeg, weight: 1, normalizer: "minmax" },
-              { retriever: semanticLeg, weight: tuning.semanticWeight, normalizer: "minmax" },
-            ],
-            rank_window_size: rankWindowSize,
-          },
-        }
-      : {
-          rrf: {
-            retrievers: [keywordLeg, semanticLeg],
-            rank_window_size: rankWindowSize,
-            rank_constant: tuning.rankConstant,
-          },
-        };
-  return { size, _source: SOURCE_FIELDS, retriever };
+): SearchPlan {
+  const p = new Params();
+  const window = Math.max(tuning.rankWindowSize, size);
+  const kwSql = keywordLeg(p, expandedText(text, tuning), filters, tuning);
+  const semSql = semanticLeg(p, qvec, filters, tuning, window);
+  const kwRank = `kw as (select id, score, row_number() over (order by score desc, id) as rnk from (${kwSql}) s order by score desc, id limit ${window})`;
+  const semRank = `sem as (select id, 1 - distance as score, row_number() over (order by distance, id) as rnk from (${semSql}) s)`;
+  // Only parameters the statement references are bound (Postgres rejects unused ones as untyped).
+  let fusedScore: string;
+  if (tuning.fusion === "linear") {
+    const w = p.add(tuning.semanticWeight, "::float8");
+    fusedScore = `coalesce(${norm("kw")}, 0) + ${w} * coalesce(${norm("sem")}, 0)`;
+  } else {
+    const k = p.add(tuning.rankConstant, "::float8");
+    fusedScore = `coalesce(1.0 / (${k} + kw.rnk), 0) + coalesce(1.0 / (${k} + sem.rnk), 0)`;
+  }
+  const fused =
+    `cand as (select coalesce(kw.id, sem.id) as id, (${fusedScore}) as score, ` +
+    `kw.id is not null as in_keyword, sem.id is not null as in_semantic from kw full join sem on kw.id = sem.id)`;
+  const withClause = `with ${kwRank}, ${semRank}, ${fused}`;
+  const hits =
+    `${withClause} select ${prefixed("t")}, cand.score as score, cand.in_keyword, cand.in_semantic ` +
+    `from cand join talks t on t.id = cand.id order by cand.score desc, t.id limit ${intLiteral(size)}`;
+  return { hits: { text: hits, params: p.values }, candidates: { text: `${withClause} select id from cand`, params: p.values }, withClause, params: p.values };
+}
+
+/** Min-max normalisation of a leg's score over its window; a leg whose scores are all equal normalises to 1. */
+function norm(leg: "kw" | "sem"): string {
+  return `case when max(${leg}.score) over () = min(${leg}.score) over () then 1.0 else (${leg}.score - min(${leg}.score) over ()) / (max(${leg}.score) over () - min(${leg}.score) over ()) end`;
+}
+
+function prefixed(alias: string): string {
+  return TALK_COLUMNS.split(", ").map((c) => `${alias}.${c}`).join(", ");
 }
 
 /** Turn onboarding answers into query text (topics, goals, then free text). */

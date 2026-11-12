@@ -7,7 +7,10 @@ import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@open
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
-import { esHit, fakeEs, talk } from "./helpers.js";
+import type { Db } from "../src/db/client.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import { insertTalks, testDb } from "./pg.js";
+import { talk } from "./helpers.js";
 
 const { logLines } = vi.hoisted(() => ({ logLines: [] as string[] }));
 // Exercise the production serializers, redaction and hooks, with an in-memory destination.
@@ -55,23 +58,16 @@ describe("attendee flow telemetry privacy", () => {
   });
 
   it("exports allowlisted spans and safe logs through register, search, allow and revoked scan", async () => {
-    const docs = new Map<string, unknown>();
+    const db = await testDb();
+    await insertTalks(db, [{ ...talk("t1", 9, 10), level: "beginner" }]);
     let failReads = false;
-    const es = fakeEs((call) => {
-      if (call.path === "/talks/_search") return { body: { hits: { hits: [esHit(talk("t1", 9, 10), 1)] } } };
-      if (call.path === "/talks/_count") {
-        return { body: { count: JSON.stringify(call.body).includes(LOCATION) ? 0 : 1 } };
-      }
-      const path = call.path.split("?")[0]!;
-      const match = /^\/(attendees|entitlements)\/_(?:create|doc)\/([^/]+)$/.exec(path);
-      if (!match) throw new Error(`Unexpected ES request: ${call.method} ${path}`);
-      const key = `${match[1]}/${decodeURIComponent(match[2]!)}`;
-      if (call.method === "PUT") { docs.set(key, call.body); return { body: { result: "created" } }; }
-      if (failReads) throw new Error(`storage failed for ${key} at ${LOCATION}`);
-      return docs.has(key) ? { body: { found: true, _source: docs.get(key) } } : { status: 404, body: { found: false } };
-    });
-    vi.stubEnv("EMBEDDINGS_PROVIDER", "local");
-    const app = buildServer(loadConfig({}), { es });
+    // Reads fail like an outage whose driver message carries private values.
+    const flaky: Db = {
+      ...db,
+      query: ((sql: string, params?: readonly unknown[]) =>
+        failReads && /^\s*select/i.test(sql) ? Promise.reject(Object.assign(new Error(`storage failed at ${LOCATION}`), { code: "ECONNREFUSED" })) : db.query(sql, params)) as Db["query"],
+    };
+    const app = buildServer(loadConfig({}), { db: flaky, embedder: new LocalHashEmbedder() });
     try {
       const reg = await app.inject({ method: "POST", url: "/api/register", payload: {
         name: PRIVATE_NAME, interests: ["security"], location: LOCATION,
@@ -88,7 +84,7 @@ describe("attendee flow telemetry privacy", () => {
       const qrToken = issue.json<{ token: string }>().token;
       const scan = (room: string) => app.inject({ method: "POST", url: "/api/access/scan", payload: { token: qrToken, room, location: LOCATION } });
       expect((await scan("Hall A")).json()).toMatchObject({ decision: "allow" });
-      docs.delete(`entitlements/${attendeeId}`);
+      await db.query("delete from entitlements where attendee_id = $1", [attendeeId]);
       expect((await scan("Hall A")).json()).toMatchObject({ decision: "deny" });
       expect((await scan(LOCATION)).statusCode).toBe(400);
       failReads = true;
@@ -110,6 +106,7 @@ describe("attendee flow telemetry privacy", () => {
       for (const secret of forbidden) expect(logLines.join("\n")).not.toContain(secret);
     } finally {
       await app.close();
+      await db.close();
       vi.unstubAllEnvs();
     }
   });

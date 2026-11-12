@@ -12,7 +12,10 @@ import {
 } from "@opentelemetry/sdk-metrics";
 import { resetMetricsForTest } from "../src/telemetry/metrics.js";
 import { createTokenService } from "../src/auth/token.js";
-import { createEsClient, type EsClient } from "../src/es/client.js";
+import type { Db } from "../src/db/client.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import { insertTalks, testDb } from "./pg.js";
+import { talk } from "./helpers.js";
 import { accessRoutes, scanBodySchema } from "../src/routes/access.js";
 import { registerRoutes } from "../src/routes/register.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
@@ -23,41 +26,15 @@ const KEY = "test-signing-key-that-is-long-enough-0123456789";
 const ROOM = "Salt Palace | Level 1 | Hall DE";
 const OTHER_ROOM = "Hyatt Regency | Level 4 | Regency Ballroom B-D";
 
-/** In-memory fake of the ES endpoints used by register + access. */
-function fakeEs() {
-  const docs = new Map<string, Record<string, unknown>>();
-  const rooms = new Set([ROOM, OTHER_ROOM]);
-  let failEntitlements = false;
-  const fetchImpl = (async (url: string, init: RequestInit) => {
-    const u = new URL(url);
-    const method = init.method ?? "GET";
-    if (method === "POST" && u.pathname === "/talks/_count") {
-      const room = (JSON.parse(String(init.body)) as { query: { term: { room: string } } }).query.term.room;
-      return new Response(JSON.stringify({ count: rooms.has(room) ? 3 : 0 }), { status: 200 });
-    }
-    const m = /^\/(\w+)\/(_create|_doc)\/([^/]+)$/.exec(u.pathname);
-    if (!m) return new Response("{}", { status: 400 });
-    const [, index, , id] = m;
-    const key = `${index}/${decodeURIComponent(id!)}`;
-    if (failEntitlements && index === "entitlements" && method === "GET") return new Response("boom", { status: 500 });
-    if (method === "PUT") {
-      docs.set(key, JSON.parse(String(init.body)));
-      return new Response("{}", { status: 201 });
-    }
-    if (method === "GET") {
-      const src = docs.get(key);
-      return src
-        ? new Response(JSON.stringify({ found: true, _source: src }), { status: 200 })
-        : new Response(JSON.stringify({ found: false }), { status: 404 });
-    }
-    return new Response("{}", { status: 405 });
-  }) as unknown as typeof fetch;
+const embedder = new LocalHashEmbedder();
+const embed = (text: string) => embedder.embed(text, "passage");
+
+/** Wraps a Db so matching statements fail like a driver error would. */
+function failing(db: Db, fail: (sql: string) => boolean): Db {
   return {
-    docs,
-    failEntitlements: () => {
-      failEntitlements = true;
-    },
-    client: createEsClient({ esUrl: "http://es:9200", esUsername: "u", esPassword: "p" }, fetchImpl) as EsClient,
+    ...db,
+    query: ((sql: string, params?: readonly unknown[]) =>
+      fail(sql) ? Promise.reject(Object.assign(new Error(`boom ${sql}`), { code: "XX000" })) : db.query(sql, params)) as Db["query"],
   };
 }
 
@@ -68,7 +45,8 @@ interface Recorded {
 
 describe("QR access", () => {
   let app: FastifyInstance;
-  let es: ReturnType<typeof fakeEs>;
+  let db: Db;
+  let failEntitlements = false;
   let t = Date.parse("2026-11-09T12:00:00Z");
   let spans: Recorded[];
   let logs: string[];
@@ -84,8 +62,8 @@ describe("QR access", () => {
       },
     });
     const a = Fastify({ logger: { ...loggerOptions, level: "trace", stream: logStream } });
-    await a.register(registerRoutes, { es: es.client, tokens: tokens(), embed: async () => [1], now });
-    await a.register(accessRoutes, { es: es.client, tokens: tokens(), scanRateLimitPerMinute: opts.scanLimit, now, roomActivity });
+    await a.register(registerRoutes, { db, tokens: tokens(), embed, now });
+    await a.register(accessRoutes, { db: failing(db, (sql) => failEntitlements && /from entitlements/.test(sql)), tokens: tokens(), scanRateLimitPerMinute: opts.scanLimit, now, roomActivity });
     await a.ready();
     return a;
   }
@@ -103,14 +81,27 @@ describe("QR access", () => {
         },
       });
     });
-    es = fakeEs();
+    failEntitlements = false;
+    db = await testDb();
+    await insertTalks(db, [
+      { ...talk("t1", 9, 10, { room: ROOM }), level: "beginner" },
+      { ...talk("t2", 10, 11, { room: OTHER_ROOM }), level: "beginner" },
+    ]);
     roomActivity = new RoomActivityCounter(now);
     app = await build();
   });
   afterEach(async () => {
     setSpanRunner();
     await app.close();
+    await db.close();
   });
+
+  const setEntitlement = (id: string, rooms: string[], expiresAt: Date, pass = "workshop") =>
+    db.query(
+      `insert into entitlements (attendee_id, pass_type, rooms, updated_at, expires_at) values ($1, $2, $3, $4, $5)
+       on conflict (attendee_id) do update set pass_type = excluded.pass_type, rooms = excluded.rooms, expires_at = excluded.expires_at`,
+      [id, pass, rooms, new Date(t), expiresAt],
+    );
 
   async function register(qrCheckin = true) {
     const res = await app.inject({
@@ -148,28 +139,22 @@ describe("QR access", () => {
     const qr = (await qrToken(reg)).json() as AccessTokenResponse;
     for (let i = 0; i < 4; i++) expect((await scan(qr.token)).json()).toMatchObject({ decision: "allow" });
     await scan("invalid-token");
-    const entitlement = es.docs.get(`entitlements/${reg.attendeeId}`)!;
-    es.docs.set(`entitlements/${reg.attendeeId}`, { ...entitlement, rooms: [] });
+    await db.query("update entitlements set rooms = '{}' where attendee_id = $1", [reg.attendeeId]);
     expect((await scan(qr.token)).json()).toMatchObject({ decision: "deny" });
     expect(roomActivity.snapshot([ROOM]).rooms[0]).toEqual({ room: ROOM, level: "quiet" });
   });
 
   it("refuses a QR token (403) to an attendee who stored qr_checkin=false", async () => {
     const reg = await register(false);
-    expect(es.docs.get(`attendees/${reg.attendeeId}`)!.consent).toMatchObject({ qr_checkin: false });
+    expect((await db.query<{ consent_qr_checkin: boolean }>("select consent_qr_checkin from attendees where id = $1", [reg.attendeeId])).rows[0]!.consent_qr_checkin).toBe(false);
     const res = await qrToken(reg);
     expect(res.statusCode).toBe(403);
     expect(res.json()).toMatchObject({ error: "forbidden" });
   });
 
-  it("issues a QR token when consent was never sent (defaults true) or the stored field is missing, and 401 without or with a bad session", async () => {
+  it("issues a QR token when consent was never sent (defaults true), and 401 without or with a bad session", async () => {
     const noConsent = await app.inject({ method: "POST", url: "/api/register", payload: { name: "Ada", interests: ["kubernetes"] } });
     expect((await qrToken(noConsent.json() as RegisterResponse)).statusCode).toBe(200);
-    const reg = await register(true);
-    const key = `attendees/${reg.attendeeId}`;
-    const { consent: _drop, ...legacy } = es.docs.get(key)!;
-    es.docs.set(key, legacy);
-    expect((await qrToken(reg)).statusCode).toBe(200);
     expect((await app.inject({ method: "POST", url: "/api/access/token", payload: {} })).statusCode).toBe(401);
     const bad = await app.inject({ method: "POST", url: "/api/access/token", headers: { authorization: "Bearer a.b.c" }, payload: {} });
     expect(bad.statusCode).toBe(401);
@@ -184,13 +169,7 @@ describe("QR access", () => {
 
   it("denies a room the attendee is not entitled to", async () => {
     const reg = await register();
-    es.docs.set(`entitlements/${reg.attendeeId}`, {
-      attendee_id: reg.attendeeId,
-      pass_type: "workshop",
-      rooms: [OTHER_ROOM],
-      updated_at: new Date(t).toISOString(),
-      expires_at: new Date(t + 3600_000).toISOString(),
-    });
+    await setEntitlement(reg.attendeeId, [OTHER_ROOM], new Date(t + 3600_000));
     const qr = (await qrToken(reg)).json() as AccessTokenResponse;
     expect((await scan(qr.token, OTHER_ROOM)).json()).toMatchObject({ decision: "allow" });
     const out = await scan(qr.token, ROOM);
@@ -198,39 +177,31 @@ describe("QR access", () => {
     expect(out.json()).toEqual({ decision: "deny", room: ROOM, reason: "not_entitled" });
   });
 
-  it("denies when there is no (or an expired) entitlement doc", async () => {
+  it("denies when there is no (or an expired) entitlement row", async () => {
     const reg = await register();
     const qr = (await qrToken(reg)).json() as AccessTokenResponse;
-    es.docs.delete(`entitlements/${reg.attendeeId}`);
+    await db.query("delete from entitlements where attendee_id = $1", [reg.attendeeId]);
     expect((await scan(qr.token)).json()).toMatchObject({ decision: "deny", reason: "no_entitlement" });
-    es.docs.set(`entitlements/${reg.attendeeId}`, {
-      attendee_id: reg.attendeeId,
-      pass_type: "general",
-      rooms: ["*"],
-      updated_at: "x",
-      expires_at: new Date(t - 1000).toISOString(),
-    });
+    await setEntitlement(reg.attendeeId, ["*"], new Date(t - 1000), "general");
     expect((await scan(qr.token)).json()).toMatchObject({ decision: "deny", reason: "no_entitlement" });
-    // Fail closed on a missing or unparseable expiry.
-    for (const expires_at of [undefined, "not-a-date", 12345]) {
-      es.docs.set(`entitlements/${reg.attendeeId}`, { attendee_id: reg.attendeeId, pass_type: "general", rooms: ["*"], updated_at: "x", expires_at });
-      expect((await scan(qr.token)).json()).toMatchObject({ decision: "deny", reason: "no_entitlement" });
-    }
+    // Exactly at expiry counts as expired.
+    await setEntitlement(reg.attendeeId, ["*"], new Date(t), "general");
+    expect((await scan(qr.token)).json()).toMatchObject({ decision: "deny", reason: "no_entitlement" });
+    await setEntitlement(reg.attendeeId, ["*"], new Date(t + 1000), "general");
+    expect((await scan(qr.token)).json()).toMatchObject({ decision: "allow" });
   });
 
-  it("refuses a QR token when the attendee doc has no valid expiry", async () => {
+  it("refuses a QR token when the attendee has expired", async () => {
     const reg = await register();
-    const doc = es.docs.get(`attendees/${reg.attendeeId}`)!;
-    es.docs.set(`attendees/${reg.attendeeId}`, { ...doc, expires_at: undefined });
+    await db.query("update attendees set expires_at = $1 where id = $2", [new Date(t - 1), reg.attendeeId]);
     expect((await qrToken(reg)).statusCode).toBe(401);
   });
 
-  it("honours revocation: editing the entitlement doc between two scans flips the decision", async () => {
+  it("honours revocation: editing the entitlement row between two scans flips the decision", async () => {
     const reg = await register();
     const qr = (await qrToken(reg)).json() as AccessTokenResponse;
     expect((await scan(qr.token)).json()).toMatchObject({ decision: "allow" });
-    const doc = es.docs.get(`entitlements/${reg.attendeeId}`)!;
-    es.docs.set(`entitlements/${reg.attendeeId}`, { ...doc, rooms: [] });
+    await db.query("update entitlements set rooms = '{}' where attendee_id = $1", [reg.attendeeId]);
     expect((await scan(qr.token)).json()).toMatchObject({ decision: "deny", reason: "not_entitled" });
   });
 
@@ -287,9 +258,10 @@ describe("QR access", () => {
   it("fails closed with 503 (no allow) when the entitlement lookup errors", async () => {
     const reg = await register();
     const qr = (await qrToken(reg)).json() as AccessTokenResponse;
-    es.failEntitlements();
+    failEntitlements = true;
     const out = await scan(qr.token);
     expect(out.statusCode).toBe(503);
+    expect(out.body).not.toMatch(/boom|from entitlements/);
     expect(out.body).not.toContain("allow");
     expect(out.body).not.toContain(reg.attendeeId);
   });
@@ -304,13 +276,7 @@ describe("QR access", () => {
   it("audits scan decisions with only validated rooms and never logs or spans identities, tokens or unvalidated rooms", async () => {
     const reg = await register();
     const qr = (await qrToken(reg)).json() as AccessTokenResponse;
-    es.docs.set(`entitlements/${reg.attendeeId}`, {
-      attendee_id: reg.attendeeId,
-      pass_type: "x",
-      rooms: [OTHER_ROOM],
-      updated_at: "x",
-      expires_at: new Date(t + 1000).toISOString(),
-    });
+    await setEntitlement(reg.attendeeId, [OTHER_ROOM], new Date(t + 1000), "x");
     await scan(qr.token, OTHER_ROOM);
     await scan(qr.token, ROOM);
     const privateRoom = "private-room-input";
@@ -319,7 +285,7 @@ describe("QR access", () => {
     const malformedRoom = `${privateRoom}\u0001x`;
     expect(scanBodySchema.safeParse({ token: qr.token, room: malformedRoom }).success).toBe(false);
     await scan(qr.token, malformedRoom);
-    es.failEntitlements();
+    failEntitlements = true;
     await scan(qr.token, ROOM);
 
     const scans = spans.filter((s) => s.name === "access.scan");

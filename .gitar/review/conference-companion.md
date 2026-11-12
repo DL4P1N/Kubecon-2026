@@ -12,10 +12,10 @@ blocking findings, even when the changed code otherwise works.
 
 ## Security
 
-- Never commit secrets. Token-signing keys, Elastic credentials, and Dash0
+- Never commit secrets. Token-signing keys, database URLs and passwords, and Dash0
   tokens must come from Kubernetes Secrets or local environment variables.
-- Elasticsearch application code must use the least-privilege
-  `companion_svc` account. It must never use the `elastic` superuser.
+- Database code must use parameterised SQL (`$1` placeholders) and must never log
+  or return SQL text, parameter values or driver error messages.
 
 ## Observability
 

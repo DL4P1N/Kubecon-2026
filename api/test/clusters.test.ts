@@ -1,94 +1,17 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import Fastify from "fastify";
 import { setSpanRunner } from "../src/telemetry/span.js";
 import { MIN_CLUSTER_SIZE, type InterestClustersResponse } from "@cc/shared";
 import { buildClusters, chooseK, finalize, labelFor, topInterests, type ClusterInput } from "../src/clusters/build.js";
 import { seededRandom } from "../src/clusters/kmeans.js";
-import { runClusterJob } from "../src/clusters/job.js";
+import { runClusterJob, writeRun } from "../src/clusters/job.js";
 import { demoSpecs, seedDemoAttendees } from "../src/clusters/seed.js";
-import { createEsClient } from "../src/es/client.js";
-import { LocalHashEmbedder } from "../src/es/embeddings.js";
+import { vectorLiteral, type Db } from "../src/db/client.js";
+import { LocalHashEmbedder } from "../src/embed/hash.js";
+import { testDb } from "./pg.js";
 import { registerClusterRoutes } from "../src/routes/clusters.js";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
-
-type Doc = Record<string, unknown>;
-
-/** In-memory fake of the ES endpoints the job, the seed and the route use. */
-function fakeEs() {
-  const attendees = new Map<string, Doc>();
-  const clusters = new Map<string, Doc>();
-  const calls: string[] = [];
-  const deleteQueries: string[] = [];
-  let scrollRest: Doc[] = [];
-  let searchBody: Doc | undefined;
-  let pageSize = 500;
-  const page = (hits: Doc[]) => ({ _scroll_id: "scroll-1", hits: { hits } });
-
-  const fetchImpl = (async (url: string, init: RequestInit) => {
-    const u = new URL(url);
-    const method = init.method ?? "GET";
-    calls.push(`${method} ${u.pathname}`);
-    const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
-    const body = init.body ? (String(init.body).includes("\n") ? undefined : JSON.parse(String(init.body))) : undefined;
-
-    if (method === "POST" && u.pathname === "/attendees/_search") {
-      searchBody = body;
-      pageSize = body.size;
-      const all = [...attendees.values()]
-        .filter((a) => (a.consent as { cluster_map?: boolean } | undefined)?.cluster_map !== false && Array.isArray(a.interest_vector))
-        .map((a) => ({ _source: { interests: a.interests, interest_vector: a.interest_vector } }));
-      scrollRest = all.slice(pageSize);
-      return json(page(all.slice(0, pageSize)));
-    }
-    if (method === "POST" && u.pathname === "/_search/scroll") {
-      const next = scrollRest.slice(0, pageSize);
-      scrollRest = scrollRest.slice(pageSize);
-      return json(page(next));
-    }
-    if (method === "DELETE" && u.pathname === "/_search/scroll") return json({ succeeded: true });
-    if (method === "POST" && u.pathname === "/_bulk") {
-      const lines = String(init.body).trim().split("\n").map((l) => JSON.parse(l));
-      for (let i = 0; i < lines.length; i += 2) {
-        const { _index, _id } = lines[i].index;
-        (_index === "attendees" ? attendees : clusters).set(_id, lines[i + 1]);
-      }
-      return json({ errors: false, items: [] });
-    }
-    if (method === "PUT" && u.pathname.startsWith("/interest_clusters/_doc/")) {
-      clusters.set(decodeURIComponent(u.pathname.split("/").pop()!), JSON.parse(String(init.body)));
-      return json({ result: "created" }, 201);
-    }
-    if (method === "POST" && u.pathname.endsWith("/_refresh")) return json({});
-    if (method === "POST" && u.pathname === "/interest_clusters/_delete_by_query") {
-      deleteQueries.push(JSON.stringify(body.query));
-      return json({ deleted: 0 });
-    }
-    if (method === "POST" && u.pathname === "/interest_clusters/_search") {
-      const q = JSON.stringify(body.query);
-      const docs = [...clusters.values()];
-      if (q.includes('"cluster_id":"_run"') && !q.includes("must_not")) {
-        const prefix = /"prefix":\{"run_id":"([^"]+)"/.exec(q)?.[1] ?? "";
-        const markers = docs.filter((d) => d.cluster_id === "_run" && String(d.run_id).startsWith(prefix)).sort((a, b) => String(b.computed_at).localeCompare(String(a.computed_at)));
-        return json({ hits: { hits: markers.slice(0, 1).map((d) => ({ _source: d })) } });
-      }
-      const runId = /"run_id":"([^"]+)"/.exec(q)![1];
-      return json({ hits: { hits: docs.filter((d) => d.run_id === runId && d.cluster_id !== "_run").map((d) => ({ _source: d })) } });
-    }
-    return json({ error: `unhandled ${method} ${u.pathname}` }, 400);
-  }) as unknown as typeof fetch;
-
-  return {
-    attendees,
-    clusters,
-    calls,
-    deleteQueries,
-    get searchBody() {
-      return searchBody;
-    },
-    client: createEsClient({ esUrl: "http://es:9200", esUsername: "", esPassword: "" }, fetchImpl),
-  };
-}
 
 /** Synthetic vectors: `groups` lists the size of each tight group in 8-D space. */
 function groupsOf(sizes: number[], seed = 5): ClusterInput[] {
@@ -170,8 +93,19 @@ describe("cluster building and k-anonymity", () => {
   });
 });
 
+const now = new Date("2026-11-09T12:00:00Z");
+
+async function insertCluster(db: Db, runId: string, clusterId: string, size: number, at: string, label = "L", top: string[] = []) {
+  await db.query(
+    `insert into interest_clusters (doc_id, cluster_id, run_id, label, size, top_interests, computed_at) values ($1,$2,$3,$4,$5,$6,$7)`,
+    [`${runId}:${clusterId}`, clusterId, runId, label, size, top, at],
+  );
+}
+const rowsOf = async (db: Db) => (await db.query<Record<string, unknown>>("select * from interest_clusters order by doc_id")).rows;
+
 describe("cluster job, demo seed and route", () => {
   const spans: { name: string; attrs: Record<string, string | number | boolean> }[] = [];
+  let db: Db;
   beforeAll(() => {
     setSpanRunner(async (name, attrs, fn) => {
       const rec = { name, attrs: { ...attrs } };
@@ -180,36 +114,38 @@ describe("cluster job, demo seed and route", () => {
     });
   });
   afterAll(() => setSpanRunner());
-  beforeEach(() => void (spans.length = 0));
+  beforeEach(async () => {
+    spans.length = 0;
+    db = await testDb();
+  });
+  afterEach(async () => db.close());
 
-  const embedder = new LocalHashEmbedder(256);
-  const now = new Date("2026-11-09T12:00:00Z");
+  const embedder = new LocalHashEmbedder();
 
   it("demo seed of 40 synthetic opted-in attendees produces a map, with the off-topic four suppressed", async () => {
-    const es = fakeEs();
-    expect(await seedDemoAttendees(es.client, embedder, now)).toBe(40);
+    expect(await seedDemoAttendees(db, embedder, now)).toBe(40);
+    expect(await seedDemoAttendees(db, embedder, now)).toBe(40); // idempotent
+    expect((await db.query("select 1 from attendees")).rows).toHaveLength(40);
     expect(demoSpecs().every((s) => s.id.startsWith("demo-"))).toBe(true);
 
-    const result = await runClusterJob(es.client, { now: () => now, runId: "run-test-1", pageSize: 15, dims: 256 });
+    const result = await runClusterJob(db, { now: () => now, runId: "run-test-1", pageSize: 15 }); // paged: 3 pages
     expect(result).toMatchObject({ runId: "run-test-1", attendees: 40, skipped: 0 });
     expect(result.shown).toBe(3);
     expect(result.suppressed).toBe(4);
-    expect(es.calls.filter((c) => c === "POST /_search/scroll").length).toBeGreaterThan(1); // paged
-    expect(es.calls).toContain("DELETE /_search/scroll");
 
-    const written = [...es.clusters.values()].filter((d) => d.cluster_id !== "_run");
+    const written = (await rowsOf(db)).filter((d) => d.cluster_id !== "_run");
     expect(written.length).toBe(result.shown);
     for (const d of written) {
       expect(d.run_id).toBe("run-test-1");
       expect(d.size as number).toBeGreaterThanOrEqual(MIN_CLUSTER_SIZE);
     }
-    // The marker is the last write and carries the suppressed count.
-    expect(es.clusters.get("run-test-1:_run")).toMatchObject({ size: result.suppressed });
+    const marker = (await db.query<{ size: number }>("select size from interest_clusters where doc_id = 'run-test-1:_run'")).rows[0];
+    expect(marker?.size).toBe(result.suppressed);
     // Nothing identifying is persisted.
-    expect(JSON.stringify([...es.clusters.values()])).not.toMatch(/demo-\d\d|Demo attendee/);
+    expect(JSON.stringify(await rowsOf(db))).not.toMatch(/demo-\d\d|Demo attendee/);
 
     const app = Fastify();
-    registerClusterRoutes(app, { es: es.client, nodeEnv: "test" });
+    registerClusterRoutes(app, { db, nodeEnv: "test" });
     const res = await app.inject({ method: "GET", url: "/api/interests/clusters" });
     expect(res.statusCode).toBe(200);
     const body = res.json() as InterestClustersResponse;
@@ -217,39 +153,39 @@ describe("cluster job, demo seed and route", () => {
     expect(body.minClusterSize).toBe(5);
     expect(body.clusters.length).toBe(result.shown);
     expect(body.clusters.every((c) => c.size >= 5)).toBe(true);
+    expect(body.clusters.map((c) => c.size)).toEqual([...body.clusters.map((c) => c.size)].sort((a, b) => b - a));
     expect(body.suppressed).toBe(result.suppressed);
     expect(JSON.stringify(body)).not.toContain("centroid");
     await app.close();
   });
 
-  it("requests every unexpired, non-opted-out attendee with a vector, and skips malformed vectors", async () => {
-    const es = fakeEs();
-    const mk = (id: string, optIn: boolean, vector: unknown): [string, Doc] => [
-      id,
-      { interests: ["kubernetes"], interest_vector: vector, consent: { cluster_map: optIn } },
-    ];
-    const entries = [
-      ...Array.from({ length: 6 }, (_, i) => mk(`in-${i}`, true, [1, 0, 0, i / 100])),
-      mk("bad-dims", true, [1, 0]),
-      mk("bad-values", true, [1, "x", 0, 0]),
-    ];
-    entries.forEach(([id, d]) => es.attendees.set(id, d));
-    // Explicit opt-outs are excluded; a doc with no consent field counts as consenting.
-    for (let i = 0; i < 3; i++) es.attendees.set(`out-${i}`, mk(`out-${i}`, false, [1, 0, 0, 0.5])[1]);
-    es.attendees.set("no-consent", { interests: ["kubernetes"], interest_vector: [1, 0, 0, 0.9], consent: undefined });
-    const result = await runClusterJob(es.client, { now: () => now, runId: "run-test-2" });
-    expect(result.attendees).toBe(7);
-    expect(result.skipped).toBe(2);
-    const filters = JSON.stringify((es.searchBody as { query: unknown }).query);
-    expect(filters).toContain('{"bool":{"must_not":[{"term":{"consent.cluster_map":false}}]}}');
-    expect(filters).toContain("expires_at");
-    expect(filters).toContain("interest_vector");
+  it("stores 384-dim centroids server-side", async () => {
+    await seedDemoAttendees(db, embedder, now);
+    await runClusterJob(db, { now: () => now, runId: "run-test-c" });
+    const r = await db.query<{ n: number }>("select vector_dims(centroid) as n from interest_clusters where centroid is not null");
+    expect(r.rows.length).toBeGreaterThan(0);
+    expect(r.rows.every((x) => x.n === 384)).toBe(true);
+  });
+
+  it("reads only unexpired, opted-in attendees with a vector", async () => {
+    const insert = (id: string, consent: boolean, expires: string, vec: boolean) =>
+      db.query(
+        `insert into attendees (id, display_name, interests, interest_vector, consent_cluster_map, consent_qr_checkin, created_at, expires_at)
+         values ($1,'x',array['kubernetes'],$2::vector,$3,false,$4,$5)`,
+        [id, vec ? vectorLiteral(new Array(384).fill(0).map((_, i) => (i === 0 ? 1 : i / 1e4))) : null, consent, now.toISOString(), expires],
+      );
+    for (let i = 0; i < 6; i++) await insert(`in-${i}`, true, "2026-11-10T00:00:00Z", true);
+    for (let i = 0; i < 3; i++) await insert(`out-${i}`, false, "2026-11-10T00:00:00Z", true);
+    await insert("expired", true, "2026-11-09T11:00:00Z", true);
+    await insert("no-vector", true, "2026-11-10T00:00:00Z", false);
+    const result = await runClusterJob(db, { now: () => now, runId: "run-test-2" });
+    expect(result.attendees).toBe(6);
+    expect(result.skipped).toBe(0);
   });
 
   it("emits a clusters.run span with counts only", async () => {
-    const es = fakeEs();
-    await seedDemoAttendees(es.client, embedder, now);
-    await runClusterJob(es.client, { now: () => now, runId: "run-test-3" });
+    await seedDemoAttendees(db, embedder, now);
+    await runClusterJob(db, { now: () => now, runId: "run-test-3" });
     const span = spans.find((s) => s.name === "clusters.run");
     expect(span).toBeDefined();
     const keys = Object.keys(span!.attrs).sort();
@@ -258,59 +194,96 @@ describe("cluster job, demo seed and route", () => {
     expect(JSON.stringify(span!.attrs)).not.toMatch(/demo-|run-test|interests/);
   });
 
-  it("route: empty before the first run, key-gated, fail-closed in production, 502 on ES failure", async () => {
-    const es = fakeEs();
+  it("route: empty before the first run, key-gated, fail-closed in production without a key, 502 on db failure", async () => {
     const open = Fastify();
-    registerClusterRoutes(open, { es: es.client, nodeEnv: "test" });
+    registerClusterRoutes(open, { db, nodeEnv: "test" });
     expect((await open.inject({ url: "/api/interests/clusters" })).json()).toMatchObject({ runId: null, clusters: [] });
 
     const gated = Fastify();
-    registerClusterRoutes(gated, { es: es.client, organizerKey: "s3cret-key", nodeEnv: "production" });
+    registerClusterRoutes(gated, { db, organizerKey: "s3cret-key", nodeEnv: "production" });
     expect((await gated.inject({ url: "/api/interests/clusters" })).statusCode).toBe(401);
     expect((await gated.inject({ url: "/api/interests/clusters", headers: { "x-organizer-key": "wrong" } })).statusCode).toBe(401);
     expect((await gated.inject({ url: "/api/interests/clusters", headers: { "x-organizer-key": "s3cret-key" } })).statusCode).toBe(200);
 
     const prodNoKey = Fastify();
-    registerClusterRoutes(prodNoKey, { es: es.client, nodeEnv: "production" });
+    registerClusterRoutes(prodNoKey, { db, nodeEnv: "production" });
     // (organizerKey falls back to env; the test environment does not set ORGANIZER_KEY)
     expect((await prodNoKey.inject({ url: "/api/interests/clusters" })).statusCode).toBe(503);
+    expect((await prodNoKey.inject({ url: "/api/interests/clusters" })).json()).toEqual({ error: "organizer_key_not_configured" });
 
     const broken = Fastify();
-    const failing = createEsClient({ esUrl: "http://es:9200", esUsername: "", esPassword: "" }, (async () => new Response("boom", { status: 500 })) as unknown as typeof fetch);
-    registerClusterRoutes(broken, { es: failing, nodeEnv: "test" });
+    const failing = { ...db, query: async () => { throw new Error("boom select secret"); } } as Db;
+    registerClusterRoutes(broken, { db: failing, nodeEnv: "test" });
     const r = await broken.inject({ url: "/api/interests/clusters" });
     expect(r.statusCode).toBe(502);
+    expect(r.json()).toEqual({ error: "clusters_unavailable" });
     expect(r.body).not.toContain("boom");
     await Promise.all([open, gated, prodNoKey, broken].map((a) => a.close()));
   });
 
   it("route never returns a stored cluster under the minimum", async () => {
-    const es = fakeEs();
-    es.clusters.set("r:_run", { cluster_id: "_run", run_id: "run-r", size: 0, computed_at: now.toISOString() });
-    es.clusters.set("r:c1", { cluster_id: "c1", run_id: "run-r", label: "Big", size: 8, top_interests: [], computed_at: now.toISOString() });
-    es.clusters.set("r:c2", { cluster_id: "c2", run_id: "run-r", label: "Tiny", size: 3, top_interests: [], computed_at: now.toISOString() });
+    const at = now.toISOString();
+    await insertCluster(db, "run-r", "_run", 0, at);
+    await insertCluster(db, "run-r", "c1", 8, at, "Big");
+    await insertCluster(db, "run-r", "c2", 3, at, "Tiny");
     const app = Fastify();
-    registerClusterRoutes(app, { es: es.client, nodeEnv: "test" });
+    registerClusterRoutes(app, { db, nodeEnv: "test" });
     const body = (await app.inject({ url: "/api/interests/clusters" })).json() as InterestClustersResponse;
     expect(body.clusters.map((c) => c.id)).toEqual(["c1"]);
     await app.close();
   });
+
+  it("readers never see a half-written run: a failed write rolls back and the previous run stays served", async () => {
+    const at = "2026-11-09T11:00:00Z";
+    await insertCluster(db, "run-old", "_run", 1, at);
+    await insertCluster(db, "run-old", "c1", 9, at, "Old");
+    // A run whose write fails midway (duplicate doc_id from an earlier partial write) leaves no rows.
+    await insertCluster(db, "run-new", "c2", 7, now.toISOString(), "Collides");
+    await db.query("delete from interest_clusters where doc_id = 'run-new:c2'");
+    const mk = (clusterId: string) => ({ clusterId, label: clusterId, size: 6, topInterests: [], other: false, centroid: new Array(384).fill(0) });
+    const boom = { clusters: [mk("c1"), mk("c1")], suppressed: 0, attendees: 12, k: 2 }; // same doc_id twice: 2nd insert fails
+    await expect(writeRun(db, "run-new", boom, now)).rejects.toBeTruthy();
+    expect((await db.query("select 1 from interest_clusters where run_id = 'run-new'")).rows).toHaveLength(0);
+
+    let t = 0;
+    const app = Fastify();
+    registerClusterRoutes(app, { db, nodeEnv: "test", now: () => (t += 60_000) }); // each read bypasses the response cache
+    expect(((await app.inject({ url: "/api/interests/clusters" })).json() as InterestClustersResponse).runId).toBe("run-old");
+
+    // A successful run switches the readers over to it in one step.
+    await writeRun(db, "run-new", { clusters: [mk("c1")], suppressed: 2, attendees: 8, k: 1 }, now);
+    const after = (await app.inject({ url: "/api/interests/clusters" })).json() as InterestClustersResponse;
+    expect(after.runId).toBe("run-new");
+    expect(after.suppressed).toBe(2);
+    expect(after.clusters.map((c) => c.id)).toEqual(["c1"]);
+    await app.close();
+  });
+
+  it("writeRun suppresses clusters under the minimum even if the caller passes them", async () => {
+    const run = { clusters: [{ clusterId: "tiny", label: "T", size: 3, topInterests: [], other: false }], suppressed: 0, attendees: 3, k: 1 };
+    await writeRun(db, "run-tiny", run, now);
+    const rows = await rowsOf(db);
+    expect(rows.map((r) => r.cluster_id)).toEqual(["_run"]);
+    expect(rows[0]!.size).toBe(3);
+  });
 });
 
-describe("coexisting with the aggregate route's docs in interest_clusters", () => {
-  const now = new Date("2026-11-09T12:00:00Z");
-  const aggregateDocs = (es: ReturnType<typeof fakeEs>, at: string) => {
-    es.clusters.set("aggregate:kubernetes", { cluster_id: "topic:kubernetes", run_id: `aggregate-${at}`, label: "kubernetes", size: 30, top_interests: ["kubernetes"], computed_at: at });
-    es.clusters.set("aggregate:_run", { cluster_id: "_run", run_id: `aggregate-${at}`, label: "lookalike", size: 99, top_interests: [], computed_at: at });
+describe("coexisting with the aggregate route's rows in interest_clusters", () => {
+  let db: Db;
+  beforeEach(async () => (db = await testDb()));
+  afterEach(async () => db.close());
+  const aggregateDocs = async (at: string) => {
+    await insertCluster(db, `aggregate-${at}`, "topic:kubernetes", 30, at, "kubernetes", ["kubernetes"]);
+    await db.query("update interest_clusters set doc_id = 'aggregate:kubernetes' where cluster_id = 'topic:kubernetes'");
+    await insertCluster(db, `aggregate-${at}`, "_run", 99, at, "lookalike");
   };
 
-  it("the route ignores aggregate docs, even newer ones, and reads only the k-means run", async () => {
-    const es = fakeEs();
-    es.clusters.set("run-1:_run", { cluster_id: "_run", run_id: "run-1", size: 2, computed_at: "2026-11-09T11:00:00Z" });
-    es.clusters.set("run-1:c1", { cluster_id: "c1", run_id: "run-1", label: "Kubernetes", size: 9, top_interests: ["kubernetes"], computed_at: "2026-11-09T11:00:00Z" });
-    aggregateDocs(es, "2026-11-09T12:00:00Z"); // newer than the k-means run
+  it("the route ignores aggregate rows, even newer ones, and reads only the k-means run", async () => {
+    await insertCluster(db, "run-1", "_run", 2, "2026-11-09T11:00:00Z");
+    await insertCluster(db, "run-1", "c1", 9, "2026-11-09T11:00:00Z", "Kubernetes", ["kubernetes"]);
+    await aggregateDocs("2026-11-09T12:00:00Z"); // newer than the k-means run
     const app = Fastify();
-    registerClusterRoutes(app, { es: es.client, nodeEnv: "test" });
+    registerClusterRoutes(app, { db, nodeEnv: "test" });
     const body = (await app.inject({ url: "/api/interests/clusters" })).json() as InterestClustersResponse;
     expect(body.runId).toBe("run-1");
     expect(body.suppressed).toBe(2);
@@ -318,21 +291,25 @@ describe("coexisting with the aggregate route's docs in interest_clusters", () =
     await app.close();
   });
 
-  it("the job's prune is scoped to its own run_id prefix and leaves aggregate docs alone", async () => {
-    const es = fakeEs();
-    aggregateDocs(es, "2026-11-01T00:00:00Z"); // older than 24h
-    await runClusterJob(es.client, { now: () => now, runId: "run-test-9" });
-    expect(es.deleteQueries).toHaveLength(1);
-    expect(es.deleteQueries[0]).toContain('"prefix":{"run_id":"run-"}');
-    expect(es.clusters.has("aggregate:kubernetes")).toBe(true);
+  it("the job prunes only its own runs older than 24h and leaves aggregate rows and recent runs alone", async () => {
+    await aggregateDocs("2026-11-01T00:00:00Z"); // older than 24h
+    await insertCluster(db, "run-ancient", "c1", 9, "2026-11-01T00:00:00Z");
+    await insertCluster(db, "run-recent", "c1", 9, "2026-11-09T06:00:00Z");
+    await runClusterJob(db, { now: () => now, runId: "run-test-9" });
+    const ids = (await rowsOf(db)).map((r) => r.doc_id);
+    expect(ids).toContain("aggregate:kubernetes");
+    expect(ids).toContain("run-recent:c1");
+    expect(ids).toContain("run-test-9:_run");
+    expect(ids).not.toContain("run-ancient:c1");
   });
 });
 
 it("buildServer registers GET /api/interests/clusters", async () => {
-  const es = fakeEs();
-  const app = buildServer(loadConfig({}), { es: es.client });
+  const db = await testDb();
+  const app = buildServer(loadConfig({}), { db, embedder: new LocalHashEmbedder() });
   const res = await app.inject({ method: "GET", url: "/api/interests/clusters" });
   expect(res.statusCode).toBe(200);
   expect(res.json()).toMatchObject({ runId: null, clusters: [], minClusterSize: 5 });
   await app.close();
+  await db.close();
 });

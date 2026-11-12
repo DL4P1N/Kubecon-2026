@@ -210,7 +210,7 @@ test("getLiveAggregates: demo-aggregates shape from the real aggregate route, nu
 
 test("describeStatus understands the real StatusResponse (no `ok` field) and getStatus passes it through", async () => {
   const real = { status: "degraded", generatedAt: "2026-11-10T09:00:00Z", windowSeconds: 300, api: { up: true, version: "0.1.0" },
-    elasticsearch: { reachable: true }, search: { keyword: { samples: 3, p95Ms: 40 }, hybrid: { samples: 0, p95Ms: null, state: "warming_up" } },
+    database: { reachable: true }, search: { keyword: { samples: 3, p95Ms: 40 }, hybrid: { samples: 0, p95Ms: null, state: "warming_up" } },
     errorRate: { requests: 10, serverErrors: 0, ratio: 0 } };
   await onSite(() => json(real), async () => {
     const st = await getStatus();

@@ -4,9 +4,8 @@ import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { z } from "zod";
 import { routes, type MeResponse, type RegisterResponse } from "@cc/shared";
 import { requireAttendee, type TokenService } from "../auth/token.js";
-import type { EsClient } from "../es/client.js";
+import { isUniqueViolation, vectorLiteral, type Db } from "../db/client.js";
 import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor } from "../http/rateLimit.js";
-import { embed as defaultEmbed } from "../es/embeddings.js";
 import { expiresAtFor, retentionMsFromEnv } from "../retentionPolicy.js";
 
 /**
@@ -18,11 +17,11 @@ import { expiresAtFor, retentionMsFromEnv } from "../retentionPolicy.js";
  * Privacy rules (design doc sections 5 and 6):
  * - Only display name, interests and the (always true) consent flags are stored. Email is
  *   accepted for contract compatibility but never stored. Unknown fields are
- *   dropped, so no health, politics or identity data can reach ES.
+ *   dropped, so no health, politics or identity data can reach the database.
  * - Profiles are kept by default (expires_at is the NO_EXPIRY sentinel); ATTENDEE_RETENTION_HOURS=24
  *   restores timed deletion (retentionPolicy.ts, docs/retention.md).
- * - The attendee ID is never logged and never put on a span. ES error
- *   messages contain the doc path (and so the ID), so they are not recorded
+ * - The attendee ID is never logged and never put on a span. database errors
+ *   can carry row values (and so the ID), so they are not recorded
  *   on spans or returned to clients either.
  */
 
@@ -42,7 +41,7 @@ export const MAX_NAME_LENGTH = 80;
  */
 export const registerBodySchema = z.object({
   name: z.string().trim().min(1, "name is required").max(MAX_NAME_LENGTH),
-  // Accepted but never stored (see docs/elasticsearch.md).
+  // Accepted but never stored.
   email: z.string().trim().max(254).optional(),
   interests: z
     .array(z.string().trim().min(1).max(MAX_INTEREST_LENGTH))
@@ -66,7 +65,7 @@ export const registerBodySchema = z.object({
 
 export type RegisterBody = z.infer<typeof registerBodySchema>;
 
-/** Shape of a document in the `attendees` index (see es/mappings.ts). */
+/** Shape of an `attendees` row, as the API sees it (db/schema.ts). */
 export interface AttendeeDoc {
   id: string;
   display_name: string;
@@ -87,10 +86,10 @@ export interface EntitlementDoc {
 }
 
 export interface RegisterRoutesOptions {
-  es: EsClient;
+  db: Db;
   tokens: TokenService;
-  /** Defaults to the configured embedder (es/embeddings.ts). */
-  embed?: (text: string) => Promise<number[]>;
+  /** Text embedder for the profile vector. A failure registers the attendee without a vector. */
+  embed:  (text: string) => Promise<number[]>;
   /** Per client IP per minute. Default 120 (REGISTER_RATE_LIMIT_PER_MINUTE); attendees can share a venue NAT IP. */
   rateLimitPerMinute?: number;
   now?: () => number;
@@ -108,8 +107,7 @@ const tracer = () => trace.getTracer("companion-api");
 /**
  * Runs a handler inside a span that is ended on every path (success, 4xx,
  * 5xx, thrown error). Only allowlisted attributes (docs/telemetry-allowlist.md)
- * are set; never the attendee ID or error messages (ES errors contain doc
- * paths, and so IDs). Unexpected errors become a generic 500.
+ * are set; never the attendee ID or error messages (database errors can carry row values). Unexpected errors become a generic 500.
  */
 async function traced(
   name: string,
@@ -134,7 +132,7 @@ async function traced(
         "http.request.method": method,
         "http.route": path,
         "http.response.status_code": status,
-        "db.system": "elasticsearch",
+        "db.system": "postgresql",
       });
       if (status >= 500) span.setStatus({ code: SpanStatusCode.ERROR, message: "server_error" });
       span.end();
@@ -143,8 +141,8 @@ async function traced(
 }
 
 export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (app, opts) => {
-  const { es, tokens } = opts;
-  const embedText = opts.embed ?? defaultEmbed;
+  const { db, tokens } = opts;
+  const embedText = opts.embed;
   const now = opts.now ?? Date.now;
 
   // Scoped to this plugin: only routes that opt in via config.rateLimit are limited.
@@ -185,7 +183,7 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
         // Sign first: if signing fails nothing has been written yet (traced() turns it into a 500).
         const signed = await tokens.sign(id);
 
-        // The vector only feeds the cluster map; if the embedder (ES inference)
+        // The vector only feeds the cluster map; if the embedder
         // is down, register anyway without it rather than block sign-up.
         const interestVector = await embedText(body.interests.join(", ")).catch(() => undefined);
         const attendee: AttendeeDoc = {
@@ -205,26 +203,29 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
           expires_at: expiresAt,
         };
 
-        let identityCreated = false;
-        let duplicate = false;
         try {
-          await es.request("PUT", `/attendees/_create/${id}?refresh=wait_for`, attendee);
-          await es.request("PUT", `/entitlements/_doc/${id}?refresh=wait_for`, entitlement);
-          if (identity !== null) {
-            const r = await es.request("PUT", `/identities/_create/${identity}?refresh=wait_for`, { attendee_id: id, created_at: createdAt, expires_at: expiresAt }, [409]);
-            if (r.status === 409) duplicate = true;
-            else identityCreated = true;
-          }
-          if (duplicate) throw new Error("duplicate");
-        } catch {
-          // Best-effort cleanup so a failed registration leaves no half-written
-          // attendee. Errors are not logged: they contain the doc path.
-          await Promise.allSettled([
-            es.request("DELETE", `/attendees/_doc/${id}`, undefined, [404]),
-            es.request("DELETE", `/entitlements/_doc/${id}`, undefined, [404]),
-            ...(identityCreated && identity !== null ? [es.request("DELETE", `/identities/_doc/${identity}`, undefined, [404])] : []),
-          ]);
-          if (duplicate) return reply.code(409).send({ error: "already_registered", message: "this account already has a profile, sign in again" });
+          // One transaction: a duplicate (replayed claim) or any failure leaves no partial rows.
+          await db.transaction(async (tx) => {
+            await tx.query(
+              `insert into attendees (id, display_name, interests, interest_vector, consent_cluster_map, consent_qr_checkin, created_at, expires_at)
+               values ($1, $2, $3, $4::vector, $5, $6, $7, $8)`,
+              [id, attendee.display_name, attendee.interests, interestVector ? vectorLiteral(interestVector) : null,
+                attendee.consent.cluster_map, attendee.consent.qr_checkin, createdAt, expiresAt],
+            );
+            await tx.query(
+              `insert into entitlements (attendee_id, pass_type, rooms, updated_at, expires_at)
+               values ($1, $2, $3, $4, $5)
+               on conflict (attendee_id) do update set pass_type = excluded.pass_type, rooms = excluded.rooms,
+                 updated_at = excluded.updated_at, expires_at = excluded.expires_at`,
+              [id, entitlement.pass_type, entitlement.rooms, createdAt, expiresAt],
+            );
+            if (identity !== null) {
+              await tx.query("insert into identities (id, attendee_id, created_at, expires_at) values ($1, $2, $3, $4)", [identity, id, createdAt, expiresAt]);
+            }
+          });
+        } catch (err) {
+          // Not logged: driver errors can carry row values.
+          if (isUniqueViolation(err)) return reply.code(409).send({ error: "already_registered", message: "this account already has a profile, sign in again" });
           return reply.code(503).send({ error: "storage_unavailable", message: "could not store registration" });
         }
 
@@ -250,14 +251,15 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
     traced("me.delete", "DELETE", routes.deleteMe.path, reply, async () => {
       const id = await requireAttendee(tokens, req, reply);
       if (id === null) return reply;
-      const enc = encodeURIComponent(id);
       let profileExisted = false;
       try {
-        await es.request("DELETE", `/entitlements/_doc/${enc}?refresh=wait_for`, undefined, [404]);
-        await es.request("DELETE", `/schedules/_doc/${enc}?refresh=wait_for`, undefined, [404]);
-        await es.request("POST", "/identities/_delete_by_query?refresh=true&conflicts=proceed", { query: { term: { attendee_id: id } } });
-        const r = await es.request("DELETE", `/attendees/_doc/${enc}?refresh=wait_for`, undefined, [404]);
-        profileExisted = r.status !== 404;
+        profileExisted = await db.transaction(async (tx) => {
+          await tx.query("delete from entitlements where attendee_id = $1", [id]);
+          await tx.query("delete from schedules where attendee_id = $1", [id]);
+          await tx.query("delete from identities where attendee_id = $1", [id]);
+          const r = await tx.query("delete from attendees where id = $1", [id]);
+          return r.rowCount > 0;
+        });
       } catch {
         return reply.code(503).send({ error: "storage_unavailable", message: "could not delete profile" });
       }
@@ -271,29 +273,26 @@ export const registerRoutes: FastifyPluginAsync<RegisterRoutesOptions> = async (
       const id = await requireAttendee(tokens, req, reply);
       if (id === null) return reply;
 
-      let doc: { found?: boolean; _source?: Omit<AttendeeDoc, "interest_vector"> } | undefined;
+      let src: { id: string; display_name: string; interests: string[]; consent_cluster_map: boolean; consent_qr_checkin: boolean; expires_at: Date | string } | undefined;
       try {
-        const r = await es.request<typeof doc>(
-          "GET",
-          `/attendees/_doc/${encodeURIComponent(id)}?_source_excludes=interest_vector`,
-          undefined,
-          [404],
+        const r = await db.query<NonNullable<typeof src>>(
+          "select id, display_name, interests, consent_cluster_map, consent_qr_checkin, expires_at from attendees where id = $1",
+          [id],
         );
-        doc = r.body;
+        src = r.rows[0];
       } catch {
         return reply.code(503).send({ error: "storage_unavailable", message: "could not load profile" });
       }
 
-      const src = doc?.found ? doc._source : undefined;
       // Unknown or expired (only when ATTENDEE_RETENTION_HOURS is set) attendee: the token no longer grants anything.
-      if (!src || Date.parse(src.expires_at) <= now()) {
+      if (!src || new Date(src.expires_at).getTime() <= now()) {
         return reply.code(401).send({ error: "unauthorized", message: "attendee not found" });
       }
       const res: MeResponse = {
         attendeeId: src.id,
         name: src.display_name,
         interests: src.interests,
-        consent: { clusterMap: src.consent.cluster_map, qrCheckin: src.consent.qr_checkin },
+        consent: { clusterMap: src.consent_cluster_map, qrCheckin: src.consent_qr_checkin },
         onboarded: false,
       };
       return res;

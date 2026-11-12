@@ -25,3 +25,4 @@ deploy/terraform/vercel/artifacts/
 *.tfvars
 !*.tfvars.example
 crash.log
+/api/models/

@@ -34,12 +34,9 @@ spec:
                     name: companion-app-config
                 - secretRef:
                     name: companion-app-secrets
-              env:
-                - name: NODE_EXTRA_CA_CERTS
-                  value: /etc/elasticsearch/ca.crt
               volumeMounts:
-                - name: es-ca
-                  mountPath: /etc/elasticsearch
+                - name: database-ca
+                  mountPath: /etc/database
                   readOnly: true
               resources:
                 requests:
@@ -54,6 +51,7 @@ spec:
                 capabilities:
                   drop: ["ALL"]
           volumes:
-            - name: es-ca
-              secret:
-                secretName: elasticsearch-http-ca
+            - name: database-ca
+              configMap:
+                name: companion-database-ca
+                optional: true

@@ -12,7 +12,7 @@ error handler or a route's own), plus `Retry-After`:
 **Venue NAT tradeoff.** Conference Wi-Fi can put many attendees behind one
 public IP, and a per-IP limit then becomes a shared budget. The limits are
 generous for that reason. Registration (120/min, `REGISTER_RATE_LIMIT_PER_MINUTE`)
-and QR token issuance (300/min) are the tightest, because they write to ES or
+and QR token issuance (300/min) are the tightest, because they write to the database or
 sign tokens. 120 registrations a minute from one IP is still well above the
 pace of a registration desk. If the venue routes everyone through one NAT
 address, raise `REGISTER_RATE_LIMIT_PER_MINUTE` in the ConfigMap. Every limit
@@ -31,11 +31,11 @@ Cached aggregate routes are cheap and get the most headroom.
 | `GET /api/schedule` | Bearer session token | 120 | none | none | The caller's own schedule |
 | `GET /api/schedule.ics` | Bearer session token | 120 (shares the schedule limit value) | `Cache-Control: private, no-store` | `talkId` one string of 1 to 200 chars | The caller's own schedule as iCalendar |
 | `POST /api/register` | none | 120 (`REGISTER_RATE_LIMIT_PER_MINUTE`) | none | zod: name ≤ 80, email ≤ 254 (never stored), 1 to 20 interests × ≤ 64, optional consent booleans (each defaults to true when absent; an explicit false is stored and honoured); unknown fields dropped | The new attendee ID and token, to that caller only |
-| `GET /api/me` | Bearer session token, plus expiry checked against ES | 120 | none | none | The caller's own profile (vector excluded) |
+| `GET /api/me` | Bearer session token, plus expiry checked in the database | 120 | none | none | The caller's own profile (vector excluded) |
 | `DELETE /api/me` | Bearer session token | 120 (shares the `/api/me` limit value, own counter) | none | none | `204`, no body. Deletes the caller's `entitlements`, `schedules` and `attendees` documents (last, so a 503 can be retried). `404` if the profile is already gone; `401` for a missing or invalid token. Never returns or logs the attendee ID |
 | `POST /api/access/token` | Bearer session token; `403` if the stored `consent.qr_checkin` is false | 300 | none | none | Short-lived QR token (`aud` = access) |
 | `POST /api/access/scan` | Signed QR token, entitlement checked server-side | 600 | none | zod: token, room (known room catalog) | `allow`/`deny`, room, reason. Never the attendee ID |
-| `GET /api/interests/aggregate` | none (public organizer view) | 300 | 15 s in memory, single-flight, `Cache-Control: public, max-age=15`; ES copy written at most once a minute | none (no input) | Topic counts with k ≥ 5 suppression (small buckets merged into `other`, dropped if still < 5) |
+| `GET /api/interests/aggregate` | none (public organizer view) | 300 | 15 s in memory, single-flight, `Cache-Control: public, max-age=15`; stored copy written at most once a minute | none (no input) | Topic counts with k ≥ 5 suppression (small buckets merged into `other`, dropped if still < 5) |
 | `GET /api/interests/clusters` | `x-organizer-key` (constant-time compare; 503 in production if unset) | 120 | 15 s in memory, after authorization | none (no input) | Cluster labels and sizes ≥ `MIN_CLUSTER_SIZE`. Centroids stay server-side |
 | `GET /api/talks/:id` | none | 60 per client IP (own scope, shared 429 body) | 60 s in memory per talk (≤ 500 entries, shared with the two routes below), `Cache-Control: public, max-age=60` | `:id` matches `[A-Za-z0-9._:-]{1,100}` (400 otherwise); unknown talk 404 | Public talk fields (title, speaker, abstract, track, room, time, tags) |
 | `GET /api/talks/:id/related` | none | 60 per client IP (own scope, per route, shared 429 body) | as above, per talk and size | `:id` as above; `size` int 1 to 10 (default 5) | Public talks similar by meaning, at any time, with the tags they share. Never attendee data |
@@ -45,7 +45,7 @@ Cached aggregate routes are cheap and get the most headroom.
 | `GET /api/rooms/*` (room occupancy) | covered by #42 review (PR #41) | covered by #42 review | covered by #42 review | covered by #42 review | covered by #42 review |
 | `POST /api/chat` | none | 30 (own scope, shared 429 body); also 1 in-flight Claude turn per IP and 4 in total (beyond that the same shared 429 body, `retry-after: 2`) | `no-store` | hand-validated: body ≤ 32 KiB (413), ≤ 24 messages, user turns ≤ 1000 chars, assistant turns ≤ 2000, `via` enum, conference and known-profile fields capped. Errors name the field only | The next chat reply and, when done, the profile the visitor just typed, to that caller only. Nothing is stored. Message text and profiles are never logged or put on spans (only route and status code) |
 | `GET /api/events` | none | 30 (own scope, shared 429 body); at most 3 concurrent streams per IP (shared 429 body) inside 20 in total (503 `too_many_listeners`) | `no-cache`, `no-transform` (SSE stream) | none (no input) | `registered` frames: label `Guest` (never a name by default; with the demo-only `EVENTS_SHOW_NAMES=on` the sanitised first name, letters and digits only, capped), conference slug, returning flag, interest count. Heartbeat comment every 20 s. Nothing else about the attendee |
-| `GET /api/rooms/placement` | `x-organizer-key` (constant-time compare; 503 in production if unset) | 60 (own scope, shared 429 body) | 15 s in memory, after authorization; `Cache-Control: no-store` | none (no input) | Room suggestions from aggregate interest counts (k-suppressed) and `ROOM_CAPACITIES`. ES errors answer a fixed `502 placement_unavailable`; error text is neither logged nor on spans |
+| `GET /api/rooms/placement` | `x-organizer-key` (constant-time compare; 503 in production if unset) | 60 (own scope, shared 429 body) | 15 s in memory, after authorization; `Cache-Control: no-store` | none (no input) | Room suggestions from aggregate interest counts (k-suppressed) and `ROOM_CAPACITIES`. Database errors answer a fixed `502 placement_unavailable`; error text is neither logged nor on spans |
 | `GET /api/auth/providers` | none | 30 (own scope, shared 429 body) | `no-store` | none (no input) | Which providers are enabled (`id`, `enabled`). Never ids, secrets or redirect URIs |
 | `GET /api/auth/:provider/start` | none | 30 (own scope, shared 429 body) | `no-store` | zod: `:provider` ≤ 32 chars then checked against github, google, linkedin (unknown or unconfigured is 404); `return` ≤ 512 chars and must be a same-origin relative path (starts with one `/`, no `//`, no backslash, no scheme or control characters; 400 otherwise); `app` ≤ 8 chars | A 302 to the provider carrying a random one-time `state` (kept in memory 10 minutes, at most 2000 entries) and, for Google, a PKCE challenge. The client id is visible in that URL; the secret never leaves the server |
 | `POST /api/auth/:provider/callback` | none (the one-time `state` is the proof) | 30 (own scope, shared 429 body) | `no-store` | zod: body ≤ 4 KiB, `code` 1 to 2048 chars, `state` 1 to 128 chars; unknown fields dropped. Bad, expired, reused or other-provider state is 400 `invalid_state`; provider failure is a fixed 502 `provider_error` | The linked account as the provider reported it: `provider`, `displayName` (≤ 80), optional `handle` and https `avatarUrl`, the validated `return` path and the `app` flag. No tokens, no email. Codes, tokens and profile fields are never logged or put on spans (only route and status code); nothing is stored |
@@ -55,11 +55,11 @@ Cached aggregate routes are cheap and get the most headroom.
 
 All 4xx responses are JSON `{ "error": "<code>", "message"?: "<text>" }`.
 Validation messages name the field and the rule, never the submitted value.
-Elasticsearch errors are never forwarded. Search routes answer
+Database errors are never forwarded. Search routes answer
 `502 { error: "search_unavailable" }` or `503 { error: "search_overloaded" }`
 with `Retry-After`. Aggregate/clusters answer `502 aggregate_unavailable`/
 `clusters_unavailable`, and register/me/access answer `503 storage_unavailable`.
-ES error text can contain query text or document paths (and so attendee IDs),
+Database error text can contain query text or row values (and so attendee IDs),
 so it is neither logged nor put on spans. Only `error.type` and the HTTP
 status are logged.
 
@@ -70,7 +70,7 @@ status are logged.
   audience and a short TTL. Production refuses to start without the key
   (`api/src/config.ts`, `api/src/auth/token.ts`).
 - **Server-side entitlement checks.** `/api/access/scan` looks up the
-  entitlement and attendee expiry in ES on every scan and fails closed (503,
+  entitlement and attendee expiry in the database on every scan and fails closed (503,
   never `allow`) if the lookup errors (`api/src/routes/access.ts`).
 - **k ≥ 5 suppression.** Interest aggregates and clusters never return a
   group under 5 attendees (`api/src/interests/aggregate.ts`,
@@ -94,8 +94,8 @@ status are logged.
   on spans. **Raw URL in telemetry/logs: fixed by #40** (drop `url.path` from
   exported attributes, keep `http.route`, and request-serializer
   hardening).
-- **Least-privilege ES.** The API uses the `companion_svc` role/user, never
-  `elastic` (`docs/elasticsearch.md`, `docs/es-deployment.md`).
+- **Database access.** The API connects with one `DATABASE_URL` (a Supabase pooler login in the toghouse
+  deployment) and verifies the server certificate against a pinned CA (`docs/database.md`).
 - **TLS.** In-cluster API TLS is an opt-in overlay (#24,
   `deploy/k8s/tls`, `API_TLS_CERT_FILE`/`API_TLS_KEY_FILE`, TLS ≥ 1.2).
   Ingress TLS is in `deploy/k8s/tls-ingress`.
@@ -110,10 +110,10 @@ status are logged.
   413, and 1001 entries get a clean 400.
 - 429 with the shared body on search, catalog topics, status, interests
   aggregate, interests clusters and onboarding.
-- A catalog topics cache hit makes no second ES call.
+- A catalog topics cache hit makes no second database call.
 - Per-IP buckets.
 - `/healthz` is never limited.
-- An aggregate cache hit makes no second ES call.
+- An aggregate cache hit makes no second database call.
 - Oversized onboarding answers get 400 without echoing input. Non-string
   entries get a 400 that names the field. A selection of more than 20 topics
   is cut to the first 20 instead of being rejected.

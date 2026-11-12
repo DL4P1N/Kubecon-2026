@@ -12,7 +12,7 @@ or individual scan records are retained by this counter. Denied, invalid and
 revoked scans are excluded. Catalog failures return 503 rather than a false
 quiet result. A `rooms.occupancy` span contains no user attributes.
 The public endpoint permits 120 requests per client IP per minute before
-rejecting requests with 429, before an Elasticsearch query is made.
+rejecting requests with 429, before a database query is made.
 
 Only a coarse label is public: quiet below five allowed scans, some recent
 check-ins for five through nineteen, or many recent check-ins for twenty or

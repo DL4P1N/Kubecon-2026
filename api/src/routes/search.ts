@@ -13,7 +13,9 @@ import { z } from "zod";
 import { requireAttendee, type TokenService } from "../auth/token.js";
 import { applyRateLimit, limitFor, resolveRateLimits, sendIfRateLimited, type RateLimitPolicy } from "../http/rateLimit.js";
 import { createCalendar } from "../calendar/ical.js";
-import { EsError, isEsOverload, type EsClient } from "../es/client.js";
+import { isDbUnavailable, type Db } from "../db/client.js";
+import type { Embedder } from "../embed/embedder.js";
+import { RETRY_AFTER_SECONDS, isDbError, sendDbError } from "../search/errors.js";
 import type { StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
 import { onboardingText } from "../search/queries.js";
@@ -32,8 +34,7 @@ import {
 export const MAX_QUERY_LENGTH = 500;
 export const DEFAULT_SIZE = 10;
 export const MAX_SIZE = 50;
-/** Seconds clients should wait before retrying after an Elasticsearch overload (503). */
-export const RETRY_AFTER_SECONDS = 5;
+export { RETRY_AFTER_SECONDS };
 const MAX_SCHEDULE_IDS = 100;
 export const MAX_ANSWER_ITEMS = 20;
 export const MAX_ANSWER_ITEM_LENGTH = 100;
@@ -58,7 +59,9 @@ export const BODY_LIMIT_BYTES = 256 * 1024;
 export type AttendeeResolver = (req: FastifyRequest, reply: FastifyReply) => Promise<string | null>;
 
 export interface SearchRouteDeps {
-  es: EsClient;
+  db: Db;
+  /** Embeds query text for the semantic leg of hybrid search. */
+  embedder: Embedder;
   /** Verifies signed attendee session tokens (auth/token.ts). Required for the schedule routes. */
   tokens?: TokenService;
   /** Test seam: overrides token verification. Production uses `tokenResolver(tokens)`. */
@@ -139,9 +142,9 @@ export function registerSearchRoutes(root: FastifyInstance, deps: SearchRouteDep
 }
 
 function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
-  const { es } = deps;
+  const { db, embedder } = deps;
   const resolveAttendee = deps.resolveAttendee ?? (deps.tokens ? tokenResolver(deps.tokens) : rejectAll);
-  const store = deps.scheduleStore ?? createScheduleStore(es);
+  const store = deps.scheduleStore ?? createScheduleStore(db);
   const now = deps.now ?? (() => new Date());
   const limits = resolveRateLimits(deps.rateLimits);
 
@@ -153,32 +156,14 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       deps.tracker?.recordSearch(mode, performance.now() - start, "ok");
       return out;
     } catch (err) {
-      deps.tracker?.recordSearch(mode, performance.now() - start, err instanceof EsError && isEsOverload(err) ? "overloaded" : "error");
+      deps.tracker?.recordSearch(mode, performance.now() - start, isDbUnavailable(err) ? "overloaded" : "error");
       throw err;
     }
   }
 
   app.setErrorHandler((err: Error, req, reply) => {
     if (sendIfRateLimited(err, reply)) return reply;
-    if (err instanceof EsError) {
-      const overloaded = isEsOverload(err);
-      // One diagnostic line with the ES error type and status only. Never the
-      // message/body (can contain query text), the URL query, attendee ids or credentials.
-      // Attributes are limited to allowlisted keys (error.type, http.route); the numeric
-      // ES status goes in the message text so no new attribute is needed.
-      req.log.warn(
-        { "error.type": err.errorType, "http.route": req.routeOptions?.url },
-        `elasticsearch request failed with status ${err.status}${overloaded ? " (overloaded)" : ""}`,
-      );
-      // Do not echo ES error bodies to clients; they can contain query text.
-      if (overloaded) {
-        return reply
-          .code(503)
-          .header("Retry-After", String(RETRY_AFTER_SECONDS))
-          .send({ error: "search_overloaded" });
-      }
-      return reply.code(502).send({ error: "search_unavailable" });
-    }
+    if (sendDbError(err, req, reply)) return reply;
     const status = (err as { statusCode?: number }).statusCode;
     if (status === 413) return reply.code(413).send({ error: "payload_too_large", message: "request body too large" });
     if (status && status >= 400 && status < 500) {
@@ -206,7 +191,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       }
       const parsedFilters = parseSearchFilters(req.query);
       if ("error" in parsedFilters) return reply.code(400).send(bad(parsedFilters.error));
-      return observed(mode, () => searchTalks(es, q, mode, size, req.query.debug === "1", parsedFilters.filters));
+      return observed(mode, () => searchTalks(db, embedder, q, mode, size, req.query.debug === "1", parsedFilters.filters));
     },
   );
 
@@ -216,8 +201,8 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
     async (req, reply): Promise<OnboardingResponse | void> => {
       const parsed = parseAnswers(req.body?.answers);
       if ("error" in parsed) return reply.code(400).send(bad(parsed.error));
-      const run = () => onboardingSearch(es, parsed.answers, req.query.debug === "1");
-      // An empty answer set returns without querying Elasticsearch, so it says nothing about hybrid health.
+      const run = () => onboardingSearch(db, embedder, parsed.answers, req.query.debug === "1");
+      // An empty answer set returns without querying the database, so it says nothing about hybrid health.
       return onboardingText(parsed.answers) === "" ? run() : observed("hybrid", run);
     },
   );
@@ -233,7 +218,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
         span.setAttribute("http.response.status_code", reply.statusCode);
         return out;
       } catch (err) {
-        span.setAttribute("http.response.status_code", err instanceof EsError ? 502 : 500);
+        span.setAttribute("http.response.status_code", isDbError(err) ? 502 : 500);
         throw err;
       }
     });
@@ -254,7 +239,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       if (body.answers !== undefined) {
         const parsed = parseAnswers(body.answers);
         if ("error" in parsed) return reply.code(400).send(bad(parsed.error));
-        const res = await onboardingSearch(es, parsed.answers, false);
+        const res = await onboardingSearch(db, embedder, parsed.answers, false);
         const candidates: ScoredTalk[] = (res.hits ?? []).map((h) => ({ talk: h.talk, score: h.score, matched: h.matched }));
         return buildAndSaveSchedule(candidates, [], opts);
       }
@@ -263,7 +248,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       if (!Array.isArray(ids) || !ids.every((i) => typeof i === "string") || ids.length > MAX_SCHEDULE_IDS) {
         return reply.code(400).send(bad(`talkIds (array of up to ${MAX_SCHEDULE_IDS} strings) or answers is required`));
       }
-      const talks = await getTalksByIds(es, ids);
+      const talks = await getTalksByIds(db, ids);
       const known = new Set(talks.map((t) => t.id));
       const unknown = ids.filter((i) => !known.has(i));
       // Caller order is priority order: earlier ids win conflicts.
@@ -276,7 +261,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
     scheduleSpan("schedule.get", "GET", routes.getSchedule.path, reply, async (): Promise<ScheduleResponse | void> => {
       const attendeeId = await resolveAttendee(req, reply);
       if (attendeeId === null) return reply;
-      return loadSchedule(es, store, attendeeId, now());
+      return loadSchedule(db, store, attendeeId, now());
     }),
   );
 
@@ -290,7 +275,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
         return reply.code(400).send(bad("talkId must be a single string of 1 to 200 characters"));
       }
       const at = now();
-      const schedule = await loadSchedule(es, store, attendeeId, at);
+      const schedule = await loadSchedule(db, store, attendeeId, at);
       const talks = schedule.items.map((item) => item.talk).filter((talk) => talkId === undefined || talk.id === talkId);
       if (talkId !== undefined && talks.length === 0) return reply.code(404).send({ error: "talk_not_in_schedule" });
       return reply.type("text/calendar; charset=utf-8")

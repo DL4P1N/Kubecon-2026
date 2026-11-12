@@ -4,9 +4,7 @@ import { loadConfig } from "../src/config.js";
 const prodEnv = {
   NODE_ENV: "production",
   TOKEN_SIGNING_KEY: "real-key",
-  ES_URL: "https://es:9200",
-  ES_USERNAME: "companion_svc",
-  ES_PASSWORD: "pw",
+  DATABASE_URL: "postgresql://app:pw@db.example.test:5432/postgres",
 };
 
 describe("loadConfig in production", () => {
@@ -16,10 +14,18 @@ describe("loadConfig in production", () => {
     expect(() => loadConfig({ ...env, TOKEN_SIGNING_KEY: "" })).toThrow(/TOKEN_SIGNING_KEY/);
   });
 
-  it("refuses to start without Elasticsearch credentials", () => {
-    expect(() => loadConfig({ ...prodEnv, ES_PASSWORD: "" })).toThrow(/ES_PASSWORD/);
-    expect(() => loadConfig({ ...prodEnv, ES_USERNAME: undefined })).toThrow(/ES_USERNAME/);
-    expect(() => loadConfig({ ...prodEnv, ES_URL: undefined })).toThrow(/ES_URL/);
+  it("refuses to start without DATABASE_URL", () => {
+    const { DATABASE_URL: _omit, ...env } = prodEnv;
+    expect(() => loadConfig(env)).toThrow(/DATABASE_URL/);
+    expect(() => loadConfig({ ...env, DATABASE_URL: "" })).toThrow(/DATABASE_URL/);
+  });
+
+  it("reads the database settings and no longer knows Elasticsearch", () => {
+    const c = loadConfig({ ...prodEnv, DATABASE_CA_FILE: "/etc/ca.pem" });
+    expect(c.databaseUrl).toBe(prodEnv.DATABASE_URL);
+    expect(c.databaseCaFile).toBe("/etc/ca.pem");
+    expect(loadConfig(prodEnv).databaseCaFile).toBeUndefined();
+    expect(Object.keys(c).filter((k) => k.toLowerCase().startsWith("es"))).toEqual([]);
   });
 
   it("starts with everything set", () => {
@@ -28,6 +34,10 @@ describe("loadConfig in production", () => {
 });
 
 describe("loadConfig outside production", () => {
+  it("defaults to a local database", () => {
+    expect(loadConfig({}).databaseUrl).toMatch(/^postgresql:\/\/.*localhost/);
+  });
+
   it("keeps the dev signing key fallback", () => {
     expect(loadConfig({}).tokenSigningKey).toBe("dev-only-insecure-key");
     expect(loadConfig({ NODE_ENV: "test" }).tokenSigningKey).toBe("dev-only-insecure-key");

@@ -28,7 +28,7 @@ spec:
         - name: seed
           image: cc-api:local
           imagePullPolicy: IfNotPresent
-          command: ["node", "dist/es/seed.js"]
+          command: ["node", "dist/db/seed.js"]
           envFrom:
             - configMapRef:
                 name: companion-app-config
@@ -41,21 +41,22 @@ spec:
               drop: [ALL]
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
+              cpu: 100m
+              memory: 512Mi
             limits:
-              cpu: 500m
-              memory: 256Mi
+              cpu: "1"
+              memory: 1Gi
           volumeMounts:
-            - name: es-ca
-              mountPath: /etc/elasticsearch
+            - name: database-ca
+              mountPath: /etc/database
               readOnly: true
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: es-ca
-          secret:
-            secretName: elasticsearch-http-ca
+        - name: database-ca
+          configMap:
+            name: companion-database-ca
+            optional: true
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi

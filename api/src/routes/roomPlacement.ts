@@ -1,11 +1,12 @@
 import { SpanStatusCode, trace } from "@opentelemetry/api";
 import type { FastifyInstance } from "fastify";
 import { routes, type RoomPlacementResponse } from "@cc/shared";
-import type { EsClient } from "../es/client.js";
+import type { Db } from "../db/client.js";
 import { aggregateInterests } from "../interests/aggregate.js";
 import { planPlacement, type RoomCapacities } from "../rooms/placement.js";
-import { SOURCE_FIELDS } from "../search/queries.js";
-import { toTalk } from "../search/service.js";
+import { runQuery } from "../search/errors.js";
+import { TALK_COLUMNS } from "../search/queries.js";
+import { toTalk, type TalkRow } from "../search/service.js";
 import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor, type RouteLimit } from "../http/rateLimit.js";
 import { organizerAuthorizer } from "./clusters.js";
 
@@ -15,7 +16,7 @@ export const MAX_PLACEMENT_TALKS = 1000;
 export const PLACEMENT_CACHE_MS = 15_000;
 
 export interface RoomPlacementRouteDeps {
-  es: EsClient;
+  db: Db;
   /** ROOM_CAPACITIES; rooms not listed have unknown capacity. */
   roomCapacities?: RoomCapacities;
   /** Shared secret in `x-organizer-key`; defaults to ORGANIZER_KEY. Same rules as GET /api/interests/clusters. */
@@ -26,23 +27,14 @@ export interface RoomPlacementRouteDeps {
   now?: () => Date;
 }
 
-interface TalksResponse {
-  timed_out?: boolean;
-  _shards?: { failed: number };
-  hits: { hits: { _id: string; _source?: Record<string, unknown> }[] };
-}
-
 async function loadPlacement(deps: RoomPlacementRouteDeps, at: Date): Promise<RoomPlacementResponse> {
   // The aggregate is the k >= 5 suppressed output; placement only ever sees that, never attendee rows.
-  const aggregate = await aggregateInterests(deps.es, at);
-  const { body } = await deps.es.request<TalksResponse>("POST", "/talks/_search", {
-    size: MAX_PLACEMENT_TALKS,
-    sort: [{ start: "asc" }],
-    query: { match_all: {} },
-    _source: SOURCE_FIELDS,
-  });
-  if (body.timed_out || body._shards?.failed) throw new Error("Catalog unavailable");
-  const talks = body.hits.hits.map((h) => toTalk(h._id, h._source ?? {}));
+  const aggregate = await aggregateInterests(deps.db, at);
+  const rows = await runQuery<TalkRow>(
+    deps.db,
+    `select ${TALK_COLUMNS} from talks order by start_at asc nulls last, id limit ${MAX_PLACEMENT_TALKS}`,
+  );
+  const talks = rows.map((r) => toTalk(r));
   return planPlacement({
     talks,
     aggregate: aggregate.topics,
@@ -80,7 +72,7 @@ export function registerRoomPlacementRoutes(root: FastifyInstance, deps: RoomPla
           status = 200;
           return cached.value;
         } catch {
-          // ES errors can contain query text; neither recorded nor echoed.
+          // Driver errors can contain query text; neither recorded nor echoed.
           status = 502;
           return reply.code(502).send({ error: "placement_unavailable" });
         } finally {
@@ -88,7 +80,7 @@ export function registerRoomPlacementRoutes(root: FastifyInstance, deps: RoomPla
             "http.request.method": "GET",
             "http.route": routes.roomPlacement.path,
             "http.response.status_code": status,
-            "db.system": "elasticsearch",
+            "db.system": "postgresql",
           });
           if (status >= 500) span.setStatus({ code: SpanStatusCode.ERROR, message: "server_error" });
           span.end();

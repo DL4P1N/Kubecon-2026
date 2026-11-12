@@ -3,14 +3,14 @@ import { z } from "zod";
 import { routes, type AuthCallbackResponse, type AuthProvidersResponse } from "@cc/shared";
 import type { Config } from "../config.js";
 import type { TokenService } from "../auth/token.js";
-import type { EsClient } from "../es/client.js";
+import type { Db } from "../db/client.js";
 import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor, type RouteLimit } from "../http/rateLimit.js";
 import { withSpan } from "../telemetry/span.js";
 import { PROVIDER_IDS, buildAuthorizeUrl, clearNonceCookie, createStateStore, fetchProfile, identityId, isProviderId, nonceCookie, nonceMatches, sanitizeReturn } from "../auth/oauth.js";
 
 export interface AuthRouteOptions {
   oauth: Config["oauth"];
-  es: EsClient;
+  db: Db;
   tokens: TokenService;
   /** HMAC key for the account link (config.identityHashKey). */
   identityHashKey: string;
@@ -45,19 +45,16 @@ export const authRoutes: FastifyPluginAsync<AuthRouteOptions> = async (app, opts
 
   /** Attendee ID for a known account with a live profile; null for a new account. Drops a link whose profile is gone. */
   async function resolveLinkedAttendee(id: string): Promise<string | null> {
-    const ident = await opts.es.request<{ found?: boolean; _source?: { attendee_id?: string } }>("GET", `/identities/_doc/${id}`, undefined, [404]);
-
-    if (!ident.body?.found) return null;
-    const attendeeId = ident.body._source?.attendee_id;
-    if (!attendeeId) {
-      await opts.es.request("DELETE", `/identities/_doc/${id}`, undefined, [404]);
-      return null;
-    }
-    const att = await opts.es.request<{ found?: boolean; _source?: { expires_at?: string } }>(
-      "GET", `/attendees/_doc/${encodeURIComponent(attendeeId)}?_source_excludes=interest_vector`, undefined, [404]);
-    const exp = att.body?.found ? att.body._source?.expires_at : undefined;
-    if (exp && Date.parse(exp) > now()) return attendeeId;
-    await opts.es.request("DELETE", `/identities/_doc/${id}`, undefined, [404]);
+    const { rows } = await opts.db.query<{ attendee_id: string; live: boolean }>(
+      `select i.attendee_id, (a.id is not null and a.expires_at > $2) as live
+         from identities i left join attendees a on a.id = i.attendee_id
+        where i.id = $1`,
+      [id, new Date(now())],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    if (row.live) return row.attendee_id;
+    await opts.db.query("delete from identities where id = $1", [id]);
     return null;
   }
   const limit = limitFor(opts.rateLimit ?? DEFAULT_RATE_LIMITS.auth);
