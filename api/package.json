@@ -10,16 +10,17 @@
     "dev": "tsx watch --import ./src/telemetry/instrument.ts src/index.ts",
     "start": "node --import ./dist/telemetry/instrument.js dist/index.js",
     "test": "vitest run",
-    "es:init": "tsx src/es/init.ts",
-    "seed": "tsx src/es/seed.ts",
+    "seed": "tsx src/db/seed.ts",
     "retention": "node dist/retention-cli.js",
     "clusters": "tsx src/clusters/cli.ts",
-    "clusters:seed": "tsx src/clusters/seed.ts"
+    "clusters:seed": "tsx src/clusters/seed.ts",
+    "db:init": "tsx src/db/init.ts"
   },
   "dependencies": {
     "@cc/shared": "*",
     "@fastify/otel": "^1.0.1",
     "@fastify/rate-limit": "^11.2.2",
+    "@huggingface/transformers": "^4.3.2",
     "@opentelemetry/api": "^1.10.0",
     "@opentelemetry/context-async-hooks": "^3.1.1",
     "@opentelemetry/exporter-logs-otlp-http": "^0.301.1",
@@ -35,10 +36,13 @@
     "@opentelemetry/sdk-trace": "^3.1.1",
     "fastify": "^5.1.0",
     "jose": "^6.2.17",
+    "pg": "^8.23.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.3.15",
     "@types/node": "^20.17.0",
+    "@types/pg": "^8.23.1",
     "ical.js": "2.2.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.3",
