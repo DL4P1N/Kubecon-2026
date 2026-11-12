@@ -42,6 +42,11 @@ data:
           - context: datapoint
             statements:
               - keep_keys(attributes, ["http.request.method", "http.response.status_code", "http.route", "room.id", "access.decision", "search.mode"])
+      # First in every pipeline: sheds load before the 128Mi container limit would OOM-kill the pod.
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 96
+        spike_limit_mib: 24
       batch: {}
 
     exporters:
@@ -59,13 +64,13 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [transform/allowlist, batch]
+          processors: [memory_limiter, transform/allowlist, batch]
           exporters: [otlphttp/dash0, debug]
         logs:
           receivers: [otlp]
-          processors: [transform/allowlist, batch]
+          processors: [memory_limiter, transform/allowlist, batch]
           exporters: [otlphttp/dash0, debug]
         metrics:
           receivers: [otlp]
-          processors: [transform/allowlist, batch]
+          processors: [memory_limiter, transform/allowlist, batch]
           exporters: [otlphttp/dash0, debug]

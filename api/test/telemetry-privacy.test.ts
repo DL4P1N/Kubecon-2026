@@ -132,7 +132,8 @@ for (const path of ["deploy/k8s/otel-collector/configmap.yaml", "deploy/compose/
     expect(resources).toHaveLength(3);
     for (const match of resources) expect(JSON.parse(match[1]!)).toEqual(allowed("Resource"));
     for (const signal of ["traces", "logs", "metrics"]) {
-      expect(config).toMatch(new RegExp(`${signal}:\\s+receivers: \\[otlp\\]\\s+processors: \\[transform/allowlist, batch\\]`));
+      // memory_limiter may lead (it only sheds load); the allowlist must still run before batch and export.
+      expect(config).toMatch(new RegExp(`${signal}:\\s+receivers: \\[otlp\\]\\s+processors: \\[(memory_limiter, )?transform/allowlist, batch\\]`));
     }
     expect(config).toContain('replace_pattern(body,');
   });
