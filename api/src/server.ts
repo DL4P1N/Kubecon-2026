@@ -7,6 +7,7 @@ import {
 import type { Config } from "./config.js";
 import { createPgDb, type Db } from "./db/client.js";
 import { createTokenService, type TokenService } from "./auth/token.js";
+import { BoundedEmbedder } from "./embed/bounded.js";
 import { createEmbedder, type Embedder } from "./embed/embedder.js";
 import { loggerOptions } from "./telemetry/logger.js";
 import { accessRoutes } from "./routes/access.js";
@@ -70,7 +71,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   // Refuses to start with a missing (or, in production, placeholder) signing key.
   const tokens = deps.tokens ?? createTokenService({ key: config.tokenSigningKey, nodeEnv: config.nodeEnv });
   const db = deps.db ?? createPgDb(config.databaseUrl, { caFile: config.databaseCaFile });
-  const embedder = deps.embedder ?? createEmbedder(process.env);
+  const embedder = deps.embedder ?? new BoundedEmbedder(createEmbedder(process.env));
   const roomActivity = deps.roomActivity ?? new RoomActivityCounter();
   const app = Fastify({
     ...(config.apiTlsCertFile ? { https: {
@@ -79,6 +80,8 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
       minVersion: "TLSv1.2" as const,
     } } : {}),
     logger: loggerOptions,
+    // Only the time to receive a request; open SSE responses are not affected.
+    requestTimeout: 30_000,
     trustProxy: config.trustProxyHops > 0
       ? (_address: string, hop: number) => hop < config.trustProxyHops
       : false,
@@ -93,7 +96,7 @@ export function buildServer(config: Config, deps: ServerDeps = {}): FastifyInsta
   app.setNotFoundHandler((_req, reply) => reply.code(404).send({ error: "not_found", message: "route not found" }));
   app.addHook("onResponse", async (req, reply) => {
     const path = req.routeOptions?.url;
-    if (path === routes.health.path || path === routes.status.path) return;
+    if (path === routes.health.path || path === routes.status.path || path === routes.events.path) return;
     tracker.recordRequest(reply.statusCode);
   });
 

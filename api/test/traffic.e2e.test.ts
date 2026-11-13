@@ -22,7 +22,12 @@ describe("traffic generator against the API on a real in-process Postgres", () =
   beforeAll(async () => {
     db = await testDb();
     await insertTalks(db, talks.map((t) => ({ ...t, level: "beginner" as const })));
-    app = buildServer(loadConfig({ NODE_ENV: "test" }), { db, embedder: new LocalHashEmbedder() });
+    app = buildServer(loadConfig({ NODE_ENV: "test" }), {
+      db,
+      embedder: new LocalHashEmbedder(),
+      // The generator sends 5 req/s from one address; production limits are lower and would pause it.
+      rateLimits: { search: { max: 1000 }, onboarding: { max: 1000 } },
+    });
     url = await app.listen({ host: "127.0.0.1", port: 0 });
   });
   afterAll(async () => { await app.close(); await db.close(); });

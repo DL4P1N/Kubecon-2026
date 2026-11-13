@@ -70,7 +70,8 @@ export const authRoutes: FastifyPluginAsync<AuthRouteOptions> = async (app, opts
 
   app.get(routes.authStart.path, limit, async (req, reply) =>
     withSpan("auth.start", { "http.request.method": "GET", "http.route": routes.authStart.path }, async (span) => {
-      const { provider } = providerParam.parse(req.params);
+      const params = providerParam.safeParse(req.params);
+      const provider = params.success ? params.data.provider : "";
       const cfg = isProviderId(provider) ? opts.oauth[provider] : undefined;
       if (!isProviderId(provider) || !cfg) {
         span.setAttribute("http.response.status_code", 404);
@@ -98,7 +99,8 @@ export const authRoutes: FastifyPluginAsync<AuthRouteOptions> = async (app, opts
         span.setAttribute("http.response.status_code", status);
         return reply.code(status).send(body);
       };
-      const { provider } = providerParam.parse(req.params);
+      const params = providerParam.safeParse(req.params);
+      const provider = params.success ? params.data.provider : "";
       const cfg = isProviderId(provider) ? opts.oauth[provider] : undefined;
       if (!isProviderId(provider) || !cfg) return fail(404, notFound);
       const parsed = callbackBody.safeParse(req.body);

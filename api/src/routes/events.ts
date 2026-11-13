@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { routes } from "@cc/shared";
 import type { EventHub } from "../chat/events.js";
-import { DEFAULT_RATE_LIMITS, applyRateLimit, limitFor, rateLimitedBody, type RouteLimit } from "../http/rateLimit.js";
+import { DEFAULT_RATE_LIMITS, applyRateLimit, clientKey, limitFor, rateLimitedBody, type RouteLimit } from "../http/rateLimit.js";
 import { withSpan } from "../telemetry/span.js";
 
 export interface EventsRouteOptions {
@@ -20,7 +20,7 @@ export const eventsRoutes: FastifyPluginAsync<EventsRouteOptions> = async (app, 
     if (req.method === "HEAD") return reply.code(200).header("content-type", "text/event-stream; charset=utf-8").header("cache-control", "no-cache").send();
     // The span covers accepting the listener; the stream itself is open-ended.
     const verdict = await withSpan("events.subscribe", { "http.request.method": "GET", "http.route": routes.events.path }, async (span) => {
-      const v = opts.hub.ipFull(req.ip) ? "ip" : opts.hub.full ? "global" : "ok";
+      const v = opts.hub.ipFull(clientKey(req.ip)) ? "ip" : opts.hub.full ? "global" : "ok";
       span.setAttribute("http.response.status_code", v === "ok" ? 200 : v === "ip" ? 429 : 503);
       return v;
     });
@@ -38,6 +38,6 @@ export const eventsRoutes: FastifyPluginAsync<EventsRouteOptions> = async (app, 
       "x-accel-buffering": "no",
       "x-content-type-options": "nosniff",
     });
-    opts.hub.add(res, req.ip);
+    opts.hub.add(res, clientKey(req.ip));
   });
 };

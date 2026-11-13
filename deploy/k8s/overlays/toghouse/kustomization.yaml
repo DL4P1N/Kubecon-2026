@@ -4,7 +4,6 @@ kind: Kustomization
 # The application connects to the configured PostgreSQL database through DATABASE_URL.
 namespace: conference-companion
 resources:
-  - namespace.yaml
   - ../../tls
   - pki.yaml
   - secrets.yaml
@@ -26,6 +25,9 @@ patches:
       - op: add
         path: /data/DATABASE_CA_FILE
         value: /etc/database/database-ca.crt
+      - op: add
+        path: /data/REGISTER_RATE_LIMIT_PER_MINUTE
+        value: "10"
 configMapGenerator:
   # This environment uses a private root CA for its external PostgreSQL service.
   - name: companion-database-ca

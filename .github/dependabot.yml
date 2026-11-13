@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule: { interval: weekly, day: monday }
+    cooldown: { default-days: 7, semver-major-days: 30 }
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch: { update-types: [minor, patch] }
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: { interval: weekly, day: monday }
+    cooldown: { default-days: 7 }
+    groups:
+      actions: { patterns: ["*"] }
+  - package-ecosystem: docker
+    directories: ["/api", "/web", "/deploy/k8s/overlays/toghouse"]
+    schedule: { interval: weekly, day: monday }
+    cooldown: { default-days: 7 }

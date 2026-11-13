@@ -1,3 +1,4 @@
+import { isIPv6 } from "node:net";
 import rateLimit from "@fastify/rate-limit";
 import type { FastifyInstance, FastifyReply } from "fastify";
 
@@ -9,10 +10,11 @@ import type { FastifyInstance, FastifyReply } from "fastify";
  * bucket and a spoofed X-Forwarded-For entry beyond the trusted hops cannot
  * pick a fresh one. Counters are in memory per replica (no attendee data).
  *
- * Limits are per client IP per minute. Conference Wi-Fi can NAT many
- * attendees behind one address, so the attendee-facing limits are generous;
- * cached aggregate routes are cheap and get the most headroom. /healthz is
- * deliberately not limited so kubelet probes never see a 429.
+ * Limits are per client per minute. The client is the IPv4 address or the IPv6
+ * /64 (see clientKey): one IPv6 subscriber controls a whole /64, so a per-/128
+ * bucket would give an attacker unlimited buckets. Cached aggregate routes are
+ * cheap and get the most headroom. /healthz is deliberately not limited so
+ * kubelet probes never see a 429.
  */
 export interface RouteLimit {
   max: number;
@@ -33,9 +35,32 @@ export interface RateLimitPolicy {
   auth: RouteLimit;
 }
 
+/**
+ * Rate-limit identity for a client address: IPv4 stays as is, an IPv4-mapped IPv6 address becomes
+ * its IPv4 form, and any other IPv6 address becomes its /64 (for example `2001:db8:1:2::/64`).
+ */
+export function clientKey(ip: string): string {
+  const addr = ip.split("%")[0] ?? ip;
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(addr);
+  if (mapped?.[1]) return mapped[1];
+  if (!isIPv6(addr)) return ip;
+  let text = addr;
+  const dotted = /(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(text);
+  if (dotted) {
+    const [a, b, c, d] = dotted.slice(1).map(Number) as [number, number, number, number];
+    text = `${text.slice(0, dotted.index)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const [head = "", tail] = text.split("::");
+  const headParts = head === "" ? [] : head.split(":");
+  const tailParts = tail === undefined || tail === "" ? [] : tail.split(":");
+  const zeros = tail === undefined ? 0 : 8 - headParts.length - tailParts.length;
+  const hextets = [...headParts, ...Array<string>(Math.max(zeros, 0)).fill("0"), ...tailParts];
+  return `${hextets.slice(0, 4).map((h) => parseInt(h, 16).toString(16)).join(":")}::/64`;
+}
+
 export const DEFAULT_RATE_LIMITS: RateLimitPolicy = {
-  search: { max: 240 },
-  onboarding: { max: 60 },
+  search: { max: 60 },
+  onboarding: { max: 20 },
   schedule: { max: 120 },
   status: { max: 600 },
   interestsAggregate: { max: 300 },
@@ -76,7 +101,7 @@ export function rateLimitedBody(message: string): RateLimitedBody {
 export async function applyRateLimit(app: FastifyInstance): Promise<void> {
   await app.register(rateLimit, {
     global: false,
-    keyGenerator: (req) => req.ip,
+    keyGenerator: (req) => clientKey(req.ip),
     errorResponseBuilder: (_req, ctx): RateLimitedBody => ({
       statusCode: 429,
       error: "rate_limited",

@@ -11,6 +11,8 @@ import type { ServerResponse } from "node:http";
 
 export const MAX_EVENT_LISTENERS = 20;
 export const HEARTBEAT_MS = 20_000;
+/** A stream is closed after this long; EventSource clients reconnect on their own (`retry: 5000`). Bounds idle sockets. */
+export const MAX_STREAM_MS = 10 * 60_000;
 export const MAX_LABEL_LENGTH = 12;
 /** Concurrent streams per client IP, inside the global cap. */
 export const MAX_EVENT_LISTENERS_PER_IP = 3;
@@ -46,11 +48,12 @@ export function buildRegisteredEvent(
 
 /** The set of connected listeners. Holds no attendee data. */
 export class EventHub {
-  private clients = new Set<{ res: ServerResponse; timer: NodeJS.Timeout; ip: string }>();
+  private clients = new Set<{ res: ServerResponse; timer: NodeJS.Timeout; life: NodeJS.Timeout; ip: string }>();
   constructor(
     private readonly heartbeatMs: number = HEARTBEAT_MS,
     private readonly max: number = MAX_EVENT_LISTENERS,
     private readonly maxPerIp: number = MAX_EVENT_LISTENERS_PER_IP,
+    private readonly maxLifetimeMs: number = MAX_STREAM_MS,
   ) {}
 
   get size(): number {
@@ -71,15 +74,21 @@ export class EventHub {
   /** Starts streaming to `res` (already hijacked from Fastify). Returns a function that removes the listener. */
   add(res: ServerResponse, ip = "unknown"): () => void {
     res.write("retry: 5000\n: connected\n\n");
-    const client = { res, ip, timer: undefined as unknown as NodeJS.Timeout };
+    const client = { res, ip, timer: undefined as unknown as NodeJS.Timeout, life: undefined as unknown as NodeJS.Timeout };
     const remove = () => {
       clearInterval(client.timer);
+      clearTimeout(client.life);
       this.clients.delete(client);
     };
     client.timer = setInterval(() => {
       try { res.write(": heartbeat\n\n"); } catch { remove(); }
     }, this.heartbeatMs);
     client.timer.unref?.();
+    client.life = setTimeout(() => {
+      try { res.end(); } catch { /* gone */ }
+      remove();
+    }, this.maxLifetimeMs);
+    client.life.unref?.();
     this.clients.add(client);
     res.on("close", remove);
     res.on("error", remove);
@@ -89,13 +98,14 @@ export class EventHub {
   broadcast(event: string, data: RegisteredEvent): void {
     const frame = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const c of this.clients) {
-      try { c.res.write(frame); } catch { clearInterval(c.timer); this.clients.delete(c); }
+      try { c.res.write(frame); } catch { clearInterval(c.timer); clearTimeout(c.life); this.clients.delete(c); }
     }
   }
 
   close(): void {
     for (const c of this.clients) {
       clearInterval(c.timer);
+      clearTimeout(c.life);
       try { c.res.end(); } catch { /* gone */ }
     }
     this.clients.clear();

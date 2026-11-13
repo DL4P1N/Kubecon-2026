@@ -93,6 +93,14 @@ describe("GET /api/auth/:provider/start", () => {
     expect((await callback(app, "linkedin", { code: "c", state: "s" })).statusCode).toBe(404);
   });
 
+  it("404s a provider segment that is too long instead of answering 500", async () => {
+    const app = setup();
+    const res = await app.inject({ url: `/api/auth/${"a".repeat(40)}/start` });
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({ error: "not_found", message: "unknown or disabled sign-in provider" });
+    expect((await callback(app, "a".repeat(40), { code: "c", state: "s" })).statusCode).toBe(404);
+  });
+
   it.each([
     ["//evil.example"], ["https://evil.example/x"], ["/\\evil.example"], ["javascript:alert(1)"], ["evil"], ["/a\nb"], ["/" + "a".repeat(600)],
   ])("rejects return=%s as an open redirect", async (ret) => {

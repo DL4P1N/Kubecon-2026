@@ -28,12 +28,21 @@ describe("loadConfig in production", () => {
     expect(Object.keys(c).filter((k) => k.toLowerCase().startsWith("es"))).toEqual([]);
   });
 
+  it("defaults chat to scripted so the Claude CLI never runs unless asked", () => {
+    expect(loadConfig({ ...prodEnv, TOKEN_SIGNING_KEY: "k".repeat(40) }).chatMode).toBe("scripted");
+    expect(loadConfig({ ...prodEnv, TOKEN_SIGNING_KEY: "k".repeat(40), CHAT_MODE: "auto" }).chatMode).toBe("auto");
+  });
+
   it("starts with everything set", () => {
     expect(loadConfig(prodEnv).tokenSigningKey).toBe("real-key");
   });
 });
 
 describe("loadConfig outside production", () => {
+  it("defaults chat to auto", () => {
+    expect(loadConfig({}).chatMode).toBe("auto");
+  });
+
   it("defaults to a local database", () => {
     expect(loadConfig({}).databaseUrl).toMatch(/^postgresql:\/\/.*localhost/);
   });
