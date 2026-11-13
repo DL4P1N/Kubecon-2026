@@ -5,6 +5,10 @@ updates:
     schedule: { interval: weekly, day: monday }
     cooldown: { default-days: 7, semver-major-days: 30 }
     open-pull-requests-limit: 5
+    ignore:
+      # Types follow the Node runtime (22 LTS), not the newest Node.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor-patch: { update-types: [minor, patch] }
   - package-ecosystem: github-actions
@@ -17,3 +21,7 @@ updates:
     directories: ["/api", "/web", "/deploy/k8s/overlays/toghouse"]
     schedule: { interval: weekly, day: monday }
     cooldown: { default-days: 7 }
+    ignore:
+      # Stay on the Node 22 LTS line used by .nvmrc and CI; move to the next LTS by hand.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
