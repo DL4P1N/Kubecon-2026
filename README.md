@@ -1,11 +1,8 @@
 <p align="center">
   <a href="https://conference-companion.ecan.pro">
-    <img src="docs/assets/conference-companion.svg" width="280" alt="Conference Companion logo">
+    <img src="docs/assets/conference-companion-banner.svg" width="560" alt="Conference Companion">
   </a>
-  <br>
-  <img src="docs/assets/conference-companion-ascii.svg" width="806" alt="conference companion ASCII wordmark">
 </p>
-<br>
 
 # Conference Companion
 
