@@ -124,3 +124,42 @@ Register and access-scan limits are covered by `proxy.test.ts` and
 `access.test.ts`.
 The talk routes' 429 body and `Retry-After` are checked in
 `api/test/talks.test.ts`.
+
+## Hosting and repository settings
+
+Apply these settings after taking ownership of the repository. They need
+admin access to GitHub or access to Cloudflare.
+
+1. Add a ruleset on `main`:
+   - Require a pull request and code-owner review.
+   - Require the status checks `build-test`, `docker`, `secrets` and `axe`.
+   - Block force pushes and deletion.
+   - Do not allow bypass.
+2. Remove write access for accounts that do not maintain the demo. Today these
+   are `ErickWhatcott` and `ArcticSpider925` (write) and `DL4P1N` (admin, until
+   the transfer).
+3. Set the Actions options:
+   - Allow only the actions in use.
+   - Turn on "Require actions to be pinned to a full-length commit SHA".
+   - Set the default workflow token to read-only.
+   - Do not let Actions create or approve pull requests.
+   - Require approval for fork pull request workflows from all outside
+     contributors.
+4. Turn on Dependabot alerts and security updates, secret scanning with push
+   protection, private vulnerability reporting, and CodeQL default setup.
+5. Uninstall the Gitar app, or confirm that it cannot push.
+6. For the GHCR packages `conference-companion-api` and `-web`, limit Actions
+   access to this repository. After the transfer, CI pushes to
+   `ghcr.io/<new-owner>/...`. Then change:
+   - the overlay `images:` names;
+   - the Argo CD Application `repoURL`;
+   - the AppProject `sourceRepos`.
+7. In Cloudflare:
+   - Add a rate-limiting rule for `/api/*`: 100 requests per 10 s per IP, then
+     block for 10 s.
+   - Turn on Bot Fight Mode and Always Use HTTPS. Set the minimum TLS version
+     to 1.2.
+8. On the Supabase free tier, registrations are kept forever. Check the
+   database size each month. The project pauses after a week of inactivity.
+9. The lab guardrails (namespace, Pod Security, NetworkPolicies, AppProject)
+   live in toghouse-monorepo. Read the diff before each manual Argo CD sync.
