@@ -14,6 +14,7 @@ import { requireAttendee, type TokenService } from "../auth/token.js";
 import { applyRateLimit, limitFor, resolveRateLimits, sendIfRateLimited, type RateLimitPolicy } from "../http/rateLimit.js";
 import { createCalendar } from "../calendar/ical.js";
 import { isDbUnavailable, type Db } from "../db/client.js";
+import { EmbedderBusyError } from "../embed/bounded.js";
 import type { Embedder } from "../embed/embedder.js";
 import { RETRY_AFTER_SECONDS, isDbError, sendDbError } from "../search/errors.js";
 import type { StatusTracker } from "../status/tracker.js";
@@ -164,6 +165,7 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
   app.setErrorHandler((err: Error, req, reply) => {
     if (sendIfRateLimited(err, reply)) return reply;
     if (sendDbError(err, req, reply)) return reply;
+    if (err instanceof EmbedderBusyError) return reply.code(503).header("Retry-After", String(RETRY_AFTER_SECONDS)).send({ error: "search_overloaded" });
     const status = (err as { statusCode?: number }).statusCode;
     if (status === 413) return reply.code(413).send({ error: "payload_too_large", message: "request body too large" });
     if (status && status >= 400 && status < 500) {

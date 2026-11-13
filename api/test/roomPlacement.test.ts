@@ -34,22 +34,22 @@ describe("GET /api/rooms/placement", () => {
   it("requires the organizer key: 401 without or with a wrong key", async () => {
     const app = Fastify();
     const db = await setup();
-    registerRoomPlacementRoutes(app, { db, roomCapacities: caps, organizerKey: "s3cret", nodeEnv: "production" });
+    registerRoomPlacementRoutes(app, { db, roomCapacities: caps, organizerKey: "s3cret-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk", nodeEnv: "production" });
     expect((await app.inject({ url: URL })).statusCode).toBe(401);
     expect((await app.inject({ url: URL, headers: { "x-organizer-key": "nope" } })).statusCode).toBe(401);
     expect(db.statements).toHaveLength(0); // nothing is read before authorization
   });
 
-  it("refuses in production when no key is configured (503)", async () => {
+  it("hides the route (404) in production when no key is configured", async () => {
     const app = Fastify();
     registerRoomPlacementRoutes(app, { db: await setup(), nodeEnv: "production", organizerKey: undefined });
-    expect((await app.inject({ url: URL })).statusCode).toBe(503);
+    expect((await app.inject({ url: URL })).statusCode).toBe(404);
   });
 
   it("answers 200 with slots, demand from suppressed counts and suggestions", async () => {
     const app = Fastify();
-    registerRoomPlacementRoutes(app, { db: await setup(), roomCapacities: caps, organizerKey: "s3cret", nodeEnv: "production" });
-    const res = await app.inject({ url: URL, headers: { "x-organizer-key": "s3cret" } });
+    registerRoomPlacementRoutes(app, { db: await setup(), roomCapacities: caps, organizerKey: "s3cret-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk", nodeEnv: "production" });
+    const res = await app.inject({ url: URL, headers: { "x-organizer-key": "s3cret-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk" } });
     expect(res.statusCode).toBe(200);
     const body = res.json<RoomPlacementResponse>();
     expect(body).toMatchObject({ suppressedBelow: 5, capacitiesConfigured: true, skippedTalks: 0 });
@@ -63,8 +63,8 @@ describe("GET /api/rooms/placement", () => {
 
   it("reports unknown capacity instead of inventing one", async () => {
     const app = Fastify();
-    registerRoomPlacementRoutes(app, { db: await setup(), organizerKey: "s3cret", nodeEnv: "production" });
-    const body = (await app.inject({ url: URL, headers: { "x-organizer-key": "s3cret" } })).json<RoomPlacementResponse>();
+    registerRoomPlacementRoutes(app, { db: await setup(), organizerKey: "s3cret-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk", nodeEnv: "production" });
+    const body = (await app.inject({ url: URL, headers: { "x-organizer-key": "s3cret-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk" } })).json<RoomPlacementResponse>();
     expect(body.capacitiesConfigured).toBe(false);
     expect(body.slots[0].talks.every((x) => !x.capacityKnown && x.suggestedRoom === null)).toBe(true);
   });

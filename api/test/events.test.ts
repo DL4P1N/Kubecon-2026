@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
@@ -29,6 +30,19 @@ describe("sanitizeLabel / buildRegisteredEvent", () => {
     expect(e).toEqual({ label: "Ada", conference: "my-conf", returning: true, interests: 3 });
     expect(Object.keys(e)).toEqual(["label", "conference", "returning", "interests"]);
     expect(buildRegisteredEvent({ name: "X" }, "c", "yes").returning).toBe(false);
+  });
+});
+
+describe("EventHub stream lifetime", () => {
+  it("ends a stream after the maximum lifetime and forgets the listener", async () => {
+    const hub = new EventHub(20_000, 20, 3, 50);
+    const res = Object.assign(new EventEmitter(), { write: () => true, end: () => { ended = true; } });
+    let ended = false;
+    hub.add(res as never, "1.2.3.4");
+    expect(hub.size).toBe(1);
+    await new Promise((r) => setTimeout(r, 150));
+    expect(ended).toBe(true);
+    expect(hub.size).toBe(0);
   });
 });
 

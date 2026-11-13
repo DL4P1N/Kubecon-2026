@@ -194,22 +194,26 @@ describe("cluster job, demo seed and route", () => {
     expect(JSON.stringify(span!.attrs)).not.toMatch(/demo-|run-test|interests/);
   });
 
-  it("route: empty before the first run, key-gated, fail-closed in production without a key, 502 on db failure", async () => {
+  it("route: empty before the first run, key-gated, hidden (404) in production without a key, 502 on db failure", async () => {
     const open = Fastify();
     registerClusterRoutes(open, { db, nodeEnv: "test" });
     expect((await open.inject({ url: "/api/interests/clusters" })).json()).toMatchObject({ runId: null, clusters: [] });
 
     const gated = Fastify();
-    registerClusterRoutes(gated, { db, organizerKey: "s3cret-key", nodeEnv: "production" });
+    registerClusterRoutes(gated, { db, organizerKey: "s3cret-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk", nodeEnv: "production" });
     expect((await gated.inject({ url: "/api/interests/clusters" })).statusCode).toBe(401);
     expect((await gated.inject({ url: "/api/interests/clusters", headers: { "x-organizer-key": "wrong" } })).statusCode).toBe(401);
-    expect((await gated.inject({ url: "/api/interests/clusters", headers: { "x-organizer-key": "s3cret-key" } })).statusCode).toBe(200);
+    expect((await gated.inject({ url: "/api/interests/clusters", headers: { "x-organizer-key": "s3cret-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk" } })).statusCode).toBe(200);
 
     const prodNoKey = Fastify();
     registerClusterRoutes(prodNoKey, { db, nodeEnv: "production" });
     // (organizerKey falls back to env; the test environment does not set ORGANIZER_KEY)
-    expect((await prodNoKey.inject({ url: "/api/interests/clusters" })).statusCode).toBe(503);
-    expect((await prodNoKey.inject({ url: "/api/interests/clusters" })).json()).toEqual({ error: "organizer_key_not_configured" });
+    expect((await prodNoKey.inject({ url: "/api/interests/clusters" })).statusCode).toBe(404);
+    expect((await prodNoKey.inject({ url: "/api/interests/clusters" })).json()).toEqual({ error: "not_found", message: "route not found" });
+
+    const shortKey = Fastify();
+    registerClusterRoutes(shortKey, { db, organizerKey: "short", nodeEnv: "production" });
+    await expect(shortKey.ready()).rejects.toThrow(/at least 32/);
 
     const broken = Fastify();
     const failing = { ...db, query: async () => { throw new Error("boom select secret"); } } as Db;
@@ -218,7 +222,7 @@ describe("cluster job, demo seed and route", () => {
     expect(r.statusCode).toBe(502);
     expect(r.json()).toEqual({ error: "clusters_unavailable" });
     expect(r.body).not.toContain("boom");
-    await Promise.all([open, gated, prodNoKey, broken].map((a) => a.close()));
+    await Promise.all([open, gated, prodNoKey, shortKey, broken].map((a) => a.close()));
   });
 
   it("route never returns a stored cluster under the minimum", async () => {

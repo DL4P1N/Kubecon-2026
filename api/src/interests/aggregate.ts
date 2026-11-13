@@ -38,13 +38,17 @@ export function buildTopicCounts(kept: InterestTopicCount[], otherCount: number,
 /** Attendees opted in to the cluster map and not past an expiry (expired rows count as deleted). */
 const OPTED_IN = "consent_cluster_map and expires_at > $1";
 
-/** Counts topics in SQL and applies the k >= 5 suppression. */
+/**
+ * Counts topics in SQL and applies the k >= 5 suppression. Only catalog tags become topics: the
+ * endpoint is public and registration is open, so free-text interests would let anyone put text on the map.
+ */
 export async function aggregateInterests(db: Db, now: Date, k = MIN_CLUSTER_SIZE): Promise<InterestAggregateResponse> {
   const at = now.toISOString();
   // distinct per attendee: a repeated interest in one profile counts once.
   const topics = await db.query<{ key: string; doc_count: string }>(
     `select t as key, count(*) as doc_count
        from (select distinct id, unnest(interests) as t from attendees where ${OPTED_IN}) x
+     where t in (select unnest(tags) from talks)
       group by t
       order by count(*) desc, t
       limit $2`,

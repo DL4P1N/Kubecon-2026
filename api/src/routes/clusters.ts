@@ -45,14 +45,18 @@ export function keyMatches(expected: string, given: unknown): boolean {
 
 /**
  * Organizer-key check shared by the organizer-only routes. With no key set the route is open
- * outside production (local demo) and answers 503 in production; otherwise a missing or wrong
- * `x-organizer-key` is a 401. Returns false after sending the reply.
+ * outside production (local demo) and does not exist (404) in production, so anonymous calls cannot
+ * degrade the status page; otherwise a missing or wrong `x-organizer-key` is a 401. In production a
+ * key shorter than 32 characters is refused at startup. Returns false after sending the reply.
  */
 export function organizerAuthorizer(deps: { organizerKey: string | undefined; nodeEnv: string | undefined }) {
+  if (deps.nodeEnv === "production" && deps.organizerKey !== undefined && deps.organizerKey.length < 32) {
+    throw new Error("ORGANIZER_KEY must be at least 32 characters in production");
+  }
   return (req: FastifyRequest, reply: FastifyReply): boolean => {
     if (deps.organizerKey === undefined) {
       if (deps.nodeEnv === "production") {
-        reply.code(503).send({ error: "organizer_key_not_configured" });
+        reply.code(404).send({ error: "not_found", message: "route not found" });
         return false;
       }
       return true;

@@ -6,7 +6,8 @@ import { buildTopicCounts, splitBuckets } from "../src/interests/aggregate.js";
 import { setSpanRunner } from "../src/telemetry/span.js";
 import type { Db } from "../src/db/client.js";
 import { LocalHashEmbedder } from "../src/embed/hash.js";
-import { testDb } from "./pg.js";
+import { insertTalks, testDb } from "./pg.js";
+import { mk } from "./search-fixtures.js";
 
 describe("k >= 5 suppression", () => {
   const buckets = [
@@ -52,7 +53,11 @@ afterEach(() => {
 
 const NOW = "2026-11-09T12:00:00.000Z";
 let db: Db;
-beforeEach(async () => (db = await testDb()));
+beforeEach(async () => {
+  db = await testDb();
+  // Only catalog tags count as topics.
+  await insertTalks(db, [mk("tags", 9, 10, { tags: ["kubernetes", "observability", "wasm", "ebpf", "rust", "security"] })]);
+});
 afterEach(async () => db.close());
 
 /** Inserts `n` attendees holding exactly `interests`. */
@@ -111,6 +116,13 @@ describe("GET /api/interests/aggregate", () => {
     await db.query("delete from attendees where interests = array['rust']::text[]");
     body = (await server().inject({ method: "GET", url: "/api/interests/aggregate" })).json() as InterestAggregateResponse;
     expect(body.topics).toEqual([{ topic: "kubernetes", count: 9 }]);
+  });
+
+  it("ignores interests that are not catalog tags", async () => {
+    await addAttendees(5, ["buy-cheap-tickets.example"]);
+    await addAttendees(5, ["kubernetes"]);
+    const body = (await get()).json() as InterestAggregateResponse;
+    expect(body.topics).toEqual([{ topic: "kubernetes", count: 5 }]);
   });
 
   it("excludes opted-out and expired attendees, and counts a repeated interest once per person", async () => {
