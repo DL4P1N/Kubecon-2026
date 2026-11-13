@@ -8,6 +8,7 @@ import type { Db } from "../src/db/client.js";
 import { LocalHashEmbedder } from "../src/embed/hash.js";
 import { testDb } from "./pg.js";
 import { registerRoutes, registerBodySchema } from "../src/routes/register.js";
+import { registerSearchRoutes } from "../src/routes/search.js";
 import { NO_EXPIRY } from "../src/retentionPolicy.js";
 
 const KEY = "test-signing-key-that-is-long-enough-0123456789";
@@ -223,6 +224,27 @@ describe("POST /api/register and GET /api/me", () => {
       await seedSchedule(ada.attendeeId);
       expect((await del(ada.token)).statusCode).toBe(404);
       expect(await rowsFor("schedules", "attendee_id", ada.attendeeId)).toBe(0);
+    });
+
+    it("refuses to save a schedule for a deleted attendee whose token is still valid", async () => {
+      const tokens = createTokenService({ key: KEY, now });
+      const searchApp = Fastify({ logger: false });
+      await searchApp.register(registerRoutes, { db, tokens, embed, rateLimitPerMinute: 3, now });
+      registerSearchRoutes(searchApp, { db, embedder, tokens, now: () => new Date(t) });
+      await searchApp.ready();
+      try {
+        const ada = (await register()).json() as RegisterResponse;
+        const headers = { authorization: `Bearer ${ada.token}` };
+        const save = () => searchApp.inject({ method: "POST", url: "/api/schedule", headers, payload: { talkIds: [] } });
+        expect((await save()).statusCode).toBe(200);
+        expect((await del(ada.token)).statusCode).toBe(204);
+        const res = await save();
+        expect(res.statusCode).toBe(404);
+        expect(res.json()).toEqual({ error: "not_found", message: "attendee not found" });
+        expect(await count(db, "schedules")).toBe(0);
+      } finally {
+        await searchApp.close();
+      }
     });
 
     it("deletes nothing and answers 503 when a statement fails mid-way (one transaction), so the caller can retry", async () => {

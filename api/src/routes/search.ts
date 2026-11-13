@@ -16,7 +16,7 @@ import { createCalendar } from "../calendar/ical.js";
 import { isDbUnavailable, type Db } from "../db/client.js";
 import { EmbedderBusyError } from "../embed/bounded.js";
 import type { Embedder } from "../embed/embedder.js";
-import { RETRY_AFTER_SECONDS, isDbError, sendDbError } from "../search/errors.js";
+import { RETRY_AFTER_SECONDS, isDbError, runQuery, sendDbError } from "../search/errors.js";
 import type { StatusTracker } from "../status/tracker.js";
 import { withSpan } from "../telemetry/span.js";
 import { onboardingText } from "../search/queries.js";
@@ -230,6 +230,11 @@ function addRoutes(app: FastifyInstance, deps: SearchRouteDeps): void {
       // Authenticate before validating, so callers without a session learn nothing else.
       const attendeeId = await resolveAttendee(req, reply);
       if (attendeeId === null) return reply;
+      // A still-valid session token must not recreate the schedule of a deleted or expired attendee.
+      const [alive] = await withSpan("attendee.check", {}, () =>
+        runQuery<{ ok: number }>(db, "select 1 as ok from attendees where id = $1 and expires_at > $2", [attendeeId, now().toISOString()]),
+      );
+      if (!alive) return reply.code(404).send({ error: "not_found", message: "attendee not found" });
 
       const body = req.body ?? {};
       const maxTalks = body.maxTalks === undefined ? DEFAULT_MAX_TALKS : body.maxTalks;

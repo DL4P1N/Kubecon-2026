@@ -134,10 +134,11 @@ admin access to GitHub or access to Cloudflare.
    - Require a pull request and code-owner review.
    - Require the status checks `build-test`, `docker`, `secrets` and `axe`.
    - Block force pushes and deletion.
-   - Do not allow bypass.
-2. Remove write access for accounts that do not maintain the demo. Today these
-   are `ErickWhatcott` and `ArcticSpider925` (write) and `DL4P1N` (admin, until
-   the transfer).
+   - Allow bypass only for repository admins, and only when merging a pull
+     request.
+2. Collaborators may keep write access. The `main` ruleset requires a pull
+   request, green checks and code-owner (`@ecan0`) approval; only repository
+   admins can bypass, and only when merging a pull request.
 3. Set the Actions options:
    - Allow only the actions in use.
    - Turn on "Require actions to be pinned to a full-length commit SHA".
@@ -150,7 +151,7 @@ admin access to GitHub or access to Cloudflare.
 5. Uninstall the Gitar app, or confirm that it cannot push.
 6. For the GHCR packages `conference-companion-api` and `-web`, limit Actions
    access to this repository. After the transfer, CI pushes to
-   `ghcr.io/<new-owner>/...`. Then change:
+   `ghcr.io/ecan0/conference-companion-{api,web}`. Then change:
    - the overlay `images:` names;
    - the Argo CD Application `repoURL`;
    - the AppProject `sourceRepos`.
