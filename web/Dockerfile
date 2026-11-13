@@ -16,6 +16,11 @@ ENV NAV_ESTIMATOR=$NAV_ESTIMATOR
 RUN npm run build -w shared && npm run build -w web
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine
+# The pinned base lags Alpine's security fixes (openssl, curl, expat, ...); pull them in so the
+# Trivy gate in CI passes. The base image runs as uid 101, so switch to root only for this step.
+USER root
+RUN apk upgrade --no-cache
+USER 101
 # API_UPSTREAM is substituted into the template at container start.
 ENV API_UPSTREAM=http://api:3000
 COPY web/nginx.conf.template /etc/nginx/templates/default.conf.template
