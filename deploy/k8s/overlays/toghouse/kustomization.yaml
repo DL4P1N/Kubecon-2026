@@ -10,11 +10,11 @@ resources:
   - cloudflared.yaml
 images:
   - name: cc-api
-    newName: ghcr.io/dl4p1n/conference-companion-api
-    digest: sha256:40e955c8f16c5f15b4b602a386043a2b593dfa262864073dbe969eacb3f7bb54
+    newName: ghcr.io/ecan0/conference-companion-api
+    digest: sha256:133e5202b8c8c605e39db5348faa8c97dbfbd2e5fd2be21df4bd2a515d63617e
   - name: cc-web
-    newName: ghcr.io/dl4p1n/conference-companion-web
-    digest: sha256:43f7616f6070d80523c0ade316c9ca98357514396ea38b6d8706ecf05c7b95e0
+    newName: ghcr.io/ecan0/conference-companion-web
+    digest: sha256:d9d19dd6792bba87149e989cf7e5d4fc63234108aae4dc752ca4d89552b9d68f
 patches:
   # This environment trusts two proxies: the web Service and its public tunnel.
   - target: {kind: ConfigMap, name: companion-app-config}
