@@ -27,7 +27,7 @@ The [native iOS companion](ios/README.md) is a separate Xcode build. Indoor posi
 
 ![Current deployment diagram](docs/architecture.png)
 
-Source: [docs/architecture.drawio](docs/architecture.drawio).
+Source: [docs/architecture.html](docs/architecture.html).
 
 - **Web:** React 18, TypeScript, Vite; vanilla ES modules and Three.js for the landing scene. Served by nginx from the same pod that proxies `/api` to the API.
 - **API:** Node.js 22, Fastify 5, Zod, signed JWT sessions and QR tokens.
