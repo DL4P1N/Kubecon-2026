@@ -154,11 +154,11 @@ admin access to GitHub or access to Cloudflare.
    - the overlay `images:` names;
    - the Argo CD Application `repoURL`;
    - the AppProject `sourceRepos`.
-7. In Cloudflare:
-   - Add a rate-limiting rule for `/api/*`: 100 requests per 10 s per IP, then
-     block for 10 s.
-   - Turn on Bot Fight Mode and Always Use HTTPS. Set the minimum TLS version
-     to 1.2.
+7. In Cloudflare (applied on 2026-11-13 for `ecan.pro`):
+   - A rate-limiting rule for `/api/*`: 100 requests per 10 s per IP, then
+     block for 10 s. Cloudflare counts per data centre, so the limit is
+     approximate across the network.
+   - Bot Fight Mode on, Always Use HTTPS on, minimum TLS version 1.2.
    - Cloudflare Bot Fight Mode adds "JavaScript detections": an inline script
      that Cloudflare injects into each HTML page at the edge. The page's
      Content-Security-Policy (`script-src 'self'`) blocks it, so the browser
@@ -167,5 +167,6 @@ admin access to GitHub or access to Cloudflare.
      `'unsafe-inline'` to `script-src`: the script differs on each request.
 8. On the Supabase free tier, registrations are kept forever. Check the
    database size each month. The project pauses after a week of inactivity.
+   On 2026-11-13 the database was 32 MB of the 500 MB limit.
 9. The lab guardrails (namespace, Pod Security, NetworkPolicies, AppProject)
    live in toghouse-monorepo. Read the diff before each manual Argo CD sync.
