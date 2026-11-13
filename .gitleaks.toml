@@ -2,6 +2,6 @@
 [extend]
 useDefault = true
 
-[[allowlists]]
+[allowlist]
 description = "Pinned SHA-256 checksums of the embedding model files"
 paths = ['''api/src/embed/e5\.ts''']
