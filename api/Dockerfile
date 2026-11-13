@@ -1,7 +1,7 @@
 # Build from the repo root:  docker build -f api/Dockerfile -t cc-api .
 # Debian (glibc) base, not alpine: onnxruntime-node ships no musl binaries, and the
 # API embeds search queries with multilingual-e5-small in-process.
-FROM node:22-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS build
+FROM node:25-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370 AS build
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY shared/package.json shared/
@@ -12,7 +12,7 @@ COPY shared shared
 COPY api api
 RUN npm run build -w shared && npm run build -w api
 
-FROM node:22-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS deps
+FROM node:25-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY shared/package.json shared/
@@ -29,7 +29,7 @@ COPY --from=build /app/api/dist api/dist
 ENV MODEL_CACHE_DIR=/app/models
 RUN cd api && node dist/embed/fetch-model.js
 
-FROM node:22-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
+FROM node:25-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370
 # The runtime never calls npm; its bundled deps (brace-expansion, pacote, sigstore, ...) only
 # add CVEs the Trivy gate in CI would flag. Remove them from the final image.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
