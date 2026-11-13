@@ -1,12 +1,16 @@
-# Conference Companion
+<p align="center">
+  <a href="https://conference-companion.ecan.pro">
+    <img src="docs/assets/conference-companion-banner.svg" width="560" alt="Conference Companion">
+  </a>
+</p>
 
 **From conference sign-up to the right talk, schedule, and room.**
 
 A personal demo, originally a Cloud Native Hackathon entry for "make conferences easier" (Salt Lake City, 9 November 2026). Attendees register in a short chat, find talks in their own words, and check into rooms with a short-lived QR code. Organizers see aggregate interests and room-demand suggestions instead of individual profiles.
 
-[![CI](https://github.com/DL4P1N/Kubecon-2026/actions/workflows/ci.yml/badge.svg)](https://github.com/DL4P1N/Kubecon-2026/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/DL4P1N/Kubecon-2026/ci.yml?branch=main&label=CI&labelColor=0f1f10&color=c6f19d)](https://github.com/DL4P1N/Kubecon-2026/actions/workflows/ci.yml)
 
-The deployed origin is operator-configured; the site and API share one origin. · [Design document](Conference%20Companion_%20Design%20Doc.md) · [Hackathon evidence](docs/track-evidence.md)
+**Live demo:** [conference-companion.ecan.pro](https://conference-companion.ecan.pro) · [Design document](Conference%20Companion_%20Design%20Doc.md) · [Hackathon evidence](docs/track-evidence.md)
 
 ![Conference Companion landing page](docs/demo/submission-landing.png)
 
