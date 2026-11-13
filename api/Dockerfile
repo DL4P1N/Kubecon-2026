@@ -30,6 +30,9 @@ ENV MODEL_CACHE_DIR=/app/models MODEL_ALLOW_DOWNLOAD=true
 RUN cd api && node dist/embed/fetch-model.js
 
 FROM node:22-slim
+# The runtime never calls npm; its bundled deps (brace-expansion, pacote, sigstore, ...) only
+# add CVEs the Trivy gate in CI would flag. Remove them from the final image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 ENV NODE_ENV=production PORT=3000 MODEL_CACHE_DIR=/app/models MODEL_ALLOW_DOWNLOAD=false
 WORKDIR /app
 COPY --from=deps /app/node_modules node_modules
