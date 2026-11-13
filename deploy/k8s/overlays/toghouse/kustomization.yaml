@@ -12,10 +12,10 @@ resources:
 images:
   - name: cc-api
     newName: ghcr.io/dl4p1n/conference-companion-api
-    newTag: 1c8eda37ba2006122baf170e576afd07ada1ae4f
+    newTag: ca1aca9cc19822a8286091cb3a98ae75f7b069a3
   - name: cc-web
     newName: ghcr.io/dl4p1n/conference-companion-web
-    newTag: 1c8eda37ba2006122baf170e576afd07ada1ae4f
+    newTag: ca1aca9cc19822a8286091cb3a98ae75f7b069a3
 patches:
   # This environment trusts two proxies: the web Service and its public tunnel.
   - target: {kind: ConfigMap, name: companion-app-config}
