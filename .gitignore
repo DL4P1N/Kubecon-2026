@@ -26,3 +26,6 @@ deploy/terraform/vercel/artifacts/
 !*.tfvars.example
 crash.log
 /api/models/
+
+# Local agent skills are not part of the repo
+.claude/skills/
