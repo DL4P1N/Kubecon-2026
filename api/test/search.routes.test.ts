@@ -182,7 +182,7 @@ describe("database failures are diagnosable without leaking", () => {
     spans.length = 0;
     const save = await app.inject({ method: "POST", url: "/api/schedule", payload: { talkIds: ["a"] } });
     expect(save.statusCode).toBe(503);
-    expect(spans.find((s) => s.name === "talks.fetch")!.set["error.type"]).toBe("ECONNREFUSED");
+    expect(spans.find((s) => s.name === "attendee.check")!.set["error.type"]).toBe("ECONNREFUSED");
     expect(JSON.stringify({ spans, bodies: [onboarding.body, save.body] })).not.toContain(SECRET);
   });
 });
@@ -248,7 +248,16 @@ describe("schedule routes", () => {
     authorization: `Bearer ${(await tokens.sign(id)).token}`,
   });
   const scheduleServer = async (search: Record<string, unknown> = {}) => {
-    const db = recordingDb(await seededDb());
+    const raw = await seededDb();
+    // Saving a schedule requires a live attendee row for every id these tests sign in as.
+    for (const id of ["ada-1", "bob-2", "new-3", "victim-7", "zed-42"]) {
+      await raw.query(
+        `insert into attendees (id, display_name, interests, consent_cluster_map, consent_qr_checkin, created_at, expires_at)
+         values ($1, 'x', '{}', false, false, now(), '9999-12-31T23:59:59.999Z')`,
+        [id],
+      );
+    }
+    const db = recordingDb(raw);
     return { db, app: buildServer(loadConfig({}), { db, embedder, tokens, search: { now: () => fixedNow, ...search } }) };
   };
   const savedRow = async (db: Awaited<ReturnType<typeof seededDb>>, id: string) =>
