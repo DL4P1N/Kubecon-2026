@@ -33,7 +33,7 @@ function ChipGroup({ legend, chips, isOn, onToggle, disabled }: {
       aria-pressed={isOn(c.value)}
       onClick={() => onToggle(c.value)}
     >
-      {c.label}{c.count !== undefined && <span className="filter-count"> ({c.count})</span>}
+      {c.label}{c.count !== undefined && <>{" "}<span className="filter-count">({c.count})</span></>}
     </button>)}
   </fieldset>;
 }
