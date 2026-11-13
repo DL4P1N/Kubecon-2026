@@ -1,5 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
-import { vector } from "@electric-sql/pglite/vector";
+import { vector } from "@electric-sql/pglite-pgvector";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import type { Db } from "../src/db/client.js";
 import { migrate } from "../src/db/schema.js";
