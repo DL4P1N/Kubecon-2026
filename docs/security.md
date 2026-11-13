@@ -163,8 +163,9 @@ admin access to GitHub or access to Cloudflare.
    - Cloudflare Bot Fight Mode adds "JavaScript detections": an inline script
      that Cloudflare injects into each HTML page at the edge. The page's
      Content-Security-Policy (`script-src 'self'`) blocks it, so the browser
-     console shows one CSP message per page. The site works. To remove the
-     message, turn off JavaScript detections (Security > Bots). Do not add
+     console shows one CSP message per page. The site works. Cloudflare does
+     not let Bot Fight Mode customers turn off JavaScript detections. To
+     remove the message, turn off Bot Fight Mode. Do not add
      `'unsafe-inline'` to `script-src`: the script differs on each request.
 8. On the Supabase free tier, registrations are kept forever. Check the
    database size each month. The project pauses after a week of inactivity.
