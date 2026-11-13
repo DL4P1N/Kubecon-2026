@@ -1,3 +1,12 @@
+<p align="center">
+  <a href="https://conference-companion.ecan.pro">
+    <img src="docs/assets/conference-companion.svg" width="280" alt="Conference Companion logo">
+  </a>
+  <br>
+  <img src="docs/assets/conference-companion-ascii.svg" width="806" alt="conference companion ASCII wordmark">
+</p>
+<br>
+
 # Conference Companion
 
 **From conference sign-up to the right talk, schedule, and room.**
@@ -6,7 +15,7 @@ A personal demo, originally a Cloud Native Hackathon entry for "make conferences
 
 [![CI](https://github.com/DL4P1N/Kubecon-2026/actions/workflows/ci.yml/badge.svg)](https://github.com/DL4P1N/Kubecon-2026/actions/workflows/ci.yml)
 
-The deployed origin is operator-configured; the site and API share one origin. · [Design document](Conference%20Companion_%20Design%20Doc.md) · [Hackathon evidence](docs/track-evidence.md)
+**Live demo:** [conference-companion.ecan.pro](https://conference-companion.ecan.pro). The site and API share one origin. · [Design document](Conference%20Companion_%20Design%20Doc.md) · [Hackathon evidence](docs/track-evidence.md)
 
 ![Conference Companion landing page](docs/demo/submission-landing.png)
 
