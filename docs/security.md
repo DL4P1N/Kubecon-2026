@@ -159,6 +159,12 @@ admin access to GitHub or access to Cloudflare.
      block for 10 s.
    - Turn on Bot Fight Mode and Always Use HTTPS. Set the minimum TLS version
      to 1.2.
+   - Cloudflare Bot Fight Mode adds "JavaScript detections": an inline script
+     that Cloudflare injects into each HTML page at the edge. The page's
+     Content-Security-Policy (`script-src 'self'`) blocks it, so the browser
+     console shows one CSP message per page. The site works. To remove the
+     message, turn off JavaScript detections (Security > Bots). Do not add
+     `'unsafe-inline'` to `script-src`: the script differs on each request.
 8. On the Supabase free tier, registrations are kept forever. Check the
    database size each month. The project pauses after a week of inactivity.
 9. The lab guardrails (namespace, Pod Security, NetworkPolicies, AppProject)
