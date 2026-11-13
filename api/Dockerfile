@@ -1,24 +1,24 @@
 # Build from the repo root:  docker build -f api/Dockerfile -t cc-api .
 # Debian (glibc) base, not alpine: onnxruntime-node ships no musl binaries, and the
 # API embeds search queries with multilingual-e5-small in-process.
-FROM node:22-slim AS build
+FROM node:22-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS build
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY shared/package.json shared/
 COPY api/package.json api/
 COPY web/package.json web/
-RUN npm ci
+RUN npm ci --ignore-scripts
 COPY shared shared
 COPY api api
 RUN npm run build -w shared && npm run build -w api
 
-FROM node:22-slim AS deps
+FROM node:22-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY api/package.json api/
 COPY web/package.json web/
-RUN npm ci --omit=dev --workspace=@cc/api --include-workspace-root=false
+RUN npm ci --ignore-scripts --omit=dev --workspace=@cc/api --include-workspace-root=false
 
 # The model is baked into the image so a running pod never calls the Hugging Face hub.
 FROM deps AS model
@@ -29,7 +29,7 @@ COPY --from=build /app/api/dist api/dist
 ENV MODEL_CACHE_DIR=/app/models MODEL_ALLOW_DOWNLOAD=true
 RUN cd api && node dist/embed/fetch-model.js
 
-FROM node:22-slim
+FROM node:22-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
 # The runtime never calls npm; its bundled deps (brace-expansion, pacote, sigstore, ...) only
 # add CVEs the Trivy gate in CI would flag. Remove them from the final image.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx

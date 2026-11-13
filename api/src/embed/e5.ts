@@ -3,6 +3,8 @@ import type { Embedder, EmbedKind } from "./embedder.js";
 /** multilingual-e5-small: 384 dims, 100+ languages, int8-quantised ONNX, about 120 MB on disk. */
 export const E5_MODEL = "Xenova/multilingual-e5-small";
 export const E5_DIMS = 384;
+/** Hugging Face hub commit of E5_MODEL; pinned so the baked model cannot change under a rebuild. */
+export const E5_REVISION = "761b726dd34fb83930e26aab4e9ac3899aa1fa78";
 
 interface Extractor {
   (input: string | string[], opts: { pooling: "mean"; normalize: boolean }): Promise<{ tolist(): number[][] }>;
@@ -32,7 +34,7 @@ export class E5Embedder implements Embedder {
       const { pipeline, env } = await import("@huggingface/transformers");
       env.cacheDir = this.opts.cacheDir ?? process.env.MODEL_CACHE_DIR ?? "./models";
       env.allowRemoteModels = this.opts.allowDownload ?? process.env.MODEL_ALLOW_DOWNLOAD === "true";
-      return (await pipeline("feature-extraction", E5_MODEL, { dtype: "q8" })) as unknown as Extractor;
+      return (await pipeline("feature-extraction", E5_MODEL, { dtype: "q8", revision: E5_REVISION })) as unknown as Extractor;
     })().catch((err) => {
       this.extractor = undefined; // a failed load can be retried by the next call
       throw err;
