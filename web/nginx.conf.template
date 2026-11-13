@@ -5,6 +5,17 @@ server {
   # Relative Location headers: the listen port (8080) is internal and must not leak into redirects.
   absolute_redirect off;
 
+  # Security headers. No location below may use add_header: nginx would then stop inheriting this set.
+  # 'unsafe-inline' stays in style-src only: pages use <style> blocks and style= attributes (also set at runtime).
+  server_tokens off;
+  add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  add_header Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()" always;
+  add_header Cross-Origin-Opener-Policy "same-origin" always;
+
   # Server-Sent Events (live demo feed): never buffer, keep the stream open.
   location = /api/events {
     proxy_pass ${API_UPSTREAM};

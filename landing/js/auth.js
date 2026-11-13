@@ -1,7 +1,6 @@
 // Where the sign-in API lives. Same origin by default; a separate host can be set without a rebuild.
-// Order: localStorage `cc.auth-base` (a valid http(s) origin), then <meta name="cc-auth-base" content="...">, else '' (same origin).
-
-export const AUTH_BASE_KEY = "cc.auth-base";
+// Set with <meta name="cc-auth-base" content="..."> (a valid http(s) origin), else '' (same origin).
+// Nothing in browser storage can change it: a script injected into a page must not be able to redirect sign-in links.
 
 /** An http(s) URL becomes its bare origin (no path, query, hash or trailing slash); anything else gives ''. */
 export function normalizeAuthBase(value) {
@@ -14,10 +13,6 @@ export function normalizeAuthBase(value) {
 }
 
 export function authBase() {
-  try {
-    const stored = normalizeAuthBase(localStorage.getItem(AUTH_BASE_KEY));
-    if (stored) return stored;
-  } catch { /* storage unavailable */ }
   try {
     const meta = document.querySelector('meta[name="cc-auth-base"]');
     return normalizeAuthBase(meta?.getAttribute("content"));
