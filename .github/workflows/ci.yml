@@ -80,7 +80,7 @@ jobs:
   build-push:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ${{ matrix.runner }}
-    needs: docker
+    needs: [docker, secrets]
     strategy:
       fail-fast: false
       matrix:
@@ -89,18 +89,22 @@ jobs:
             file: api/Dockerfile
             platform: linux/amd64
             runner: ubuntu-latest
+            scope: api-amd64
           - image: api
             file: api/Dockerfile
             platform: linux/arm64
             runner: ubuntu-24.04-arm
+            scope: api-arm64
           - image: web
             file: web/Dockerfile
             platform: linux/amd64
             runner: ubuntu-latest
+            scope: web-amd64
           - image: web
             file: web/Dockerfile
             platform: linux/arm64
             runner: ubuntu-24.04-arm
+            scope: web-arm64
     permissions:
       contents: read
       packages: write
@@ -123,8 +127,8 @@ jobs:
           file: ${{ matrix.file }}
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=ghcr.io/${{ env.IMAGE_OWNER }}/conference-companion-${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.platform }}
+          cache-from: type=gha,scope=${{ matrix.scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.scope }}
       - name: Export digest
         run: |
           mkdir -p /tmp/digests
