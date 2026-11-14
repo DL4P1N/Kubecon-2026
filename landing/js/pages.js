@@ -11,7 +11,12 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function parseDay(iso) { const [y, m, d] = String(iso).split('-').map(Number); return new Date(Date.UTC(y, (m || 1) - 1, d || 1)); }
+/** Dates for a card or heading; an event whose organisers have not confirmed dates says so. */
 export function formatDates(c, weekday = false) {
+  const text = formatDatesRaw(c, weekday);
+  return c && c.tentative && text ? `${text} (tentative)` : text;
+}
+function formatDatesRaw(c, weekday) {
   if (!c || !c.startDate) return '';
   const a = parseDay(c.startDate), b = parseDay(c.endDate || c.startDate);
   const wd = weekday ? WEEKDAYS[a.getUTCDay()] + ' ' : '';

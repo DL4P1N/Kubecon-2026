@@ -10,6 +10,10 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const day = (iso) => { const [y, m, d] = String(iso).split('-').map(Number); return new Date(Date.UTC(y, (m || 1) - 1, d || 1)); };
 
 function formatDates(c) {
+  const text = formatDatesRaw(c);
+  return c && c.tentative && text ? `${text} (tentative)` : text;
+}
+function formatDatesRaw(c) {
   if (!c || !c.startDate) return '';
   const a = day(c.startDate), b = day(c.endDate || c.startDate);
   const wd = `${WEEKDAYS[a.getUTCDay()]} `;

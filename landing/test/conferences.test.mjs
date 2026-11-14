@@ -6,7 +6,7 @@ import { loadConferences, filterConferences, getConference, nextEvent, resetConf
 const data = JSON.parse(fs.readFileSync(new URL("../data/conferences.json", import.meta.url), "utf8"));
 const slugs = (l) => l.map((c) => c.slug);
 
-test("data file: first entry is the event the app was built for; the rest are real US events plus two flagged demo events", () => {
+test("data file: first entry is the event the app was built for; the rest are real US events, one with tentative dates", () => {
   assert.equal(data.length, 12);
   const [first, ...rest] = data;
   assert.equal(first.slug, "cloud-native-hackathon-slc-2026");
@@ -17,23 +17,22 @@ test("data file: first entry is the event the app was built for; the rest are re
   assert.equal(first.assumed, false);
   for (const t of ["search", "observability", "kubernetes", "ai sre", "code review"]) assert.ok(first.topics.includes(t), t);
   assert.equal(DEFAULT_SLUG, first.slug);
-  assert.deepEqual(rest.filter((c) => c.assumed).map((c) => c.slug), ["quillstack-web-2027", "sparrowfield-data-days-2027"]);
-  const realRest = rest.filter((c) => !c.assumed);
-  assert.equal(realRest.length, 9);
-  for (const c of realRest) assert.match(c.url, /^https:\/\/[^ ]+$/, `${c.slug}: official site`);
+  assert.equal(rest.length, 11);
+  assert.ok(rest.every((c) => c.assumed === false), "no invented demo events remain");
+  assert.deepEqual(rest.filter((c) => c.tentative).map((c) => c.slug), ["pycon-us-2027"]);
+  for (const c of rest) assert.match(c.url, /^https:\/\/[^ ]+$/, `${c.slug}: official site`);
   assert.deepEqual(rest.map((c) => c.startDate), rest.map((c) => c.startDate).sort(), "sorted by start date after the first entry");
 });
 
 test("data file: fields, summary length, unique slugs, 2026-2027, no street/phone/postcode-like content", () => {
   const required = ["slug", "name", "startDate", "endDate", "city", "venue", "topics", "summary", "assumed"];
-  const optional = ["district", "capacity", "wifi", "url"];
+  const optional = ["district", "capacity", "wifi", "url", "tentative"];
   const seen = new Set();
   for (const c of data) {
     const keys = Object.keys(c);
     for (const k of required) assert.ok(keys.includes(k), `${c.slug}: ${k}`);
     for (const k of keys) assert.ok([...required, ...optional].includes(k), `${c.slug}: unexpected ${k}`);
-    if (c.assumed) for (const k of ["district", "capacity", "wifi"]) assert.ok(keys.includes(k), `${c.slug}: demo event needs ${k}`);
-    if (!c.assumed && c.slug !== DEFAULT_SLUG) for (const k of ["capacity", "wifi", "district"]) assert.ok(!keys.includes(k), `${c.slug}: no invented ${k}`);
+    if (c.slug !== DEFAULT_SLUG) for (const k of ["capacity", "wifi", "district"]) assert.ok(!keys.includes(k), `${c.slug}: no invented ${k}`);
     assert.match(c.slug, /^[a-z0-9-]+$/);
     assert.ok(!seen.has(c.slug)); seen.add(c.slug);
     assert.match(c.startDate, /^20(26|27)-\d{2}-\d{2}$/);
@@ -100,7 +99,7 @@ test("filterConferences: text search is case-insensitive over name, city, topics
 });
 
 test("filterConferences: topic and month", () => {
-  assert.deepEqual(slugs(filterConferences(data, { topic: "Search" })), ["cloud-native-hackathon-slc-2026", "sparrowfield-data-days-2027"]);
+  assert.deepEqual(slugs(filterConferences(data, { topic: "Search" })), ["cloud-native-hackathon-slc-2026"]);
   assert.deepEqual(slugs(filterConferences(data, { topic: "observability" })), ["cloud-native-hackathon-slc-2026", "srecon27-americas"]);
   assert.equal(filterConferences(data, { topic: "all" }).length, 12);
   assert.equal(filterConferences(data, { topic: "se" }).length, 0); // exact tag, not substring
@@ -110,22 +109,23 @@ test("filterConferences: topic and month", () => {
   assert.deepEqual(slugs(filterConferences(data, { month: "10" })), ["pytorch-conference-2027"]);
   assert.deepEqual(filterConferences(data, { month: "2030-01" }), []);
   assert.deepEqual(filterConferences(data, { month: "garbage" }), []);
-  assert.deepEqual(slugs(filterConferences(data, { q: "search", topic: "search", month: "2027-06" })), ["sparrowfield-data-days-2027"]);
+  assert.deepEqual(slugs(filterConferences(data, { q: "security", topic: "security", month: "2027-08" })), ["black-hat-usa-2027"]); // Black Hat spans Jul and Aug
+  assert.deepEqual(slugs(filterConferences(data, { month: "2027-05" })), ["pycon-us-2027"]);
   // multi-month events match each month they span
   const span = [{ slug: "s", name: "S", city: "C", topics: [], summary: "", startDate: "2026-01-30", endDate: "2026-02-01" }];
   assert.equal(filterConferences(span, { month: "2026-02" }).length, 1);
   assert.equal(filterConferences(span, { month: "2026-03" }).length, 0);
 });
 
-test("nextEvent: soonest real event that has not ended; demo events never; the latest once all are over", () => {
+test("nextEvent: soonest event that has not ended; the latest once all are over", () => {
   const next = (today) => nextEvent(data, today)?.slug;
   assert.equal(next("2026-11-09"), "cloud-native-hackathon-slc-2026"); // on the day it still runs
   assert.equal(next("2026-11-10"), "aws-reinvent-2026");
   assert.equal(next("2026-12-04"), "aws-reinvent-2026"); // last day of a multi-day event
-  assert.equal(next("2026-12-05"), "scale-24x-2027"); // quillstack (Austin, 2027-03-23) is a demo event and is skipped
+  assert.equal(next("2026-12-05"), "scale-24x-2027");
   assert.equal(next("2027-04-13"), "srecon27-americas"); // still running (12 to 14 April)
   assert.equal(next("2027-11-11"), "kubecon-na-2027");
   assert.equal(next("2028-01-01"), "kubecon-na-2027"); // all over: the latest
-  assert.equal(nextEvent([data.find((c) => c.assumed)], "2026-11-10"), null);
+  assert.equal(nextEvent([{ slug: "x", assumed: true, startDate: "2026-12-01" }], "2026-11-10"), null); // an invented event is never featured
   assert.equal(nextEvent([], "2026-11-10"), null);
 });

@@ -1,6 +1,6 @@
 // Conference catalogue for the landing pages. Plain ES module, no dependencies.
 // The first entry is the event this app was built for; the others are real events with their organisers' public details
-// (`url` is the official site), except entries with `assumed: true`, which are invented demo data.
+// (`url` is the official site). `tentative: true` marks dates that the organisers have not confirmed yet.
 
 export const DEFAULT_SLUG = "cloud-native-hackathon-slc-2026";
 
@@ -34,20 +34,6 @@ export const FALLBACK_CONFERENCES = [
     summary: "AWS's annual cloud conference: sessions, workshops and hands-on labs on infrastructure, data and AI.",
     assumed: false,
     url: "https://aws.amazon.com/reinvent",
-  },
-  {
-    slug: "quillstack-web-2027",
-    name: "Quillstack Web Conf",
-    startDate: "2027-03-23",
-    endDate: "2027-03-24",
-    city: "Austin",
-    district: "East Side",
-    venue: "Pecan Yard Theatre",
-    topics: ["web performance", "accessibility", "typescript", "design systems"],
-    summary: "Fast, accessible, well-typed web interfaces, from component libraries to the last millisecond.",
-    capacity: 1500,
-    assumed: true,
-    wifi: { ssid: "Quillstack-Guest", security: "WPA", password: "fast-pages-27", assumed: true },
   },
   {
     slug: "scale-24x-2027",
@@ -110,18 +96,29 @@ export const FALLBACK_CONFERENCES = [
     url: "https://events.linuxfoundation.org/agntcon-mcpcon-north-america/",
   },
   {
-    slug: "sparrowfield-data-days-2027",
-    name: "Sparrowfield Data Days",
-    startDate: "2027-06-08",
-    endDate: "2027-06-09",
-    city: "Chicago",
-    district: "West Loop",
-    venue: "Grain Exchange Hall",
-    topics: ["data engineering", "streaming", "search", "databases"],
-    summary: "Pipelines, streams, indexes and the databases underneath them, told by the people who run them.",
-    capacity: 700,
-    assumed: true,
-    wifi: { ssid: "Sparrowfield-Guest", security: "WPA", password: "stream-me-27", assumed: true },
+    slug: "pycon-us-2027",
+    name: "PyCon US",
+    startDate: "2027-05-12",
+    endDate: "2027-05-18",
+    city: "Long Beach",
+    venue: "Venue to be announced",
+    topics: ["python", "open source", "machine learning", "community"],
+    summary: "The Python community's annual conference, with talks, tutorials and sprints for developers at every level.",
+    assumed: false,
+    tentative: true,
+    url: "https://us.pycon.org/2027/",
+  },
+  {
+    slug: "black-hat-usa-2027",
+    name: "Black Hat USA",
+    startDate: "2027-07-31",
+    endDate: "2027-08-05",
+    city: "Las Vegas",
+    venue: "Venue to be announced",
+    topics: ["security", "information security", "training", "research"],
+    summary: "Technical information security briefings, hands-on trainings and an expo for security professionals.",
+    assumed: false,
+    url: "https://www.blackhat.com/",
   },
   {
     slug: "pytorch-conference-2027",

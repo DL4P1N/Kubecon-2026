@@ -24,7 +24,7 @@
 - **Delete your profile** at any time and everything stored under your ID goes.
 - **Check service health** at `/status`.
 
-The [native iOS companion](ios/README.md) is a separate Xcode build. Its indoor positioning uses live Bluetooth; the other-attendee scenes are simulated. The landing page lists real US conferences from 2026 to 2027 and two flagged demo events, and its "Next event" is the soonest real one that has not ended.
+The [native iOS companion](ios/README.md) is a separate Xcode build. Its indoor positioning uses live Bluetooth; the other-attendee scenes are simulated. The landing page lists real US conferences from 2026 to 2027, and its "Next event" is the soonest one that has not ended.
 
 ## Architecture
 
