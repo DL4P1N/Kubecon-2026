@@ -583,6 +583,8 @@ async function moments() {
 
 function init() {
   try { tone(); } catch (e) { console.warn('system.js: tone', e); }
+  // the palette follows the device setting (css/palette.css), so the page tone follows a live switch too
+  matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => { try { tone(); } catch {} });
   nav();
   tabs();
   try { faq(); } catch (e) { console.warn('system.js: faq', e); }

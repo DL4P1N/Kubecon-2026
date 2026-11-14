@@ -11,7 +11,7 @@ html:has(.reg) { --foot: 60px; }
 :where([data-venue]) { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 :where([data-venue] > img[data-venue-still]) { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 70% 50%; }
 html:has(.reg), html:has(.reg) body { background: transparent; }
-html:has(.reg) { background: var(--venue-bg, #0f1f10); }
+html:has(.reg) { background: var(--venue-bg, #0b0e14); }
 
 /* ------------------------------------------------------------ the screen: nav, the panel, one slim footer line; nothing scrolls */
 main > section.hero.reg {
@@ -61,7 +61,7 @@ main > section.hero.reg > .wrap { height: 100%; display: block; }
 
 /* the host: a speech bubble, paper fill and dark ink like a dialogue box; stepped corners (8px, two steps) and a stepped tail, no radius, no blur */
 .reg {
-  --bubble-paper: #f4f7ee; --bubble-ink: #0f1f10;
+  --bubble-paper: #ffffff; --bubble-ink: #0b0e14;
   --bubble-clip: polygon(0 8px, 4px 8px, 4px 4px, 8px 4px, 8px 0, calc(100% - 8px) 0, calc(100% - 8px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 8px, 100% 8px,
     100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px), calc(100% - 4px) calc(100% - 4px), calc(100% - 8px) calc(100% - 4px), calc(100% - 8px) 100%,
     8px 100%, 8px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 8px), 0 calc(100% - 8px));
@@ -174,9 +174,9 @@ main > section.hero.reg > .wrap { height: 100%; display: block; }
   animation: ticket-in 200ms var(--ease, cubic-bezier(.2, .8, .2, 1)) both;
 }
 @keyframes ticket-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.reg [data-chat-ticket] .pxframe { grid-area: qr; --px-line: var(--accent); --px-fill: #f4f7ee; align-self: start; }
+.reg [data-chat-ticket] .pxframe { grid-area: qr; --px-line: var(--accent); --px-fill: #ffffff; align-self: start; }
 .reg [data-chat-ticket] .pxframe__in { padding: var(--s-3); }
-.reg [data-chat-ticket] canvas[data-qr] { --qr-ink: #0f1f10; --qr-paper: #f4f7ee; }
+.reg [data-chat-ticket] canvas[data-qr] { --qr-ink: #000000; --qr-paper: #ffffff; }
 .reg .reg__wifi { grid-column: 1 / -1; grid-row: 1; min-width: 0; }
 .reg .reg__wifi[hidden] { display: none; }
 .reg [data-chat-ticket].is-wifi > :is(.pxframe, [data-ticket-fields]) { display: none; }

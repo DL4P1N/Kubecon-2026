@@ -134,14 +134,14 @@ test("scripted flow: happy path produces a valid, validator-approved profile wit
   assert.equal(bots[0], `${REGISTER_NOTICE}
 What should I call you?`);
   assert.equal(REGISTER_NOTICE.split("\n").length, 3);
-  assert.match(REGISTER_NOTICE, /QR ticket for room doors/);
+  assert.match(REGISTER_NOTICE, /QR ticket for the room doors/);
   assert.match(REGISTER_NOTICE, /until you delete them from your profile/);
-  assert.match(REGISTER_NOTICE, /aggregate only.*groups under 5/);
-  assert.equal(bots.filter((m) => /Registering gives/.test(m)).length, 1);
+  assert.match(REGISTER_NOTICE, /only see totals.*groups under 5/);
+  assert.equal(bots.filter((m) => /Signing up gets/.test(m)).length, 1);
   // no consent questions and no deletion statements anywhere
   for (const [i, m] of bots.entries()) {
     assert.ok(!/24 hours|deleted|consent|may I include|Yes or no|would you like to use QR/i.test(m), m);
-    assert.ok(i === 0 || m.split(/[.?!]\s/).length <= 3 || /Here is what I have/.test(m), m);
+    assert.ok(i === 0 || m.split(/[.?!]\s/).length <= 3 || /Here's what I've got/.test(m), m);
   }
 });
 
@@ -160,15 +160,15 @@ test("scripted flow: re-asks on unclear answers, 'Change something' fixes one fi
   assert.deepEqual(t.profile.interests, ["rust", "wasm"]);
   assert.equal(t.profile.goal, "learn");
   const bots = messages.filter((m) => m.role === "assistant").map((m) => m.content);
-  assert.ok(bots.some((m) => /What would you like to change/.test(m)));
-  assert.ok(bots.some((m) => /did not catch which part/.test(m)));
+  assert.ok(bots.some((m) => /What should I change/.test(m)));
+  assert.ok(bots.some((m) => /which part should I change/.test(m)));
 });
 
 test("scripted flow: via acknowledgement only on the opening message", () => {
   const first = scriptedTurn({ conference: { name: "X" }, via: "github", messages: [] });
   assert.match(first.reply, /signed in with GitHub/);
   const qr = scriptedTurn({ conference: { name: "X" }, via: "qr", messages: [] });
-  assert.match(qr.reply, /scanned/);
+  assert.match(qr.reply, /scanning the QR code/);
   const second = scriptedTurn({ conference: { name: "X" }, via: "github", messages: [{ role: "assistant", content: "..." }, { role: "user", content: "Lin" }] });
   assert.ok(!/signed in/.test(second.reply));
   assert.equal(scriptedTurn({ conference: { name: "X" }, via: "bogus", messages: [] }).reply.includes("signed in"), false);
@@ -184,6 +184,6 @@ test("summary read-back is one item per line, and the server keeps those line br
   const { tidyReplyForTest } = await import("../server.mjs").then((m) => ({ tidyReplyForTest: m.tidyReply }));
   const { t } = converse(["Grace", "sre", "tracing, kubernetes", "build", "workshops"].slice(0, 5));
   assert.equal(t.reply.split("\n").length, 7);
-  assert.match(t.reply, /\nName: Grace\nRole: sre\nTopics: tracing, kubernetes\nGoal: build\nFormats: workshops\nRegister you with these\?$/);
+  assert.match(t.reply, /\nName: Grace\nRole: sre\nTopics: tracing, kubernetes\nGoal: build\nFormats: workshops\nShall I sign you up with these\?$/);
   assert.equal(tidyReplyForTest("Here is what I have:\n**Name:** Ada\n\n  Role:   eng \n- Topics: a, b\nRegister you with these?"), "Here is what I have:\nName: Ada\nRole: eng\nTopics: a, b\nRegister you with these?");
 });

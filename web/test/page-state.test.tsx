@@ -35,7 +35,7 @@ it("uses status regions for loading and empty states and alert for errors", () =
 it("offers to register again when the session expired", () => {
   render(<MemoryRouter><SessionExpiredState /></MemoryRouter>);
   expect(screen.getByRole("alert").textContent).toContain("session has expired");
-  expect(screen.getByRole("link", { name: "Register again" }).getAttribute("href")).toBe("/register");
+  expect(screen.getByRole("link", { name: "Register again" }).getAttribute("href")).toBe("/site/register.html");
   expect(isSessionExpired(new ApiError("x", 401))).toBe(true);
   expect(isSessionExpired(new ApiError("x", 500))).toBe(false);
   expect(isSessionExpired(new Error("401"))).toBe(false);

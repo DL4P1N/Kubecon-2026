@@ -1,8 +1,9 @@
 // Linked accounts: GitHub sign-in done by the API (/api/auth/*).
 // A completed sign-in leaves localStorage `cc.linked.v1` = { [provider]: { displayName, handle, avatarUrl, linkedAt } }.
-// Provider avatar images are never loaded: initials only. Pure helpers first, DOM glue for conference.html at the end.
+// Provider avatar images are never loaded: initials only. Pure helpers first, DOM glue for the header button at the end.
 
 import { authUrl } from "./auth.js";
+import { sessionToken } from "./companion-api.js";
 
 export const LINKED_KEY = "cc.linked.v1";
 export const PROVIDERS = [
@@ -64,42 +65,20 @@ export async function fetchProviders(fetchImpl = globalThis.fetch) {
   } catch { return {}; }
 }
 
-// ------------------------------------------------------------------ conference.html: the sign-in buttons become real where the provider is enabled
-if (typeof document !== "undefined" && document.querySelector("a[data-via][data-c-link]")) {
+// ------------------------------------------------------------------ header: "Sign in with GitHub" (a[data-signin]), shown when the
+// provider is enabled and no session exists. A returning account goes back to the return path; a new account gets a claim and the
+// app's callback sends it on to register.html?via=<provider>. On conference.html the return is that conference's registration.
+const buttons = typeof document !== "undefined" ? document.querySelectorAll("a[data-signin]") : [];
+if (buttons.length && !sessionToken()) {
   fetchProviders().then((enabled) => {
     const slug = new URLSearchParams(location.search).get("c") || "cloud-native-hackathon-slc-2026";
-    let any = false;
-    for (const a of document.querySelectorAll("a[data-via][data-c-link]")) {
-      const id = a.getAttribute("data-via");
+    const onConference = document.querySelector("[data-c-link]") !== null;
+    for (const a of buttons) {
+      const id = a.dataset.signin;
       if (!enabled[id]) continue;
-      any = true;
-      const target = startUrl(id, registerReturnPath(slug, id));
-      const apply = () => { if (a.getAttribute("href") !== target) a.setAttribute("href", target); };
-      apply();
-      new MutationObserver(apply).observe(a, { attributes: true, attributeFilter: ["href"] }); // pages.js sets the href again once the conference loads
+      const returnPath = a.dataset.return || (onConference ? registerReturnPath(slug, id) : location.pathname + location.search);
+      a.href = startUrl(id, returnPath);
+      a.hidden = false;
     }
-    const note = document.querySelector(".cc-note");
-    if (any && note) note.textContent = "Sign in with an enabled provider to link this account to your conference profile across devices.";
-  });
-}
-
-// Sign-in entry on register.html for visitors who already have a profile. A returning account goes back to
-// profile.html; a new account gets a claim and the callback sends it on to register.html?via=<provider>.
-const signIn = typeof document !== "undefined" ? document.querySelector("[data-auth-providers]") : null;
-if (signIn) {
-  fetchProviders().then((enabled) => {
-    const links = PROVIDERS.filter(({ id }) => enabled[id]);
-    if (!links.length) return;
-    const label = document.createElement("p");
-    label.textContent = "Already have a profile? Sign in with ";
-    for (const [i, provider] of links.entries()) {
-      if (i) label.append(document.createTextNode(" / "));
-      const link = document.createElement("a");
-      link.href = startUrl(provider.id, "/site/profile.html");
-      link.textContent = provider.name;
-      label.append(link);
-    }
-    signIn.replaceChildren(label);
-    signIn.hidden = false;
   });
 }

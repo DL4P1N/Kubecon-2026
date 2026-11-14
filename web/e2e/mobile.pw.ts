@@ -35,7 +35,6 @@ for (const width of [375, 768]) {
       await page.setViewportSize({ width, height: width === 375 ? 812 : 1024 });
       await page.goto(`/${path}`);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-      await expect(page.getByRole("link", { name: /All systems normal/ })).toBeVisible();
       if (path === "onboarding") await expect(page.getByLabel("kubernetes", { exact: true })).toBeVisible();
       if (path === "schedule") {
         await page.getByRole("button", { name: "Show room QR" }).click();

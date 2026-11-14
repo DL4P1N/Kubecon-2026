@@ -290,16 +290,16 @@ function parseFormats(text) {
 
 const FIRST_TIME_STEPS = ["name", "role", "interests", "goal", "formats", "confirm"];
 
-/** What the host says up front, in three short lines: what registering does (QR ticket, kept profile until deleted, aggregate-only map). */
+/** What the host says up front, in three short lines: what signing up does (QR ticket, kept profile until deleted, totals-only map). */
 export const REGISTER_NOTICE =
-  "Registering gives you a QR ticket for room doors.\n" +
-  "Your name, role, interests, goal and format preferences are kept for your next conference, until you delete them from your profile.\n" +
-  "Your interests are counted in the organisers' interest map in aggregate only, and groups under 5 are folded into \"other\".";
+  "Hi! Signing up gets you a QR ticket for the room doors.\n" +
+  "I'll keep your answers for your next conference, until you delete them from your profile.\n" +
+  "Organisers only see totals in their interest map, and groups under 5 show up as \"other\".";
 
 function summary(d) {
   return (
-    `Here is what I have:\nName: ${d.name}\nRole: ${d.role}\nTopics: ${d.interests.join(", ")}\n` +
-    `Goal: ${d.goal || "explore"}\nFormats: ${d.formats || "no preference"}\nRegister you with these?`
+    `Here's what I've got:\nName: ${d.name}\nRole: ${d.role}\nTopics: ${d.interests.join(", ")}\n` +
+    `Goal: ${d.goal || "explore"}\nFormats: ${d.formats || "no preference"}\nShall I sign you up with these?`
   );
 }
 
@@ -353,23 +353,23 @@ function replay(messages, known) {
         if (choice === "yes") { result = { ...known }; queue = []; }
         else if (choice === "topics") { queue = ["interests"]; }
         else if (choice === "startover") { returning = false; queue = [...FIRST_TIME_STEPS]; data = {}; }
-        else notice = "Please pick one of the options.";
+        else notice = "Sorry, I didn't get that. Tap one of the options below.";
         break;
       }
       case "name": {
         const name = parseName(text);
-        if (!name) { notice = "I did not catch that."; break; }
+        if (!name) { notice = "Sorry, I didn't catch your name."; break; }
         data.name = name; done(); break;
       }
       case "role": {
         const role = parseRole(text);
-        if (!role) { notice = "Sorry, I missed that."; break; }
+        if (!role) { notice = "Sorry, I didn't catch that."; break; }
         data.role = role; done(); break;
       }
       case "interests": {
         const interests = normaliseTags(text, LIMITS.maxTags);
         if (interests.length === 0) {
-          notice = "I could not pick out any topics, try tech subjects like observability, search or kubernetes.";
+          notice = "I couldn't spot any topics there. Try things like observability, search or Kubernetes.";
           break;
         }
         data.interests = interests; done();
@@ -380,13 +380,13 @@ function replay(messages, known) {
       case "formats": { data.formats = parseFormats(text); done(); break; }
       case "confirm": {
         const v = parseFirstConfirm(text);
-        if (v === null) { notice = "Please pick one of the options."; break; }
+        if (v === null) { notice = "Sorry, I didn't get that. Tap one of the options below."; break; }
         if (v === "yes") { queue.shift(); break; }
         queue = ["change", "confirm"]; break;
       }
       case "change": {
         const hit = CHANGE_FIELDS.find(([re]) => re.test(text));
-        if (!hit) { notice = "Sorry, I did not catch which part."; break; }
+        if (!hit) { notice = "Sorry, which part should I change?"; break; }
         queue = [hit[1], "changed", "confirm"]; break;
       }
       default: break;
@@ -396,12 +396,12 @@ function replay(messages, known) {
 }
 
 const QUESTIONS = {
-  role: (d) => `Nice to meet you, ${d.name}. What do you do?`,
-  interests: () => "Which 3 to 6 topics do you want from the talks? Pick some below or type them.",
-  goal: () => "What do you want out of the day?",
-  formats: () => "Any talk formats you prefer or want to avoid, like deep dives or workshops? Say none if not.",
+  role: (d) => `Nice to meet you, ${d.name}! What do you do for work?`,
+  interests: () => "What would you like to hear about? Pick 3 to 6 topics below, or type your own.",
+  goal: () => "What are you hoping to get out of the day?",
+  formats: () => "Any kinds of talks you love or would rather skip, like deep dives or workshops? \"None\" is fine too.",
   confirm: (d) => summary(d),
-  change: () => "What would you like to change: your name, role, topics, goal or formats?",
+  change: () => "Sure. What should I change: your name, role, topics, goal or formats?",
 };
 
 const ASK_FOR_STEP = { interests: "topics", goal: "goal", confirm: "confirm", returning: "confirm" };
@@ -421,22 +421,22 @@ export function scriptedTurn(ctx = {}) {
   const ask = (kind, extra) => askFields(kind, { conferenceTopics: topics, returning, ...extra });
   const label = viaLabel(ctx.via);
   const first = messages.every((m) => m?.role !== "user");
-  const ack = first && label ? (ctx.via === "qr" ? "You scanned the registration QR code. " : `You're signed in with ${label}. `) : "";
+  const ack = first && label ? (ctx.via === "qr" ? "Thanks for scanning the QR code! " : `You're signed in with ${label}. `) : "";
 
   if (result) {
     const checked = validateKnown(result);
     if (checked.ok) {
-      return { reply: `You're registered for ${confName}, ${checked.profile.name}. Your ticket is ready below.`, done: true, profile: checked.profile, ask: null };
+      return { reply: `You're all set for ${confName}, ${checked.profile.name}! Your ticket is just below.`, done: true, profile: checked.profile, ask: null };
     }
   }
 
   if (step === "returning") {
     const k = known;
-    const body = `Welcome back, ${k.name}. I have you as ${k.role}, interested in ${k.interests.join(", ")}, aiming to ${k.goal || "explore"}. Register you for ${confName} with these?`;
+    const body = `Welcome back, ${k.name}! I have you down as ${k.role}, into ${k.interests.join(", ")}, here to ${k.goal || "explore"}. Shall I sign you up for ${confName} with these?`;
     return { reply: `${first ? ack : lead}${body}`, done: false, ...ask("confirm") };
   }
   if (step === "interests" && returning) {
-    return { reply: `${lead}Which topics do you want at ${confName}? Pick some below or type them.`, done: false, ...ask("topics", { selected: known.interests }) };
+    return { reply: `${lead}Which topics would you like at ${confName}? Pick some below, or type your own.`, done: false, ...ask("topics", { selected: known.interests }) };
   }
   if (step === "name") {
     const text = first ? `${ack}${REGISTER_NOTICE}\nWhat should I call you?` : `${lead}What should I call you?`;
@@ -448,6 +448,6 @@ export function scriptedTurn(ctx = {}) {
   }
 
   const checked = validateProfile({ name: data.name, role: data.role, interests: data.interests, goal: data.goal, formats: data.formats });
-  if (!checked.ok) return { reply: "Something did not look right, so let's go again. What should I call you?", done: false, ask: null };
-  return { reply: `You're registered for ${confName}, ${checked.profile.name}. Your ticket is ready below.`, done: true, profile: checked.profile, ask: null };
+  if (!checked.ok) return { reply: "Hmm, something didn't look right, so let's start again. What should I call you?", done: false, ask: null };
+  return { reply: `You're all set for ${confName}, ${checked.profile.name}! Your ticket is just below.`, done: true, profile: checked.profile, ask: null };
 }

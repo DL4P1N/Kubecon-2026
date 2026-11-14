@@ -51,7 +51,7 @@ export function Onboarding() {
     } finally { setPending(false); }
   }
   return <form className="attendee-form" onSubmit={onSubmit} aria-busy={pending}>
-    <h1>Onboarding</h1>
+    <h1>Find talks</h1>
     <p>Tell us what you want to learn. We’ll find relevant talks and save a schedule without overlapping sessions.</p>
     <TopicChoices selected={topics} onChange={setTopics} />
     <label htmlFor="experience">Your experience level</label>

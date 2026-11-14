@@ -39,7 +39,7 @@ it("retains successful results when the other method fails", async () => {
 it("prompts unregistered visitors to register instead of loading a schedule", async () => {
   const get = vi.spyOn(api, "getSchedule");
   render(<MemoryRouter><Schedule /></MemoryRouter>);
-  expect(screen.getByRole("link", { name: "Register now" }).getAttribute("href")).toBe("/register");
+  expect(screen.getByRole("link", { name: "Register now" }).getAttribute("href")).toBe("/site/register.html");
   expect(get).not.toHaveBeenCalled();
   expect(screen.queryByRole("alert")).toBeNull();
 });

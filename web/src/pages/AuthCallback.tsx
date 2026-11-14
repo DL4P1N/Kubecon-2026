@@ -39,6 +39,19 @@ function postCallbackOnce(provider: string, code: string, state: string): Promis
 }
 
 /**
+ * Where a new account (a registration claim, no session) goes after sign-in: registration, wherever the
+ * sign-in started. A return path already on the register page keeps its query (the conference) and gains `via`.
+ */
+function claimTarget(provider: string, ret: string): string {
+  if (ret.startsWith("/site/register.html")) {
+    const url = new URL(ret, "http://x.invalid");
+    url.searchParams.set("via", provider);
+    return url.pathname + url.search;
+  }
+  return `/site/register.html?via=${encodeURIComponent(provider)}`;
+}
+
+/**
  * OAuth callback target. Exchanges the code, stores the returned session or short-lived registration claim,
  * and resumes at the validated return path.
  */
@@ -73,7 +86,7 @@ export function AuthCallback() {
           setAppLink(url);
           siteNavigation.replace(url);
         } else {
-          siteNavigation.replace(linked.claim && linked.return === PROFILE_PATH ? `/site/register.html?via=${encodeURIComponent(linked.provider)}` : linked.return);
+          siteNavigation.replace(linked.claim && !linked.session ? claimTarget(linked.provider, linked.return) : linked.return);
         }
       } catch {
         if (!cancelled) setFailed(true);

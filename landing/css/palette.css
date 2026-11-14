@@ -1,0 +1,37 @@
+/* Conference Companion: the landing palette, one file for every page.
+   CNCF / Kubernetes colours (cncf.io/brand-guidelines; Kubernetes Blue #326ce5) and the Clarity City face.
+   Dark values on :root; the light set follows the device setting (prefers-color-scheme: light).
+   Feeds the kit's --p-* and --ground-* tokens (assets/system.css) and the venue scene (--venue-*). */
+
+:root {
+  color-scheme: light dark;
+  --p-bg: #0b0e14; --p-surface: #131822; --p-ink: #ffffff; --p-muted: #a9b1bf;
+  --p-accent: #93eaff; --p-accent-ink: #0b0e14; --p-action: #326ce5; --p-action-ink: #ffffff;
+  --p-inv-bg: #ffffff; --p-inv-surface: #f5f5f5; --p-inv-ink: #000000; --p-inv-muted: #4b5260;
+  --p-inv-accent: #326ce5; --p-inv-accent-ink: #ffffff; --p-inv-action: #326ce5; --p-inv-action-ink: #ffffff;
+  --ground-bg: #131822; --ground-surface: #1b2230; --ground-ink: #ffffff; --ground-muted: #a9b1bf; --ground-accent: #93eaff;
+  --p-state-warn: #f0c24b; --p-state-down: #ff6cc4;
+  --font-display: "Clarity City", system-ui, sans-serif;
+  --font-text: "Clarity City", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --display-weight: 600;
+  --display-tracking: -0.02em;
+  --display-tracking-xl: -0.03em;
+}
+:root, [data-venue] {
+  --venue-bg: #0b0e14; --venue-floor: #1a2232; --venue-wall: #2c3a55; --venue-ink: #eef3ff; --venue-accent: #93eaff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --p-bg: #ffffff; --p-surface: #f5f5f5; --p-ink: #000000; --p-muted: #4b5260;
+    --p-accent: #1f5bd6; --p-accent-ink: #ffffff; --p-action: #326ce5; --p-action-ink: #ffffff;
+    --p-inv-bg: #0b0e14; --p-inv-surface: #131822; --p-inv-ink: #ffffff; --p-inv-muted: #a9b1bf;
+    --p-inv-accent: #93eaff; --p-inv-accent-ink: #0b0e14; --p-inv-action: #326ce5; --p-inv-action-ink: #ffffff;
+    --ground-bg: #e5e5e5; --ground-surface: #f5f5f5; --ground-ink: #000000; --ground-muted: #353a45; --ground-accent: #326ce5;
+    --p-state-warn: #8a5a00; --p-state-down: #b81c7d; /* CNCF Pink darkened to 4.5:1 on the grey ground */
+  }
+  :root, [data-venue] {
+    --venue-bg: #eef1f6; --venue-floor: #dde3ee; --venue-wall: #aab6cc; --venue-ink: #0b0e14; --venue-accent: #326ce5;
+  }
+}

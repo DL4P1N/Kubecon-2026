@@ -1,17 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { StatusBadge } from "./StatusBadge.js";
+import { SignInWithGitHub } from "./SignInWithGitHub.js";
 import "./site-shell.css";
 
 const LINKS = [
   { to: "/schedule", label: "Schedule" },
+  { to: "/onboarding", label: "Find talks" },
   { to: "/search", label: "Search" },
   { to: "/navigate", label: "Navigate" },
-  { to: "/onboarding", label: "Onboarding" },
-  { to: "/kiosk", label: "Kiosk" },
-  { to: "/map", label: "Interest map" },
-  { to: "/clusters", label: "Clusters" },
-  { to: "/organizer", label: "Organizer" },
 ];
 
 /** App header: same structure as the landing nav; links collapse behind a menu button on narrow screens. */
@@ -38,10 +34,9 @@ export function SiteHeader() {
     <header className="site-header" ref={header}>
       <div className="site-header__bar">
         <a className="site-logo" href="/site/">
-          <span className="site-mark" aria-hidden="true" />
+          <img className="site-mark" src="/site/favicon.svg" width={28} height={28} alt="" />
           Conference Companion
         </a>
-        <StatusBadge />
         <button
           ref={toggle}
           type="button"
@@ -58,10 +53,11 @@ export function SiteHeader() {
         </button>
         <div id="site-menu" className={open ? "site-menu is-open" : "site-menu"}>
           <nav aria-label="Main" className="site-nav">
+            <a className="site-link" href="/site/#conferences">Conferences</a>
             {LINKS.map((link) => <NavLink key={link.to} to={link.to} className="site-link">{link.label}</NavLink>)}
             <a className="site-link" href="/site/profile.html">Profile</a>
           </nav>
-          <a className="site-btn" href="/site/register.html">Register</a>
+          <SignInWithGitHub />
         </div>
       </div>
     </header>

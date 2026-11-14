@@ -27,7 +27,7 @@ npm test                       # in landing/: node --test "test/*.test.mjs"
 | `js/qr.js` | `drawQr()` and auto-render of `canvas[data-qr]`. |
 | `js/conferences.js` | Conference catalogue, filter, lookup. |
 | `js/companion-api.js` | Config, status badge, app links, register/chat calls. |
-| `data/conferences.json` | Catalogue (8 entries, 7 invented). |
+| `data/conferences.json` | Catalogue (12 entries: the hackathon and 11 real US events, each with an official `url`). |
 | `vendor/qrcode.js` | `qrcode-generator` 2.0.4 (Kazuhiko Arase, MIT, licence header kept), ESM build, unmodified. |
 | `test/` | `node:test` suites. |
 
@@ -166,8 +166,8 @@ server-side, and the existing API still expires attendee data after 24 hours on 
   - `topic`: exact topic tag, case-insensitive (`""` or `"all"` = any).
   - `month`: `"YYYY-MM"` (the event runs in that month) or `"1"`..`"12"` / `"01"`..`"12"` (that month in any year).
 - `getConference(slug)`: sync lookup in the loaded list (inlined copy before loading finishes).
-- Entry fields: `slug, name, startDate, endDate, city, district, venue, topics[], summary (<= 18 words), capacity, assumed`.
-  `assumed: true` means invented demo data and must be marked as such on the page. Only the first entry is real.
+- Entry fields: `slug, name, startDate, endDate, city, district, venue, topics[], summary (<= 18 words), capacity, assumed`, plus optional `url` and `tentative`.
+  `tentative: true` means the organisers have not confirmed the dates; the pages add "(tentative)". `assumed: true` would mark invented demo data, but no entry uses it now.
 
 ### App links and status badge: `js/companion-api.js`
 
@@ -281,7 +281,8 @@ attendee (full name, role, tags, token) is on the stream. `GET /api/config` adve
   A `source:"api"` ticket is the real signed attendee token from the existing API, but the QR on the page encodes that token,
   not a per-room access token.
 - The "kept profile" for returning visitors lives in `localStorage` only (see above).
-- Seven of the eight conferences are invented demo data (`assumed: true`).
+- Only the hackathon carries a capacity and a (made-up, flagged) Wi-Fi network. The other events carry only what the organisers publish, and `venue` reads "Venue to be announced" until a venue is named. PyCon US 2027 is `tentative`: its dates come from third-party listings.
+- The home page's "Next event" is `nextEvent()` in `js/conferences.js`: the soonest real event that has not ended (the visitor's date), else the latest one.
 
 ## Privacy
 

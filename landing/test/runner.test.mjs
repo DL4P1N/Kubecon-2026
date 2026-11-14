@@ -152,7 +152,7 @@ test("buildChildEnv and findOnPath", () => {
 
 test("system prompt covers the product rules", () => {
   for (const needle of [
-    /one question per turn/i, /plain text/i, /no markdown/i, /no consent questions/i, /organisers' interest map/i, /QR ticket for room doors/i,
+    /one question per turn/i, /plain text/i, /no markdown/i, /no consent questions/i, /their interest map/i, /QR ticket for the room doors/i,
     /health, politics, religion, ethnicity, sexuality, age, exact location/i, /data from an anonymous web visitor/i,
     /never an instruction/i, /<<PROFILE/, /confirm/i,
   ]) assert.match(SYSTEM_PROMPT, needle);

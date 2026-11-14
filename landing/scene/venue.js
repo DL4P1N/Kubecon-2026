@@ -5,7 +5,10 @@ const BASE = new URL('.', import.meta.url);
 const NAMES = ['overview', 'arrive', 'host', 'schedule', 'scan', 'stage', 'lounge', 'clusters', 'navigate'];
 // guided navigation: accepted `to` names -> rooms
 const GUIDE = { keynote: 'keynote', stage: 'keynote', 'room-a': 'room-a', 'room-b': 'room-b', 'room-c': 'room-c', 'room-d': 'room-d', scan: 'room-b', lounge: 'lounge' };
-const STILLS = { overview: 'still-overview.png', arrive: 'still-arrive.png', host: 'still-host.png', clusters: 'still-clusters.png' };
+// the light scheme has its own stills (still-<shot>-light.png), picked once at load like the scene palette
+const LIGHT = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: light)').matches;
+const still = (shot) => 'still-' + shot + (LIGHT ? '-light' : '') + '.png';
+const STILLS = { overview: still('overview'), arrive: still('arrive'), host: still('host'), clusters: still('clusters') };
 const SIDES = ['left', 'right', 'center', 'top'];
 const STORE = 'venue-motion-v1';
 const AVATAR = 'cc.avatar.v1';
@@ -77,6 +80,10 @@ class Controller {
     this.el = el;
     this.opts = opts || {};
     this.img = el.querySelector('img[data-venue-still]');
+    if (LIGHT && this.img) {
+      const src = this.img.getAttribute('src') || '';
+      if (/still-(overview|ambient|arrive|host|clusters)\.png$/.test(src)) this.img.setAttribute('src', src.replace(/\.png$/, '-light.png'));
+    }
     this.imgSrc0 = this.img ? this.img.getAttribute('src') || '' : '';
     this.bg = el.getAttribute('data-venue-mode') === 'background';
     this.engine = null;
@@ -430,7 +437,7 @@ class Controller {
   }
   updateStill() {
     if (!this.img || !(this.isStatic() || this.failed)) return;
-    if (!/still-(overview|ambient|arrive|host|clusters)\.png/.test(this.imgSrc0)) return;
+    if (!/still-(overview|ambient|arrive|host|clusters)(-light)?\.png/.test(this.imgSrc0)) return;
     const name = this.current ? this.current.name : 'overview';
     const file = STILLS[name] || STILLS.overview;
     const url = new URL(file, BASE).href;

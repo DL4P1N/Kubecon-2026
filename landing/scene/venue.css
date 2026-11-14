@@ -1,6 +1,6 @@
 /* Pixel venue host. Styles only [data-venue] and what scene/venue.js puts inside it. */
 [data-venue] {
-  --venue-bg-fallback: #0e1410;
+  --venue-bg-fallback: #0b0e14;
   background: var(--venue-bg, var(--venue-bg-fallback));
 }
 :where([data-venue]:not([data-venue-mode="background"])) { position: relative; overflow: hidden; }

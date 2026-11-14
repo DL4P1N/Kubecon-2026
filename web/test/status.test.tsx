@@ -5,7 +5,6 @@ import type { StatusResponse } from "@cc/shared";
 import { App } from "../src/App.js";
 import { Search } from "../src/pages/Search.js";
 import { Status } from "../src/pages/Status.js";
-import { StatusBadge } from "../src/components/StatusBadge.js";
 import { describeStatus } from "../src/components/status.js";
 import { ApiError, api } from "../src/api.js";
 
@@ -30,23 +29,6 @@ it("describes each state in words, not colour alone", () => {
   expect(describeStatus(null).label).toBe("Status unavailable");
 });
 
-it("badge shows normal, then warming-up, as a link to /status", async () => {
-  vi.spyOn(api, "status").mockResolvedValue(base);
-  render(<MemoryRouter><StatusBadge /></MemoryRouter>);
-  const link = await screen.findByRole("link", { name: /All systems normal/ });
-  expect(link.getAttribute("href")).toBe("/status");
-  cleanup();
-  vi.spyOn(api, "status").mockResolvedValue(warming);
-  render(<MemoryRouter><StatusBadge /></MemoryRouter>);
-  expect(await screen.findByRole("link", { name: /Search is warming up, try keyword/ })).toBeTruthy();
-});
-
-it("badge falls back to 'Status unavailable' when the endpoint fails", async () => {
-  vi.spyOn(api, "status").mockRejectedValue(new Error("offline"));
-  render(<MemoryRouter><StatusBadge /></MemoryRouter>);
-  expect(await screen.findByRole("link", { name: /Status unavailable/ })).toBeTruthy();
-});
-
 it("status page renders live values from the API", async () => {
   vi.spyOn(api, "status").mockResolvedValue(base);
   render(<MemoryRouter><Status /></MemoryRouter>);
@@ -67,11 +49,11 @@ it("status page explains a degraded hybrid and an unreachable endpoint", async (
   expect(await screen.findByText(/could not be reached/)).toBeTruthy();
 });
 
-it("app routes /status and shows the badge in the header", async () => {
+it("app routes /status inside the organizer area", async () => {
   vi.spyOn(api, "status").mockResolvedValue(base);
   render(<MemoryRouter initialEntries={["/status"]}><App /></MemoryRouter>);
   expect(await screen.findByRole("heading", { level: 1, name: "Service status" })).toBeTruthy();
-  expect(within(screen.getByRole("banner")).getByRole("link", { name: /All systems normal/ })).toBeTruthy();
+  expect(within(screen.getByRole("navigation", { name: "Organizer" })).getByRole("link", { name: "Status" }).getAttribute("aria-current")).toBe("page");
 });
 
 it.each([503, 502])("search falls back to keyword results without an error when hybrid returns %i", async (status) => {

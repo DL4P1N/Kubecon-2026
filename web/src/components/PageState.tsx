@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
 import { ApiError } from "../api.js";
 import "./page-state.css";
 
@@ -30,7 +29,7 @@ export function ErrorState({ children, onRetry, retryLabel = "Try again" }: {
 
 export function SessionExpiredState() {
   return <div className="page-state page-state-error">
-    <p role="alert">Your session has expired. <Link to="/register">Register again</Link> to continue.</p>
+    <p role="alert">Your session has expired. <a href="/site/register.html">Register again</a> to continue.</p>
   </div>;
 }
 

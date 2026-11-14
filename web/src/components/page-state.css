@@ -9,4 +9,4 @@
 .page-state-empty > :first-child { margin-top: 0; }
 .page-state-empty > :last-child, .page-state p:last-child { margin-bottom: 0; }
 .page-state button { margin-top: var(--s-2); }
-.page-state a { color: var(--accent); }
+.page-state a { color: var(--link); }

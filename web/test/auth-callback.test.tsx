@@ -5,11 +5,12 @@ import { MemoryRouter } from "react-router-dom";
 import { App, siteNavigation } from "../src/App.js";
 
 const renderAt = (path: string) => render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
-// The site header also polls /api/status; only the callback path gets the scripted answer.
-const reply = (status: number, body: unknown) => vi.fn(async (url: string) => url.includes("/api/auth/")
+// The site header also asks /api/auth/providers for its sign-in button; only the callback gets the scripted answer.
+const isCallback = (url: string) => url.includes("/api/auth/") && url.endsWith("/callback");
+const reply = (status: number, body: unknown) => vi.fn(async (url: string) => isCallback(url)
   ? new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } })
   : new Response("{}", { status: 503 }));
-const authCalls = (m: ReturnType<typeof reply>) => m.mock.calls.filter((c) => String(c[0]).includes("/api/auth/")) as unknown as [string, RequestInit][];
+const authCalls = (m: ReturnType<typeof reply>) => m.mock.calls.filter((c) => isCallback(String(c[0]))) as unknown as [string, RequestInit][];
 
 let sessionData: Map<string, string>;
 beforeEach(() => {
@@ -51,6 +52,20 @@ describe("/auth/:provider/callback", () => {
     renderAt("/auth/github/callback?code=abc&state=claim");
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/site/register.html?via=github"));
     expect(sessionStorage.getItem("cc.identity-claim")).toBe(JSON.stringify({ token: "identity-claim-token", expiresAt: "2026-11-11T12:15:00.000Z" }));
+  });
+
+  it("sends a new account to registration from any starting page", async () => {
+    vi.stubGlobal("fetch", reply(200, { provider: "github", displayName: "Grace", return: "/schedule", app: false, claim: { token: "claim", expiresAt: "2026-11-11T12:15:00.000Z" } }));
+    const replace = vi.spyOn(siteNavigation, "replace").mockImplementation(() => {});
+    renderAt("/auth/github/callback?code=abc&state=claim-schedule");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/site/register.html?via=github"));
+  });
+
+  it("keeps the conference when a new account started on its registration page", async () => {
+    vi.stubGlobal("fetch", reply(200, { provider: "github", displayName: "Grace", return: "/site/register.html?c=kubecon-na-2026&via=github", app: false, claim: { token: "claim", expiresAt: "2026-11-11T12:15:00.000Z" } }));
+    const replace = vi.spyOn(siteNavigation, "replace").mockImplementation(() => {});
+    renderAt("/auth/github/callback?code=abc&state=claim-register");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/site/register.html?c=kubecon-na-2026&via=github"));
   });
 
   it("stores a returning attendee session token and follows the requested path", async () => {

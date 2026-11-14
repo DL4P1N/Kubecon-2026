@@ -3,7 +3,7 @@
    (site.css, 640px, left aligned); the conference list may go to 760px like the finder on the home page. */
 
 html:has(.pf), html:has(.pf) body { background: transparent; }
-html:has(.pf) { background: var(--venue-bg, #0f1f10); --foot: 60px; }
+html:has(.pf) { background: var(--venue-bg, #0b0e14); --foot: 60px; }
 :where([data-venue]) { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 :where([data-venue] > img[data-venue-still]) { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 70% 50%; }
 
@@ -52,7 +52,7 @@ main .panel.pf-wide:not(.ui-panel) { width: min(760px, 100%); }
 .pf-status { margin: 0; min-height: 22px; font-size: var(--t-small); line-height: 22px; color: var(--ink); }
 .pf-shares { margin: 0; font-size: var(--t-small); line-height: 20px; color: var(--muted); }
 .pf-shares:empty { display: none; }
-.pf-qr { --px-line: var(--accent); --px-fill: #f4f7ee; flex: none; }
+.pf-qr { --px-line: var(--accent); --px-fill: #ffffff; flex: none; }
 .pf-qr .pxframe__in { padding: var(--s-2); }
 .pf-qr canvas[data-qr] { width: auto; height: auto; max-width: 100%; }
 /* slim footer line, as on the sign-up page */
