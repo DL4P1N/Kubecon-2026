@@ -2,6 +2,7 @@
   "name": "conference-companion",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Conference Companion monorepo (api, web, shared API contract)",
   "engines": { "node": ">=22" },
   "workspaces": ["shared", "api", "web"],

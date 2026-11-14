@@ -6,7 +6,7 @@
 
 **From conference sign-up to the right talk, schedule, and room.**
 
-A personal demo, originally a Cloud Native Hackathon entry for "make conferences easier" (Salt Lake City, 9 November 2026). Attendees register in a short chat, find talks in their own words, and check into rooms with a short-lived QR code. Organizers see aggregate interests and room-demand suggestions instead of individual profiles.
+[Cloud Native Hackathon](https://www.wemakedevs.org/hackathons/cnh) entry submitted with the intent to simplify the registration, scheduling, and attendance of tech conferences in one unified platform. Sign up, find talks, build conflict-free schedules, and check into events with QR + Bluetooth, all while tailoring to your selected tech interests.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/ecan0/kubecon-conference-companion/ci.yml?branch=main&label=CI&labelColor=0b0e14&color=326ce5)](https://github.com/ecan0/kubecon-conference-companion/actions/workflows/ci.yml)
 
@@ -16,16 +16,15 @@ A personal demo, originally a Cloud Native Hackathon entry for "make conferences
 
 ## What it does
 
-| Step | Where |
-| --- | --- |
-| **Register** | `/site/register.html?c=cloud-native-hackathon-slc-2026` explains what is kept, collects interests, and creates a ticket and recommended schedule. Optional sign-in with GitHub links an account to the profile ([docs/sign-in.md](docs/sign-in.md)). |
-| **Find a talk** | `/search` compares keyword and hybrid retrieval over 417 real KubeCon NA 2026 sessions. |
-| **Plan the day** | `/schedule` saves selected talks without overlaps and shows a short-lived room-access QR. |
-| **Check the door** | `/kiosk` accepts a camera scan or token text and checks current entitlements on every scan. |
-| **Understand demand** | `/map`, `/clusters` and `/organizer` show aggregates; protected views need the organizer key. Groups smaller than five are suppressed. |
-| **Inspect health** | `/status` reports application health and in-process search measurements. |
+- **Register in a short chat** and get a QR ticket and a recommended schedule. Optional GitHub sign-in links your account without storing your GitHub ID ([sign-in](docs/sign-in.md)).
+- **Find talks in your own words** with hybrid keyword and semantic search over 417 real KubeCon NA 2026 sessions (`/search`).
+- **Plan your day.** Save talks to a personal schedule without overlaps, then add them to your calendar (`/schedule`).
+- **Check into rooms** with a short-lived QR code, verified on every scan (`/kiosk`).
+- **Organizers see aggregates only:** interests and room-demand suggestions, never individual profiles. Groups under five are suppressed (`/map`, `/clusters`, `/organizer`; organizer key required).
+- **Delete your profile** at any time and everything stored under your ID goes.
+- **Check service health** at `/status`.
 
-The [native iOS companion](ios/README.md) is a separate Xcode build. Indoor positioning and other-attendee scenes use explicitly simulated data. The landing page lists ten real US conferences from 2026 to 2027 (dates, cities and venues from each organiser's site; unannounced venues say so) and two fictional demo events, flagged as such. The "Next event" on the home page is the soonest real event that has not ended.
+The [native iOS companion](ios/README.md) is a separate Xcode build. Its indoor positioning uses live Bluetooth; the other-attendee scenes are simulated. The landing page lists real US conferences from 2026 to 2027 and two flagged demo events, and its "Next event" is the soonest real one that has not ended.
 
 ## Architecture
 
@@ -33,12 +32,12 @@ The [native iOS companion](ios/README.md) is a separate Xcode build. Indoor posi
 
 Source: [docs/architecture.drawio](docs/architecture.drawio).
 
-- **Web:** React 18, TypeScript, Vite; vanilla ES modules and Three.js for the landing scene. Served by nginx from the same pod that proxies `/api` to the API.
-- **API:** Node.js 22, Fastify 5, Zod, signed JWT sessions and QR tokens.
-- **Data:** PostgreSQL with `pgvector` and `pg_trgm`; the API creates the schema. Hybrid search fuses full-text, trigram and vector results in SQL. See [docs/database.md](docs/database.md).
-- **Jobs:** Optional retention and interest-cluster Kubernetes CronJobs use the API image.
-- **Hosting:** Portable Kubernetes base manifests define the app workloads. The environment supplies the database, public ingress, TLS, secret delivery and image-pull access as needed. Deployment configuration lives in this repository; app releases do not require edits to a separate infrastructure repository.
-- **Telemetry:** Optional OpenTelemetry instrumentation; explicit allowlists exclude attendee identifiers and free text.
+- **Web:** React 18, TypeScript and Vite, served by nginx, which proxies `/api`. The landing scene uses vanilla ES modules and Three.js.
+- **API:** Node.js 22 and Fastify 5, with Zod validation, signed JWT sessions and QR tokens.
+- **Data:** PostgreSQL with `pgvector` and `pg_trgm`. Hybrid search runs in SQL ([docs/database.md](docs/database.md)).
+- **Jobs:** Optional retention and interest-cluster CronJobs, using the API image.
+- **Hosting:** Portable Kubernetes manifests. The environment supplies the database, ingress, TLS and secrets.
+- **Telemetry:** Optional OpenTelemetry. Allowlists keep out attendee IDs and free text.
 
 ## Run it locally
 
@@ -82,13 +81,13 @@ Container images for the API and web are built from `api/Dockerfile` and `web/Do
 
 ## Data, privacy, and demo boundaries
 
-- **Storage:** profiles, schedules, entitlements, HMAC-only identity links and aggregates are stored in the configured PostgreSQL database. Browser-local profiles and history are separate from server storage.
-- **Retention:** registering keeps the profile by default and includes aggregate-interest use; it is not a separate opt-in. A positive `ATTENDEE_RETENTION_HOURS` enables timed retention. `DELETE /api/me` deletes a profile. See [docs/retention.md](docs/retention.md).
-- **Access:** signed attendee sessions last eight hours; room QR tokens last about 60 seconds, use a separate audience, and are checked against current entitlements. Organizer access uses a separate key.
-- **Transport security:** external database TLS certificates are verified. In-cluster TLS and public ingress are environment-level configuration.
-- **Availability:** the example manifests use one API and one web replica. Availability also depends on the database and target cluster; the example is not an HA claim.
-- **Known hardening work:** stored opt-out handling, deletion-error handling, and expired-record cleanup when timed retention is off. This is a demo, not a production-readiness claim.
+- **Stored:** profiles, schedules, room access and hashed GitHub links live in PostgreSQL. Browser-local data stays separate.
+- **Retention:** profiles are kept until deleted (`DELETE /api/me`). Set `ATTENDEE_RETENTION_HOURS` for timed deletion ([docs/retention.md](docs/retention.md)).
+- **Access:** attendee sessions last eight hours. Room QR tokens last about 60 seconds and are re-checked on every scan. Organizers use a separate key.
+- **Security:** database TLS certificates are verified. In-cluster TLS and ingress are set by the environment.
+- **Availability:** the example runs one API and one web replica. It is not a high-availability setup.
+- **Demo status:** hardening work remains (stored opt-out handling, deletion errors, cleanup of expired records when timed retention is off). This is a demo, not production-ready.
 
 ## License
 
-No project-wide license is declared in this repository. Vendored components retain their own notices and licenses.
+[MIT](LICENSE). Vendored components keep their own notices and licenses, such as the Clarity City font under the SIL Open Font License 1.1.
