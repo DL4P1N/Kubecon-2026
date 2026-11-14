@@ -28,16 +28,12 @@ main > section.hero.cc-hero { padding-top: calc(72px + var(--s-5)); }
 .cc-reg__main .hero__lead { max-width: 62ch; }
 .cc-reg__qr { grid-area: qr; display: grid; gap: var(--s-4); justify-items: start; align-content: start; }
 .cc-reg__qr .t-label { margin: 0; color: var(--muted); }
-.cc-reg__qr .pxframe { --px-line: var(--accent); --px-fill: #f4f7ee; }
+.cc-reg__qr .pxframe { --px-line: var(--accent); --px-fill: #ffffff; }
 .cc-reg__qr .pxframe__in { padding: var(--s-2); }
-canvas[data-qr] { --qr-ink: #0f1f10; --qr-paper: #f4f7ee; }
+canvas[data-qr] { --qr-ink: #000000; --qr-paper: #ffffff; }
 .cc-act { grid-area: act; display: grid; justify-items: start; gap: var(--s-3); min-width: 0; }
 .cc-act .btn-row { margin: 0; }
-.cc-act__or { margin: var(--s-1) 0 0; color: var(--muted); }
-.cc-signin { display: grid; gap: 0; list-style: none; margin: 0; padding: 0; }
-.cc-signin .link { min-height: 44px; gap: var(--s-3); }
-.cc-signin img { display: block; }
-.cc-note, .cc-demo { margin: 0; font-size: var(--t-small); line-height: 1.45; color: var(--muted); }
+.cc-demo { margin: 0; font-size: var(--t-small); line-height: 1.45; color: var(--muted); }
 .cc-demo { color: var(--ink); max-width: 46ch; }
 .cc-missing { display: grid; gap: var(--s-5); }
 .cc-missing p { margin: 0; font-size: var(--t-lead); line-height: 1.5; max-width: 40ch; }

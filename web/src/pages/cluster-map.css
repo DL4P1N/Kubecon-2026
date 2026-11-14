@@ -1,11 +1,11 @@
-/* Cluster map: bubble size = group size. Colours cycle teal, amber, coral, green, blue; "Other" is a dashed neutral. Never violet. */
+/* Cluster map: bubble size = group size. Colours cycle turquoise, amber, pink, blue, orange; "Other" is a dashed neutral. */
 .cluster-map { max-width: 960px; }
 .cluster-note { padding: var(--s-3) var(--s-4); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--state-warn); color: var(--ink); }
 .cluster-map form { max-width: 480px; }
 .cluster-bubbles { display: flex; flex-wrap: wrap; gap: var(--s-4); list-style: none; padding: 0; margin: var(--s-5) 0; align-items: center; }
 .cluster-bubble {
   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden;
-  border-radius: 50%; padding: var(--s-3); background: var(--chart-1); color: var(--accent-ink); max-width: 100%;
+  border-radius: 50%; padding: var(--s-3); background: var(--chart-1); color: var(--chart-ink); max-width: 100%;
 }
 .cluster-bubble:nth-child(5n+2) { background: var(--chart-2); }
 .cluster-bubble:nth-child(5n+3) { background: var(--chart-3); }

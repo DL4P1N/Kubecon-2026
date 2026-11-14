@@ -6,13 +6,12 @@
   --px: 4px;                               /* one pixel of the motif */
   --px-line: var(--ink);
   --px-fill: var(--surface);
-  --venue-bg: #0f1f10; --venue-floor: #1b3a1e; --venue-wall: #2d5a31; --venue-ink: #eef7e6; --venue-accent: #c6f19d;
-  --state-ok: var(--p-accent); --state-warn: #f0c24b; --state-down: #ff7a59; --state-unknown: var(--p-muted);
+  --state-ok: var(--p-accent); --state-warn: var(--p-state-warn); --state-down: var(--p-state-down); --state-unknown: var(--p-muted);
 }
 
 /* ------------------------------------------------------------ the venue is the page background (scene/venue.css fixes the host; scene/venue.js fills it) */
 :root { --venue-dim: .3; }
-[data-venue] { --venue-bg: #0f1f10; --venue-floor: #1b3a1e; --venue-wall: #2d5a31; --venue-ink: #eef7e6; --venue-accent: #c6f19d; background: var(--venue-bg); }
+[data-venue] { background: var(--venue-bg); }
 [data-venue] > img[data-venue-still] { image-rendering: pixelated; }
 body { background: var(--bg); }
 main, footer { position: relative; z-index: 1; }
@@ -125,24 +124,19 @@ main > .hero, main > .section, main > .statement { background: transparent; }
     calc(100% - var(--px) * 2) 0, calc(100% - var(--px) * 2) var(--px), calc(100% - var(--px)) var(--px), calc(100% - var(--px)) calc(var(--px) * 2), 100% calc(var(--px) * 2),
     100% calc(100% - var(--px) * 2), calc(100% - var(--px)) calc(100% - var(--px) * 2), calc(100% - var(--px)) calc(100% - var(--px)), calc(100% - var(--px) * 2) calc(100% - var(--px)), calc(100% - var(--px) * 2) 100%,
     calc(var(--px) * 2) 100%, calc(var(--px) * 2) calc(100% - var(--px)), var(--px) calc(100% - var(--px)), var(--px) calc(100% - var(--px) * 2), 0 calc(100% - var(--px) * 2)); }
-canvas[data-qr] { display: block; width: 224px; height: 224px; aspect-ratio: 1; image-rendering: pixelated; --qr-ink: #0f1f10; --qr-paper: #f4f7ee; background: var(--qr-paper); }
-.qr-wrap { --px-line: var(--ink); --px-fill: #f4f7ee; }
+canvas[data-qr] { display: block; width: 224px; height: 224px; aspect-ratio: 1; image-rendering: pixelated; --qr-ink: #000000; --qr-paper: #ffffff; background: var(--qr-paper); }
+.qr-wrap { --px-line: var(--ink); --px-fill: #ffffff; }
 
-/* ------------------------------------------------------------ conference hero: the register window on the lit ground */
-.reg-win { display: grid; gap: var(--s-5); padding: var(--s-5); background: var(--u-bg, #fff); color: var(--u-ink, #1a1a17); border: 1px solid var(--u-border, var(--line)); border-radius: var(--u-r, var(--r-lg)); box-shadow: var(--u-shadow); }
-.reg-win__bar { display: flex; align-items: center; gap: var(--s-3); font-size: var(--t-small); color: var(--u-muted, #5a5a52); }
-.reg-win__bar b { color: var(--u-ink, #1a1a17); font-weight: 500; }
-.reg-win__body { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-6); align-items: start; }
-.reg-win__qr { display: grid; gap: var(--s-3); justify-items: start; }
-.reg-win__qr p { margin: 0; font-size: var(--t-small); line-height: 1.4; max-width: 224px; color: var(--u-muted, #5a5a52); }
-.reg-win__alt { display: grid; gap: var(--s-3); align-content: start; }
-.reg-win__alt h2 { font: 500 var(--t-body)/1.3 var(--font-text); letter-spacing: 0; margin: 0; }
-.signin { display: grid; gap: var(--s-3); list-style: none; margin: 0; padding: 0; }
-.signin a { display: flex; align-items: center; gap: var(--s-3); min-height: 48px; padding: 0 var(--s-4); background: #fff; color: #111; border: 1px solid rgba(17, 17, 17, .22); border-radius: var(--r-btn); text-decoration: none; font-weight: 500; font-size: var(--t-body); }
-.signin a:hover { background: #f1f1ee; }
-.signin img { width: 24px; height: 24px; flex: none; }
-.reg-win__note { margin: 0; font-size: var(--t-small); line-height: 1.45; color: var(--u-muted, #5a5a52); }
-@media (max-width: 1279px) { .reg-win__body { grid-template-columns: minmax(0, 1fr); } }
+/* ------------------------------------------------------------ header: badge mark and GitHub's own sign-in button (js/accounts.js shows it) */
+.nav__mark { width: 28px; height: 28px; flex: none; }
+.btn--github { background: #fff; color: #000; border-color: #fff; gap: var(--s-2); }
+.btn--github::before { content: ""; width: 18px; height: 18px; background: currentColor; -webkit-mask: url(../assets/icons/github.svg) center/contain no-repeat; mask: url(../assets/icons/github.svg) center/contain no-repeat; }
+.btn--github:hover { background: #e5e5e5; border-color: #e5e5e5; color: #000; }
+.btn--github[hidden] { display: none; }
+@media (prefers-color-scheme: light) {
+  .btn--github { background: #000; color: #fff; border-color: #000; }
+  .btn--github:hover { background: #24292f; border-color: #24292f; color: #fff; }
+}
 
 /* ------------------------------------------------------------ in-conference tiles */
 .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gutter); }
@@ -160,10 +154,10 @@ canvas[data-qr] { display: block; width: 224px; height: 224px; aspect-ratio: 1; 
 .chat-msg { display: flex; }
 .chat-msg p { margin: 0; line-height: 1.5; max-width: 60ch; }
 .chat-msg[data-role="assistant"] { justify-content: flex-start; padding-left: var(--px); }
-.chat-msg[data-role="assistant"] p { position: relative; margin: var(--px) 0 var(--s-3) var(--px); padding: var(--s-3) var(--s-4); background: #f4f7ee; color: #0f1f10; max-width: min(60ch, 92%);
-  box-shadow: 0 calc(var(--px) * -1) 0 0 #f4f7ee, 0 var(--px) 0 0 #f4f7ee, calc(var(--px) * -1) 0 0 0 #f4f7ee, var(--px) 0 0 0 #f4f7ee,
-    0 calc(var(--px) * -2) 0 calc(var(--px) * -1) #f4f7ee; }
-.chat-msg[data-role="assistant"] p::before { content: ""; position: absolute; left: var(--s-4); bottom: calc(var(--px) * -3); width: calc(var(--px) * 3); height: calc(var(--px) * 2); background: #f4f7ee;
+.chat-msg[data-role="assistant"] p { position: relative; margin: var(--px) 0 var(--s-3) var(--px); padding: var(--s-3) var(--s-4); background: #ffffff; color: #0b0e14; max-width: min(60ch, 92%);
+  box-shadow: 0 calc(var(--px) * -1) 0 0 #ffffff, 0 var(--px) 0 0 #ffffff, calc(var(--px) * -1) 0 0 0 #ffffff, var(--px) 0 0 0 #ffffff,
+    0 calc(var(--px) * -2) 0 calc(var(--px) * -1) #ffffff; }
+.chat-msg[data-role="assistant"] p::before { content: ""; position: absolute; left: var(--s-4); bottom: calc(var(--px) * -3); width: calc(var(--px) * 3); height: calc(var(--px) * 2); background: #ffffff;
   clip-path: polygon(0 0, 100% 0, 100% 50%, 50% 50%, 50% 100%, 0 100%); }
 .chat-msg[data-role="assistant"] p::after { display: none; }
 .chat-msg[data-role="user"] { justify-content: flex-end; }
@@ -195,7 +189,7 @@ canvas[data-qr] { display: block; width: 224px; height: 224px; aspect-ratio: 1; 
 [data-chat-ticket] { padding: var(--s-2) var(--px) var(--s-4); }
 [data-chat-ticket]:not([hidden]) { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-6); align-items: center; }
 [data-chat-ticket] canvas[data-qr] { width: 200px; height: 200px; }
-[data-chat-ticket] .pxframe { --px-line: var(--accent); --px-fill: #f4f7ee; }
+[data-chat-ticket] .pxframe { --px-line: var(--accent); --px-fill: #ffffff; }
 [data-ticket-fields] { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-2) var(--s-5); margin: 0; font-size: var(--t-body); }
 [data-ticket-fields] dt { color: var(--muted); font-size: var(--t-small); line-height: 24px; }
 [data-ticket-fields] dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
@@ -227,14 +221,8 @@ canvas[data-qr] { display: block; width: 224px; height: 224px; aspect-ratio: 1; 
 .chat-mode::after { content: "Starting"; }
 [data-chat][data-mode="scripted"] .chat-mode::after { content: "Scripted questions"; }
 [data-chat][data-mode="claude"] .chat-mode::after { content: "Claude is asking"; }
-.signin__pre { margin: 0; }
-@media (max-width: 1023px) { .reg-win__qr { display: none; } .signin__pre { display: none; } }
-
-.reg-win { padding-right: calc(var(--s-5) + var(--ly-cut-room, 48px)); }
-.reg-win__body { gap: var(--s-5); }
-@media (max-width: 1279px) { .reg-win__body { grid-template-columns: minmax(0, 1fr); } }
-
-@media (max-width: 639px) { .nav-long { display: none; } }
+/* the window fragment's row time: full muted ink, so it keeps 4.5:1 on the selected row in the light scheme */
+.ui-win__age { color: var(--u-muted); }
 @media (max-width: 639px) {
   .app .ui-doc { padding-right: 0; }
   .app .ui-doc__note { position: static; width: auto; margin-top: var(--s-4); }
@@ -259,12 +247,9 @@ canvas[data-qr] { display: block; width: 224px; height: 224px; aspect-ratio: 1; 
 .hero__ticket .t-label { margin: 0; color: var(--muted); }
 .hero__ticket-name { margin: 0; font: 500 var(--t-h3)/1.2 var(--font-display); letter-spacing: -0.01em; }
 .hero__ticket-meta { margin: 0 0 var(--s-3); color: var(--muted); font-size: var(--t-small); line-height: 1.4; }
-.hero__ticket .pxframe { --px-line: var(--accent); --px-fill: #f4f7ee; }
+.hero__ticket .pxframe { --px-line: var(--accent); --px-fill: #ffffff; }
 .hero__ticket canvas[data-qr] { display: block; }
 .hero__ticket .pxframe__in { padding: var(--s-2); }
-
-.nav__actions .btn { gap: 0; }
-.nav-long { margin-left: .3em; }
 
 /* 320px: nothing runs past the screen */
 @media (max-width: 359px) {
@@ -308,7 +293,7 @@ main > :is(section, .section, .hero) > :is(.wrap, .container) { height: auto; }
 @media (max-width: 639px) { main .panel:not(.ui-panel) { width: 100%; padding: var(--s-5); } }
 
 /* ------------------------------------------------------------ venue Wi-Fi panel (profile.html rows and the register ticket) */
-.wifi__qr { --px-line: var(--accent); --px-fill: #f4f7ee; flex: none; }
+.wifi__qr { --px-line: var(--accent); --px-fill: #ffffff; flex: none; }
 .wifi__qr .pxframe__in { padding: var(--s-2); }
 .wifi__qr canvas[data-qr] { width: auto; height: auto; max-width: 100%; }
 .wifi__status { margin: 0; min-height: 22px; font-size: var(--t-small); line-height: 22px; color: var(--ink); }

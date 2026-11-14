@@ -57,7 +57,7 @@ test("record labelled offline UI fallback", async ({ browser }) => {
     await expect(page.getByText("Comparison ready.")).toBeVisible();
     await page.screenshot({ path: resolve(output, "fallback-search.png") });
     await page.waitForTimeout(1800);
-    await page.getByRole("link", { name: "Kiosk", exact: true }).click();
+    await page.goto("/kiosk");
     await page.getByLabel("Room", { exact: true }).fill(talk.room);
     await page.getByLabel(/Token \(if/).fill("synthetic-qr-not-valid");
     await page.getByRole("button", { name: "Check access" }).click();

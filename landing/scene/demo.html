@@ -4,23 +4,24 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Venue scene demo</title>
+<link rel="stylesheet" href="../css/palette.css">
 <link rel="stylesheet" href="venue.css">
 <style>
   :root { --venue-dim: 0.25; color-scheme: dark; }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
-  body { background: #0e1410; color: #eef0dc; font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { background: #0b0e14; color: #eef3ff; font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
   main, header { position: relative; z-index: 1; }
   header { position: fixed; top: 16px; right: 16px; z-index: 2; display: flex; gap: 8px; }
-  header button { font: 13px/1 ui-monospace, Menlo, monospace; color: #0e1410; background: #c6f08a; border: 0; border-radius: 999px; padding: 9px 14px; cursor: pointer; }
-  header button[aria-pressed="true"] { background: #eef0dc; }
+  header button { font: 13px/1 ui-monospace, Menlo, monospace; color: #0b0e14; background: #93eaff; border: 0; border-radius: 999px; padding: 9px 14px; cursor: pointer; }
+  header button[aria-pressed="true"] { background: #eef3ff; }
   section { min-height: 100vh; display: flex; align-items: center; padding: 64px 6vw; }
   section[data-venue-side="right"] { justify-content: flex-end; }
   section[data-venue-side="center"] { justify-content: center; text-align: center; }
   .copy { max-width: 30rem; }
-  .copy p.k { font: 12px/1 ui-monospace, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; color: #c6f08a; margin: 0 0 14px; }
+  .copy p.k { font: 12px/1 ui-monospace, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; color: #93eaff; margin: 0 0 14px; }
   .copy h2 { font-size: clamp(32px, 4.4vw, 56px); line-height: 1.04; margin: 0 0 18px; letter-spacing: -0.02em; }
-  .copy p { margin: 0 0 12px; color: #d8dcc6; }
+  .copy p { margin: 0 0 12px; color: #d3daea; }
   @media (max-width: 759px) {
     section, section[data-venue-side] { align-items: flex-start; justify-content: flex-start; text-align: left; padding: 96px 20px 40px; }
     .copy h2 { font-size: 34px; }

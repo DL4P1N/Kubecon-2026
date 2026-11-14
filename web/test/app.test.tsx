@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App, siteNavigation } from "../src/App.js";
 
@@ -13,12 +13,26 @@ const renderAt = (path: string) => render(
 
 describe("web routes", () => {
   it.each([
-    ["/onboarding", "Onboarding"],
+    ["/onboarding", "Find talks"],
     ["/search", "Search talks"],
     ["/kiosk", "Room check-in"],
-  ])("renders %s", (path, heading) => {
+  ])("renders %s", async (path, heading) => {
     renderAt(path);
-    expect(screen.getByRole("heading", { level: 1, name: heading })).toBeTruthy();
+    expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeTruthy();
+  });
+
+  it("groups the organizer pages under one sub-nav with the current page marked", async () => {
+    renderAt("/map");
+    const nav = await screen.findByRole("navigation", { name: "Organizer" });
+    expect(within(nav).getByRole("link", { name: "Interest map" }).getAttribute("aria-current")).toBe("page");
+    expect(within(nav).getByRole("link", { name: "Dashboard" }).getAttribute("aria-current")).toBeNull();
+  });
+
+  it("main navigation holds the six attendee destinations and no organizer pages", () => {
+    renderAt("/search");
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual(
+      ["Conferences", "Schedule", "Find talks", "Search", "Navigate", "Profile"]);
   });
 
   it("keeps the shell landmarks: skip link, main navigation, main and footer", () => {

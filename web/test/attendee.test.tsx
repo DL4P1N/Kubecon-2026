@@ -1,86 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 import { App } from "../src/App.js";
-import { Onboarding } from "../src/pages/Onboarding.js";
-import { Register } from "../src/pages/Register.js";
-import { api, ApiError, getToken, setToken } from "../src/api.js";
+import { api, getToken, setToken } from "../src/api.js";
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); sessionStorage.clear(); });
 beforeEach(() => { localStorage.clear(); vi.spyOn(api, "catalogTopics").mockResolvedValue({ topics: ["kubernetes"] }); });
 const talk = { id: "talk-1", title: "Secure Kubernetes", speaker: "Speaker", abstract: "", track: "Security",
   room: "A", start: "2026-11-09T10:00:00Z", end: "2026-11-09T11:00:00Z", tags: ["kubernetes"] };
-// /register is now the static site (/site/register.html), so the legacy React form is exercised directly,
-// followed by the real onboarding route it hands off to.
-const renderRegisterForm = () => render(<MemoryRouter initialEntries={["/register"]}><Routes>
-  <Route path="/register" element={<Register />} /><Route path="/onboarding" element={<Onboarding />} />
-</Routes></MemoryRouter>);
+// Registration is the static site (/site/register.html, landing tests); this covers onboarding onward.
 describe("attendee journey", () => {
-  it("explains the required topic selection before sending registration", async () => {
-    vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "keyword", tookMs: 1, hits: [{ talk, score: 1 }] });
-    const register = vi.spyOn(api, "register");
-    renderRegisterForm();
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Demo" } });
-    fireEvent.click(screen.getByRole("button", { name: "Register" }));
-    expect(await screen.findByRole("alert")).toBeTruthy();
-    expect(register).not.toHaveBeenCalled();
-  });
-  it.each([false, true])("sends consent only after explicit selection: %s", async (optIn) => {
-    vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "keyword", tookMs: 1, hits: [{ talk, score: 1 }] });
-    const register = vi.spyOn(api, "register").mockResolvedValue({ attendeeId: "fake", token: "signed", expiresAt: "" });
-    renderRegisterForm();
-    const map = screen.getByLabelText(/Include my interests/);
-    const qr = screen.getByLabelText(/Allow QR/);
-    expect((map as HTMLInputElement).checked).toBe(false);
-    expect((qr as HTMLInputElement).checked).toBe(false);
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Demo" } });
-    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "demo@example.com" } });
-    fireEvent.click(await screen.findByLabelText("kubernetes"));
-    if (optIn) fireEvent.click(map);
-    fireEvent.click(screen.getByRole("button", { name: "Register" }));
-    await screen.findByRole("heading", { name: "Onboarding" });
-    expect(register).toHaveBeenCalledWith({ name: "Demo", email: "demo@example.com", interests: ["kubernetes"],
-      consent: { clusterMap: optIn, qrCheckin: false } });
-    expect(getToken()).toBe("signed");
-  });
-  it("sends and then clears a sign-in identity claim", async () => {
-    vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "keyword", tookMs: 1, hits: [] });
-    const register = vi.spyOn(api, "register").mockResolvedValue({ attendeeId: "fake", token: "signed", expiresAt: "" });
-    sessionStorage.setItem("cc.identity-claim", JSON.stringify({ token: "claim.jwt", expiresAt: "2030-01-01T00:00:00Z" }));
-    renderRegisterForm();
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Demo" } });
-    fireEvent.click(await screen.findByLabelText("kubernetes"));
-    fireEvent.click(screen.getByRole("button", { name: "Register" }));
-    await screen.findByRole("heading", { name: "Onboarding" });
-    expect(register).toHaveBeenCalledWith(expect.objectContaining({ identityClaim: "claim.jwt" }));
-    expect(sessionStorage.getItem("cc.identity-claim")).toBeNull();
-  });
-  it("prefills the linked provider name and offers only enabled sign-in providers", async () => {
-    localStorage.setItem("cc.linked.v1", JSON.stringify({ github: { displayName: "Ada Lovelace" } }));
-    vi.spyOn(api, "authProviders").mockResolvedValue({ providers: [{ id: "github", enabled: true }] });
-    renderRegisterForm();
-    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Ada Lovelace");
-    expect((await screen.findByRole("link", { name: "Sign in with GitHub" })).getAttribute("href")).toBe("/api/auth/github/start?return=/schedule");
-    localStorage.clear();
-  });
-  it("explains a duplicate profile and an expired claim without ending in a generic failure", async () => {
-    vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "keyword", tookMs: 1, hits: [] });
-    sessionStorage.setItem("cc.identity-claim", JSON.stringify({ token: "claim.jwt", expiresAt: "2030-01-01T00:00:00Z" }));
-    const register = vi.spyOn(api, "register").mockRejectedValueOnce(new ApiError("POST /api/register failed: 409", 409, "already_registered"));
-    renderRegisterForm();
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Demo" } });
-    fireEvent.click(await screen.findByLabelText("kubernetes"));
-    fireEvent.click(screen.getByRole("button", { name: "Register" }));
-    expect((await screen.findByRole("alert")).textContent).toMatch(/already has a profile/i);
-    expect(sessionStorage.getItem("cc.identity-claim")).toBeNull();
-
-    register.mockRejectedValueOnce(new ApiError("POST /api/register failed: 400", 400, "invalid_identity_claim"));
-    sessionStorage.setItem("cc.identity-claim", JSON.stringify({ token: "stale.jwt", expiresAt: "2030-01-01T00:00:00Z" }));
-    fireEvent.click(screen.getByRole("button", { name: "Register" }));
-    expect((await screen.findByRole("alert")).textContent).toMatch(/sign-in expired/i);
-    expect(sessionStorage.getItem("cc.identity-claim")).toBeNull();
-  });
   it("sends ranked matches for the server to de-overlap and shows what it skipped", async () => {
+    setToken("signed");
     const overlap = { ...talk, id: "overlap", title: "Overlapping talk" };
     vi.spyOn(api, "search").mockResolvedValue({ q: "", mode: "hybrid", tookMs: 1,
       hits: [{ talk: overlap, score: 1 }, { talk, score: 2 }] });

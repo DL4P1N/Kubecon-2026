@@ -30,7 +30,7 @@ export function AddToSchedule({ talkId, schedule = api, hasSession = () => !!get
   }
 
   if (state === "register") {
-    return <p role="status"><Link to="/register">Register</Link> to add talks to your schedule.</p>;
+    return <p role="status"><a href="/site/register.html">Register</a> to add talks to your schedule.</p>;
   }
   return <div className="add-to-schedule">
     <button type="button" disabled={state === "saving" || state === "added" || state === "already"} onClick={onClick}>

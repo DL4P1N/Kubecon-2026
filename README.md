@@ -8,7 +8,7 @@
 
 A personal demo, originally a Cloud Native Hackathon entry for "make conferences easier" (Salt Lake City, 9 November 2026). Attendees register in a short chat, find talks in their own words, and check into rooms with a short-lived QR code. Organizers see aggregate interests and room-demand suggestions instead of individual profiles.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/DL4P1N/Kubecon-2026/ci.yml?branch=main&label=CI&labelColor=0f1f10&color=c6f19d)](https://github.com/DL4P1N/Kubecon-2026/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/ecan0/kubecon-conference-companion/ci.yml?branch=main&label=CI&labelColor=0b0e14&color=326ce5)](https://github.com/ecan0/kubecon-conference-companion/actions/workflows/ci.yml)
 
 **Live demo:** [conference-companion.ecan.pro](https://conference-companion.ecan.pro) · [Design document](Conference%20Companion_%20Design%20Doc.md) · [Hackathon evidence](docs/track-evidence.md)
 

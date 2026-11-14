@@ -2,10 +2,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { OTHER_TOPIC, type InterestAggregateResponse, type InterestClustersResponse, type RoomPlacementResponse } from "@cc/shared";
 import { api, ApiError } from "../api.js";
 import { EmptyState, ErrorState, LoadingState } from "../components/PageState.js";
-import { describeStatus, useStatus } from "../components/status.js";
 import { ROOM_STEP, roomSize } from "./InterestMap.js";
 import "./discovery.css";
-import "../components/status.css";
 
 const slotTime = (start: string, end: string) =>
   `${new Date(start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} – ${new Date(end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
@@ -13,7 +11,7 @@ const slotTime = (start: string, end: string) =>
 const topicLabel = (topic: string) => (topic === OTHER_TOPIC ? "Other (smaller groups combined)" : topic);
 
 /**
- * One page for organizers: topic interest, k-means clusters, room activity and service status.
+ * One page for organizers: topic interest, k-means clusters and room placement.
  * Aggregates only (no attendee ids); groups below the k >= 5 threshold are suppressed by the API.
  * The organizer key lives in component state only and is never stored.
  */
@@ -27,8 +25,6 @@ export function Organizer() {
   const [placementError, setPlacementError] = useState("");
   const [placementLoading, setPlacementLoading] = useState(true);
   const [pending, setPending] = useState(false);
-  const { status, loaded } = useStatus();
-  const statusView = describeStatus(status);
 
   useEffect(() => {
     let active = true;
@@ -223,34 +219,6 @@ export function Organizer() {
               <p>{placement.skippedTalks} talk{placement.skippedTalks === 1 ? " was" : "s were"} left out because the time could not be read.</p>
             )}
           </>
-        )}
-      </section>
-
-      <section aria-labelledby="org-rooms">
-        <h2 id="org-rooms">Room scan activity</h2>
-        <p>Not available yet: live room occupancy from QR check-ins (#42) has not been merged.</p>
-      </section>
-
-      <section aria-labelledby="org-status">
-        <h2 id="org-status">Service status</h2>
-        {!loaded && <p role="status">Checking status…</p>}
-        {loaded && (
-          <p className={`status-${statusView.tone}`}>
-            <strong>
-              {statusView.symbol} {statusView.label}
-            </strong>
-          </p>
-        )}
-        {loaded && !status && <p>The status endpoint could not be reached.</p>}
-        {status && (
-          <table className="status-table">
-            <caption>Live values from the API</caption>
-            <tbody>
-              <tr><th scope="row">Database</th><td>{status.database.reachable ? "Reachable" : "Not reachable"}</td></tr>
-              <tr><th scope="row">Hybrid search</th><td>{status.search.hybrid.state.replace("_", " ")}</td></tr>
-              <tr><th scope="row">Server errors</th><td>{(status.errorRate.ratio * 100).toFixed(1)}% of {status.errorRate.requests} requests</td></tr>
-            </tbody>
-          </table>
         )}
       </section>
 

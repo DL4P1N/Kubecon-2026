@@ -1,15 +1,15 @@
 // Palette: reads --venue-* custom properties from the host at mount and derives every scene colour from them.
 // Colours are [r,g,b] 0..1, used as final sRGB values (no colour management, no lighting model).
 export const DEFAULTS = {
-  bg: '#0e1410',     // clear colour, near-black forest
-  floor: '#22342a',  // venue floor
-  wall: '#3d5644',   // architecture
-  ink: '#eef0dc',    // light ink: speech bubbles, wall outlines in the clusters view, signage
-  accent: '#c6f08a', // pale lime: doors, scanner lights, screens, markers
+  bg: '#0b0e14',     // clear colour, near-black navy
+  floor: '#1a2232',  // venue floor
+  wall: '#2c3a55',   // architecture
+  ink: '#eef3ff',    // light ink: speech bubbles, wall outlines in the clusters view, signage
+  accent: '#93eaff', // CNCF Turquoise: doors, scanner lights, screens, markers
 };
 
-// Five cluster hues. Hard rule: no violet, purple or lavender.
-const CLUSTER_HEX = ['#2ec4b2', '#f2a83a', '#f26f58', '#7fd04c', '#4f8ff0']; // teal amber coral green blue
+// Five cluster hues (turquoise amber pink blue orange), the app's --chart-* set. Hard rule: no violet, purple or lavender.
+const CLUSTER_HEX = ['#93eaff', '#f0c24b', '#ff6cc4', '#6c9bff', '#ff9f5a'];
 const GREY_HEX = '#8f9690';
 const DENY_HEX = '#ff5a48';
 
@@ -119,6 +119,6 @@ export function readTheme(host) {
   t.staffShirt = mix(accent, wall, 0.08);
   t.bubble = mix(ink, white, 0.6);
   t.bubbleInk = mix(bg, [0, 0, 0], 0.3);
-  t.ok = mix(hex('#2e9e4c'), accent, 0.15);
+  t.ok = mix(hex('#0086ff'), accent, 0.15);
   return t;
 }

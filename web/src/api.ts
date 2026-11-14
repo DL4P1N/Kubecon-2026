@@ -1,6 +1,7 @@
 import { routes, type RouteDef } from "@cc/shared";
 import { offlineExpiry, offlineSession, resetOfflineSession } from "./offline.js";
 import type {
+  AuthProviderId,
   AccessTokenResponse,
   AuthCallbackResponse,
   AuthProvidersResponse,
@@ -159,3 +160,24 @@ export const api = {
   roomPlacement: (organizerKey = "") =>
     call<RoomPlacementResponse>(routes.roomPlacement, { headers: organizerKey ? { "x-organizer-key": organizerKey } : {} }),
 };
+
+let providersPromise: Promise<AuthProviderId[]> | null = null;
+
+/** The sign-in providers the API has configured, fetched once per page load; `[]` when the call fails. */
+export function enabledProviders(): Promise<AuthProviderId[]> {
+  providersPromise ??= api
+    .authProviders()
+    .then((r) => r.providers.filter((p) => p.enabled).map((p) => p.id))
+    .catch(() => []);
+  return providersPromise;
+}
+
+/** Test seam: forget the cached provider list. */
+export function resetProvidersCache(): void {
+  providersPromise = null;
+}
+
+/** Where a sign-in link points: the API starts the OAuth redirect and brings the visitor back to `returnPath`. */
+export function signInHref(provider: AuthProviderId, returnPath: string): string {
+  return `/api/auth/${provider}/start?return=${encodeURIComponent(returnPath)}`;
+}

@@ -58,7 +58,7 @@ describe("POST /api/chat in scripted mode (no CLI)", () => {
       { role: "assistant", content: "." }, { role: "user", content: "tracing, search" }, { role: "assistant", content: "." }, { role: "user", content: "build" },
       { role: "assistant", content: "." }, { role: "user", content: "none" },
     ] });
-    expect(t.reply).toMatch(/\nName: Grace\nRole: sre\nTopics: tracing, search\nGoal: build\nFormats: no preference\nRegister you with these\?$/);
+    expect(t.reply).toMatch(/\nName: Grace\nRole: sre\nTopics: tracing, search\nGoal: build\nFormats: no preference\nShall I sign you up with these\?$/);
     expect(t.ask).toBe("confirm");
     expect(t.options).toEqual([...CONFIRM_FIRST_OPTIONS]);
   });
@@ -206,7 +206,7 @@ describe("chat internals", () => {
 
   it("the system prompt states what registering does, answers data questions with the retention facts, and never says to hide deletion", () => {
     expect(SYSTEM_PROMPT).not.toMatch(/never mention deleting|never mention delet/i);
-    for (const fact of [/QR ticket for room doors/, /kept for your next conference, until you delete them from your profile/, /aggregate only/, /groups under 5/, /no data export yet/, /delete it from their profile page/, /no consent questions/]) {
+    for (const fact of [/QR ticket for the room doors/, /keep your answers for your next conference, until you delete them from your profile/, /aggregate counts/, /groups under 5/, /no data export yet/, /delete it from their profile page/, /no consent questions/]) {
       expect(SYSTEM_PROMPT).toMatch(fact);
     }
     expect(SYSTEM_PROMPT).not.toMatch(/24 hours|opt-in to keeping/);
@@ -214,9 +214,9 @@ describe("chat internals", () => {
 
   it("the scripted first message says the same in three short lines, once", () => {
     expect(REGISTER_NOTICE.split("\n")).toHaveLength(3);
-    expect(REGISTER_NOTICE).toMatch(/QR ticket for room doors/);
+    expect(REGISTER_NOTICE).toMatch(/QR ticket for the room doors/);
     expect(REGISTER_NOTICE).toMatch(/until you delete them from your profile/);
-    expect(REGISTER_NOTICE).toMatch(/aggregate only.*groups under 5/);
+    expect(REGISTER_NOTICE).toMatch(/only see totals.*groups under 5/);
     const first = scriptedTurn({ conference: { name: "X" }, messages: [] });
     expect(first.reply).toBe(`${REGISTER_NOTICE}\nWhat should I call you?`);
     for (const line of first.reply.split("\n")) expect(line.length).toBeLessThan(150);

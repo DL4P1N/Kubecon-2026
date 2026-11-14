@@ -7,7 +7,7 @@
 .nav-room rect { fill: var(--bg); stroke: var(--line-strong); stroke-width: 0.12; }
 .nav-room.is-dest rect { fill: var(--surface-2); stroke: var(--accent); stroke-width: 0.25; }
 .nav-room text { fill: var(--muted); font: 500 1.15px var(--font-text); }
-.nav-room.is-dest text { fill: var(--accent); }
+.nav-room.is-dest text { fill: var(--link); }
 .nav-route { fill: none; stroke: var(--accent); stroke-width: 0.3; stroke-dasharray: 0.9 0.6; stroke-linejoin: miter; }
 .nav-rx rect { fill: var(--chart-1); }
 .nav-rx text { fill: var(--chart-1); font: 500 0.95px var(--font-mono); }
@@ -30,7 +30,7 @@
 .nav-here { margin: var(--s-4) 0 var(--s-1); font-size: var(--t-lead); }
 .nav-meta { margin: 0 0 var(--s-2); color: var(--muted); font-size: var(--t-small); }
 .nav-meta strong { color: var(--ink); }
-.nav-arrived { margin: var(--s-3) 0 0; color: var(--accent); }
+.nav-arrived { margin: var(--s-3) 0 0; color: var(--link); }
 .nav-steps { margin: var(--s-3) 0 0; padding-left: var(--s-5); }
 .nav-steps li { margin-bottom: var(--s-2); }
 .nav-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2) var(--s-3); margin-bottom: var(--s-3); }

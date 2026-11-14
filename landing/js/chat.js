@@ -500,6 +500,8 @@ export async function bindChat(section) {
     return;
   }
   s.known = loadKept();
+  // A visitor with a kept profile starts at the returning-visitor question; the signed-in name is only for new profiles.
+  if (s.known && s.messages.every((m) => m.role === "user")) s.messages = [];
   for (const message of s.messages) addMessage(message.role, message.content);
   return turn();
 }

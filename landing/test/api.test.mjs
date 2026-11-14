@@ -131,7 +131,7 @@ test("scripted flow end to end over HTTP yields a valid profile", async () => {
       formats: "",
     });
     assert.match(messages[0].content, /signed in with GitHub/);
-    assert.match(messages[0].content, /Registering gives you a QR ticket for room doors/);
+    assert.match(messages[0].content, /Signing up gets you a QR ticket for the room doors/);
   } finally { await a.close(); }
 });
 

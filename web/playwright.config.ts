@@ -15,4 +15,6 @@ export default defineConfig({
     ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) },
   webServer: { command, url: origin, reuseExistingServer: !process.env.CI },
   reporter: "list",
+  // axe checks contrast on both palettes: the app follows the device colour scheme
+  projects: [{ name: "dark", use: { colorScheme: "dark" } }, { name: "light", use: { colorScheme: "light" } }],
 });

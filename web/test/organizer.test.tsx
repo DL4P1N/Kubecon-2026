@@ -60,11 +60,9 @@ it("renders every section with accessible headings", async () => {
   mockAll();
   render(<Organizer />);
   expect(screen.getByRole("heading", { level: 1, name: "Organizer dashboard" })).toBeTruthy();
-  for (const name of ["Topic interest", "Interest clusters", "Room placement", "Room scan activity", "Service status", "How to use this for room and speaker placement"]) {
+  for (const name of ["Topic interest", "Interest clusters", "Room placement", "How to use this for room and speaker placement"]) {
     expect(screen.getByRole("heading", { level: 2, name })).toBeTruthy();
   }
-  expect(screen.getByText(/Not available yet/)).toBeTruthy();
-  expect(await screen.findByText(/All systems normal/)).toBeTruthy();
 });
 
 it("shows a suggested room size per track table from interest counts", async () => {

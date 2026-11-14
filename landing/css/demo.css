@@ -3,12 +3,12 @@
    Flat opaque panels, 1px line, sharp corners, lime for the current item, numbers in the mono face. */
 
 .demo {
-  --d-bg: var(--p-surface, #162a17);
-  --d-ground: var(--p-bg, #0f1f10);
+  --d-bg: var(--p-surface, #131822);
+  --d-ground: var(--p-bg, #0b0e14);
   --d-ink: var(--p-ink, #fff);
-  --d-muted: var(--p-muted, #aab3aa);
-  --d-accent: var(--p-accent, #c6f19d);
-  --d-accent-ink: var(--p-accent-ink, #0f1f10);
+  --d-muted: var(--p-muted, #a9b1bf);
+  --d-accent: var(--p-accent, #93eaff);
+  --d-accent-ink: var(--p-accent-ink, #0b0e14);
   --d-line: color-mix(in oklab, var(--d-ink) 16%, transparent);
   --d-line-strong: color-mix(in oklab, var(--d-ink) 30%, transparent);
   --d-warn: var(--state-warn, #f0c24b);

@@ -1,0 +1,31 @@
+/* Clarity City, the CNCF brand typeface.
+   Source: github.com/vmware/clarity-city (npm @cds/city 1.1.0), WOFF2 webfonts.
+   License: SIL Open Font License 1.1, see OFL.txt in this folder. */
+@font-face {
+  font-family: "Clarity City";
+  src: url("ClarityCity-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Clarity City";
+  src: url("ClarityCity-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Clarity City";
+  src: url("ClarityCity-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Clarity City";
+  src: url("ClarityCity-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}

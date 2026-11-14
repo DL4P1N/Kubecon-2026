@@ -1,20 +1,22 @@
 import { Route, Routes, useLocation } from "react-router-dom";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { AuthCallback } from "./pages/AuthCallback.js";
-import { ClusterMap } from "./pages/ClusterMap.js";
-import { InterestMap } from "./pages/InterestMap.js";
-import { Kiosk } from "./pages/Kiosk.js";
 import { Navigate } from "./pages/Navigate.js";
 import { Onboarding } from "./pages/Onboarding.js";
 import { Schedule } from "./pages/Schedule.js";
 import { Search } from "./pages/Search.js";
-import { lazy, Suspense, useEffect, useRef } from "react";
-import { Status } from "./pages/Status.js";
 import { TalkDetail } from "./pages/TalkDetail.js";
-import { Organizer } from "./pages/Organizer.js";
+import { OrganizerLayout } from "./components/OrganizerLayout.js";
 import { SiteFooter } from "./components/SiteFooter.js";
 import { SiteHeader } from "./components/SiteHeader.js";
 
 const NavDemo = lazy(() => import("./pages/NavDemo.js"));
+// the organizer area loads on first visit: attendees never download it
+const Organizer = lazy(() => import("./pages/Organizer.js").then((m) => ({ default: m.Organizer })));
+const InterestMap = lazy(() => import("./pages/InterestMap.js").then((m) => ({ default: m.InterestMap })));
+const ClusterMap = lazy(() => import("./pages/ClusterMap.js").then((m) => ({ default: m.ClusterMap })));
+const Kiosk = lazy(() => import("./pages/Kiosk.js").then((m) => ({ default: m.Kiosk })));
+const Status = lazy(() => import("./pages/Status.js").then((m) => ({ default: m.Status })));
 
 /** Full-page navigation to the static site under /site/ (a seam so tests can observe it without jsdom navigating). */
 export const siteNavigation = { replace: (url: string) => window.location.replace(url) };
@@ -50,12 +52,14 @@ export function App({ navEnabled = import.meta.env.NAV_ESTIMATOR === "on" }: { n
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/search" element={<Search />} />
           <Route path="/navigate" element={<Navigate />} />
-          <Route path="/kiosk" element={<Kiosk />} />
-          <Route path="/map" element={<InterestMap />} />
-          <Route path="/clusters" element={<ClusterMap />} />
           <Route path="/talks/:id" element={<TalkDetail />} />
-          <Route path="/status" element={<Status />} />
-          <Route path="/organizer" element={<Organizer />} />
+          <Route element={<OrganizerLayout />}>
+            <Route path="/organizer" element={<Organizer />} />
+            <Route path="/map" element={<InterestMap />} />
+            <Route path="/clusters" element={<ClusterMap />} />
+            <Route path="/kiosk" element={<Kiosk />} />
+            <Route path="/status" element={<Status />} />
+          </Route>
           {navEnabled && <Route path="/nav-demo" element={<Suspense fallback={<p role="status">Loading replay…</p>}><NavDemo /></Suspense>} />}
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>

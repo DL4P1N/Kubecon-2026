@@ -133,7 +133,7 @@ it("add to schedule: already scheduled does not save; overlap and errors are rep
 
 it("add to schedule: asks to register without a session or on 401", async () => {
   wrap(<AddToSchedule talkId="src" hasSession={() => false} schedule={{ getSchedule: vi.fn(), saveSchedule: vi.fn() }} />);
-  expect(screen.getByRole("link", { name: "Register" }).getAttribute("href")).toBe("/register");
+  expect(screen.getByRole("link", { name: "Register" }).getAttribute("href")).toBe("/site/register.html");
   cleanup();
   setToken("t");
   wrap(<AddToSchedule talkId="src" schedule={{ getSchedule: vi.fn().mockRejectedValue(new Error("failed 401")), saveSchedule: vi.fn() }} />);
