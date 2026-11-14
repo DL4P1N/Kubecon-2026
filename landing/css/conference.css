@@ -78,3 +78,5 @@ html[data-conference-missing] .cc-reg { grid-template-areas: "main main"; }
 }
 
 .cc-hero .hero__lead[hidden] { display: none; }
+
+[data-c-row][hidden] { display: none; }

@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Conference Companion: conference app for attendees and organizers</title>
-<meta name="description" content="Register in a chat, get a schedule built from your interests and check into rooms with a short-lived QR code. Next event: Cloud Native Hackathon, Salt Lake City.">
+<title>Conference Companion: technology events tailored to your interests</title>
+<meta name="description" content="Technology events tailored directly to your interests. Register in a chat, get a schedule built from your interests and check into rooms with a short-lived QR code.">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Conference Companion: conference app for attendees and organizers">
+<meta property="og:title" content="Conference Companion: technology events tailored to your interests">
 <meta property="og:description" content="Register in a chat, get a schedule from your interests, check into rooms with a QR code.">
 <meta property="og:image" content="share.jpg">
 <meta name="twitter:card" content="summary_large_image">
@@ -29,7 +29,6 @@
 <link rel="stylesheet" href="assets/ui/window/fragment.css">
 <link rel="stylesheet" href="assets/ui/doc/fragment.css">
 <link rel="stylesheet" href="assets/ui/chat/fragment.css">
-<link rel="stylesheet" href="assets/diagrams/diagram.css">
 <link rel="stylesheet" href="css/site.css">
 <link rel="stylesheet" href="scene/venue.css">
 <link rel="stylesheet" href="css/index-sections.css">
@@ -72,12 +71,12 @@
     <div class="wrap"><div class="hero-text grid hero__grid">
       <div class="hero__panel panel span-6">
       <div class="hero__text">
-        <h1 id="hero-h">Conference app for attendees and organizers</h1>
+        <h1 id="hero-h">Technology events tailored directly to your interests</h1>
         <p class="hero__lead">Register in a chat. Get a schedule built from your interests. Scan a QR code at each room door.</p>
-        <div class="btn-row"><a class="btn btn--primary" href="register.html?c=cloud-native-hackathon-slc-2026">Register for a conference<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a><a class="btn btn--secondary" href="#conferences">Find a conference</a></div>
-        <div class="hero__ticket" aria-label="Next event">
-          <span class="pxframe"><span class="pxframe__in"><canvas data-qr="self" data-qr-scale="2" data-qr-conference="cloud-native-hackathon-slc-2026" role="img" aria-label="QR code that opens registration for the Cloud Native Hackathon on your phone"></canvas></span></span>
-          <div><p class="t-label">Next event</p><p class="hero__ticket-name">Cloud Native Hackathon</p><p class="hero__ticket-meta">Mon 9 Nov 2026, The Shop Workspace</p></div>
+        <div class="btn-row"><a class="btn btn--primary" data-next-register href="register.html?c=aws-reinvent-2026">Register for a conference<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a><a class="btn btn--secondary" href="#conferences">Find a conference</a></div>
+        <div class="hero__ticket" aria-label="Next event" data-next-event>
+          <span class="pxframe"><span class="pxframe__in"><canvas data-qr="self" data-qr-scale="2" data-qr-conference="aws-reinvent-2026" role="img" aria-label="QR code that opens registration for AWS re:Invent on your phone"></canvas></span></span>
+          <div><p class="t-label">Next event</p><p class="hero__ticket-name" data-next-name>AWS re:Invent</p><p class="hero__ticket-meta" data-next-meta>Mon 30 Nov 2026, Las Vegas</p></div>
         </div>
       </div>
       </div>
@@ -242,13 +241,17 @@
         </div>
         <ul class="find__list" data-conference-results>
           <li><a class="card find-card" data-real href="conference.html?c=cloud-native-hackathon-slc-2026"><span class="find-card__name">Cloud Native Hackathon</span><span class="find-card__meta">Salt Lake City · The Shop Workspace</span><span class="find-card__date">9 Nov 2026</span></a></li>
-          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=harborline-platform-days-2026"><span class="find-card__name">Harborline Platform Days</span><span class="find-card__meta">Rotterdam · The Rope Works Hall</span><span class="find-card__date">2–3 Dec 2026</span></a></li>
-          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=ember-ml-systems-2027"><span class="find-card__name">Ember ML Systems Forum</span><span class="find-card__meta">Toronto · Foundry Atrium</span><span class="find-card__date">16–17 Feb 2027</span></a></li>
+          <li><a class="card find-card" data-real href="conference.html?c=aws-reinvent-2026"><span class="find-card__name">AWS re:Invent</span><span class="find-card__meta">Las Vegas · Venue to be announced</span><span class="find-card__date">30 Nov – 4 Dec 2026</span></a></li>
           <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=quillstack-web-2027"><span class="find-card__name">Quillstack Web Conf</span><span class="find-card__meta">Austin · Pecan Yard Theatre</span><span class="find-card__date">23–24 Mar 2027</span></a></li>
-          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=lowtide-security-congress-2027"><span class="find-card__name">Lowtide Security Congress</span><span class="find-card__meta">Lisbon · Riverside Dockhouse</span><span class="find-card__date">11–13 May 2027</span></a></li>
+          <li><a class="card find-card" data-real href="conference.html?c=scale-24x-2027"><span class="find-card__name">SCaLE 24x</span><span class="find-card__meta">Pasadena · Pasadena Convention Center</span><span class="find-card__date">1–4 Apr 2027</span></a></li>
+          <li><a class="card find-card" data-real href="conference.html?c=srecon27-americas"><span class="find-card__name">SREcon27 Americas</span><span class="find-card__meta">Seattle · Sheraton Grand Seattle</span><span class="find-card__date">12–14 Apr 2027</span></a></li>
+          <li><a class="card find-card" data-real href="conference.html?c=google-cloud-next-2027"><span class="find-card__name">Google Cloud Next</span><span class="find-card__meta">Las Vegas · Mandalay Bay Convention Center</span><span class="find-card__date">13–15 Apr 2027</span></a></li>
+          <li><a class="card find-card" data-real href="conference.html?c=confidential-computing-summit-2027"><span class="find-card__name">Confidential Computing Summit</span><span class="find-card__meta">San Francisco · Venue to be announced</span><span class="find-card__date">19–20 Apr 2027</span></a></li>
+          <li><a class="card find-card" data-real href="conference.html?c=agntcon-mcpcon-na-2027"><span class="find-card__name">AGNTCon + MCPCon North America</span><span class="find-card__meta">San Francisco · Moscone Center</span><span class="find-card__date">28–29 Apr 2027</span></a></li>
           <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=sparrowfield-data-days-2027"><span class="find-card__name">Sparrowfield Data Days</span><span class="find-card__meta">Chicago · Grain Exchange Hall</span><span class="find-card__date">8–9 Jun 2027</span></a></li>
-          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=tidepool-edge-summit-2027"><span class="find-card__name">Tidepool Edge Summit</span><span class="find-card__meta">Singapore · Lakeside Pavilion</span><span class="find-card__date">17–18 Aug 2027</span></a></li>
-          <li data-assumed><a class="card find-card" data-assumed href="conference.html?c=brightwater-open-source-weekend-2027"><span class="find-card__name">Brightwater Open Source Weekend</span><span class="find-card__meta">Nairobi · Acacia Commons</span><span class="find-card__date">2–3 Oct 2027</span></a></li>
+          <li><a class="card find-card" data-real href="conference.html?c=pytorch-conference-2027"><span class="find-card__name">PyTorch Conference</span><span class="find-card__meta">San Jose · Venue to be announced</span><span class="find-card__date">6–7 Oct 2027</span></a></li>
+          <li><a class="card find-card" data-real href="conference.html?c=agntsummit-nyc-2027"><span class="find-card__name">AGNTSummit New York City</span><span class="find-card__meta">New York · Venue to be announced</span><span class="find-card__date">1–2 Nov 2027</span></a></li>
+          <li><a class="card find-card" data-real href="conference.html?c=kubecon-na-2027"><span class="find-card__name">KubeCon + CloudNativeCon North America</span><span class="find-card__meta">New Orleans · Venue to be announced</span><span class="find-card__date">8–11 Nov 2027</span></a></li>
         </ul>
       </form>
      </div>
@@ -278,26 +281,41 @@
       <div class="sx__head">
         <h2 id="privacy-h">What the app stores</h2>
         <ul class="facts">
-          <li>Your profile stays until you delete it from <a class="link" href="profile.html">your profile</a>.</li>
-          <li>Organizers see aggregate counts only. Groups under 5 go into Other.</li>
-          <li>Room tokens are signed, short-lived and hold only an attendee ID. A scan logs only the decision and the room.</li>
-          <li>Telemetry sends only allowlisted attributes. No attendee ID or location leaves the app.</li>
-          <li>No questions about health, politics or identity.</li>
+          <li>Your profile is kept until you delete it.</li>
+          <li>Organizers see topic counts, never individuals. Groups smaller than 5 are pooled into Other.</li>
+          <li>We never ask about health, politics or identity.</li>
+          <li class="facts__link"><a class="link" href="profile.html">Delete your profile</a></li>
           <li class="facts__link"><a class="link" data-app-link="/status" href="http://localhost:5173/status">See live API status</a></li>
         </ul>
       </div>
-      <div class="frame sx__dg">
-        <div class="dg" data-diagram><script type="application/json">{
-          "layout": "fanin",
-          "size": "band",
-          "alt": "Traces, logs and metrics from the web app and the API on Kubernetes pass through the OpenTelemetry collector, which applies the attribute allowlist, and reach Dash0.",
-          "sources": [
-            {"label": "Web app", "icon": "ui:globe", "sub": "Browser SDK"},
-            {"label": "API", "icon": "kubernetes", "sub": "Runs on Kubernetes"}
-          ],
-          "target": {"label": "Collector", "icon": "opentelemetry"},
-          "then": {"label": "Dash0", "icon": "si:dash0", "meta": "Allowlist only"}
-        }</script></div>
+      <div class="frame sx__dg dflow-frame">
+        <figure class="dflow">
+          <div class="dflow__map" role="img" aria-label="How the app handles your data. You answer the registration chat: name, role, topics, goal and talk formats. Your browser keeps all of your answers. When you register, the app sends them to our server. The database stores your name, your topics, your talk list and your room pass, plus, if you sign in with GitHub, a one-way code instead of your GitHub ID. A door scan records only the room and whether entry was allowed, never who you are. Organizers see topic counts and groups of 5 or more, never individuals. Deleting your profile erases everything stored for you.">
+            <div class="dflow__row">
+              <div class="dflow__box"><strong>Your chat answers</strong><span>Name, role, topics, goal, formats</span></div>
+              <svg class="dflow__arrow" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path d="M3 12h17M14 6l6 6-6 6"/></svg>
+              <div class="dflow__box"><strong>Your browser</strong><span>Keeps all your answers</span></div>
+            </div>
+            <div class="dflow__down">
+              <svg class="dflow__arrow" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false"><path d="M12 3v17M6 14l6 6 6-6"/></svg>
+              <span>Sent when you register</span>
+            </div>
+            <div class="dflow__box dflow__box--store"><strong>Our database</strong><span>Name, topics, talk list, room pass</span></div>
+            <div class="dflow__out">
+              <div class="dflow__box"><strong>Door scan</strong><span>Room and yes/no, no ID</span></div>
+              <div class="dflow__box"><strong>Organizers see</strong><span>Topic counts, groups of 5+</span></div>
+              <div class="dflow__box"><strong>Delete profile</strong><span>Erases everything stored for you</span></div>
+            </div>
+          </div>
+          <figcaption class="dflow__notes">
+            <ul>
+              <li>Email is never stored. Role, goal and formats only pick your talks; the server does not keep them or the chat.</li>
+              <li>Sign in with GitHub saves a one-way code, never your GitHub ID.</li>
+              <li>Your QR code lasts one minute and holds only a random ID.</li>
+              <li>Monitoring data holds no names or IDs.</li>
+            </ul>
+          </figcaption>
+        </figure>
       </div>
      </div>
     </div>
@@ -364,7 +382,6 @@
 <script type="module" src="assets/system.js"></script>
 <script type="module" src="assets/motion/motion.js"></script>
 <script type="module" src="assets/layout/layout.js"></script>
-<script type="module" src="assets/diagrams/mount.js"></script>
 <script type="module" src="scene/venue.js"></script>
 <script type="module" src="js/qr.js"></script>
 <script type="module" src="js/companion-api.js"></script>

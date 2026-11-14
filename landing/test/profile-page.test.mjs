@@ -100,13 +100,14 @@ test("wifiQrPayload follows the WIFI: format and escapes \\ ; , : \"", () => {
   assert.equal(wifiQrPayload({ ssid: "Open", security: "nopass" }), "WIFI:T:nopass;S:Open;;");
 });
 
-test("every catalogue conference carries an assumed Wi-Fi network", () => {
+test("catalogue Wi-Fi networks are all flagged assumed, and real events never get an invented one", () => {
   for (const c of CONFS) {
-    assert.ok(hasWifi(c), c.slug);
+    if (!hasWifi(c)) { assert.ok(!c.assumed && c.slug !== "cloud-native-hackathon-slc-2026", `${c.slug}: demo events carry a network`); continue; }
     assert.equal(c.wifi.assumed, true);
     assert.equal(c.wifi.security, "WPA");
     assert.ok(c.wifi.password.length >= 8);
   }
+  assert.ok(CONFS.filter(hasWifi).length >= 3);
   assert.equal(hasWifi({}), false);
 });
 

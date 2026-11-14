@@ -47,7 +47,7 @@ async function initFinder() {
   const m = await conferences();
   const topics = [...new Set(list.flatMap((c) => c.topics || []))].sort((a, b) => a.localeCompare(b));
   topicSel.innerHTML = '<option value="">All topics</option>' + topics.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
-  const card = (c) => `<li${c.assumed ? ' data-assumed' : ''}><a class="card find-card"${c.assumed ? ' data-assumed' : ''}${c.slug === DEFAULT_SLUG ? ' data-real' : ''} href="conference.html?c=${encodeURIComponent(c.slug)}"><span class="find-card__name">${esc(c.name)}</span><span class="find-card__meta">${esc(c.city)} · ${esc(c.venue)}</span><span class="find-card__date">${esc(formatDates(c))}</span></a></li>`;
+  const card = (c) => `<li${c.assumed ? ' data-assumed' : ''}><a class="card find-card"${c.assumed ? ' data-assumed' : ''}${c.assumed ? '' : ' data-real'} href="conference.html?c=${encodeURIComponent(c.slug)}"><span class="find-card__name">${esc(c.name)}</span><span class="find-card__meta">${esc(c.city)} · ${esc(c.venue)}</span><span class="find-card__date">${esc(formatDates(c))}</span></a></li>`;
   const render = () => {
     const opts = { q: q.value.trim(), topic: topicSel.value };
     const hits = typeof m.filterConferences === 'function' ? m.filterConferences(list, opts) : list;
@@ -57,6 +57,27 @@ async function initFinder() {
   q.addEventListener('input', render);
   topicSel.addEventListener('change', render);
   render();
+}
+
+/* ---------------------------------------------------------------- next event (index hero): the soonest real event that has not ended */
+async function initNextEvent() {
+  const box = $('[data-next-event]');
+  if (!box) return;
+  const list = await listAll();
+  const m = await conferences();
+  const c = list && typeof m.nextEvent === 'function' ? m.nextEvent(list) : null;
+  if (!c) return;                                       // the first-paint event stays
+  const place = c.venue && c.venue !== m.VENUE_TBA ? `${c.venue}, ${c.city}` : c.city;
+  $('[data-next-name]', box).textContent = c.name;
+  $('[data-next-meta]', box).textContent = `${formatDates(c, true)}, ${place}`;
+  const qr = $('canvas[data-qr]', box);
+  if (qr) {
+    qr.setAttribute('data-qr-conference', c.slug);
+    qr.setAttribute('aria-label', `QR code that opens registration for ${c.name} on your phone`);
+    import('./qr.js').then((q) => q.renderAll(box)).catch(() => {});
+  }
+  const cta = $('[data-next-register]');
+  if (cta) cta.href = `register.html?c=${encodeURIComponent(c.slug)}`;
 }
 
 /* ---------------------------------------------------------------- conference page and register page: facts from ?c= */
@@ -77,7 +98,7 @@ async function initConference() {
   const val = {
     name: c.name, city: c.city, venue: c.venue, summary: c.summary,
     date: formatDates(c, true), 'date-long': formatDates(c, true),
-    place: `${c.venue}, ${c.city}`, capacity: c.capacity ? String(c.capacity) : '',
+    place: c.venue === m.VENUE_TBA ? c.city : `${c.venue}, ${c.city}`, capacity: c.capacity ? String(c.capacity) : '',
     topics: (c.topics || []).join(', '),
   };
   marks.forEach((el) => { const k = el.getAttribute('data-c'); if (k in val && val[k]) el.textContent = val[k]; });
@@ -133,4 +154,5 @@ function initJourney() {
 initLinks();
 initJourney();
 initFinder();
+initNextEvent();
 initConference();

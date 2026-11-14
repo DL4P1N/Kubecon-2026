@@ -27,7 +27,7 @@ npm test                       # in landing/: node --test "test/*.test.mjs"
 | `js/qr.js` | `drawQr()` and auto-render of `canvas[data-qr]`. |
 | `js/conferences.js` | Conference catalogue, filter, lookup. |
 | `js/companion-api.js` | Config, status badge, app links, register/chat calls. |
-| `data/conferences.json` | Catalogue (8 entries, 7 invented). |
+| `data/conferences.json` | Catalogue (12 entries: 10 real US events with an official `url`, 2 invented demo events). |
 | `vendor/qrcode.js` | `qrcode-generator` 2.0.4 (Kazuhiko Arase, MIT, licence header kept), ESM build, unmodified. |
 | `test/` | `node:test` suites. |
 
@@ -281,7 +281,8 @@ attendee (full name, role, tags, token) is on the stream. `GET /api/config` adve
   A `source:"api"` ticket is the real signed attendee token from the existing API, but the QR on the page encodes that token,
   not a per-room access token.
 - The "kept profile" for returning visitors lives in `localStorage` only (see above).
-- Seven of the eight conferences are invented demo data (`assumed: true`).
+- Two of the twelve conferences (Austin, Chicago) are invented demo data (`assumed: true`); they carry a made-up capacity and Wi-Fi network. The real ones carry only what the organisers publish (no capacity or Wi-Fi), and `venue` reads "Venue to be announced" until a venue is named.
+- The home page's "Next event" is `nextEvent()` in `js/conferences.js`: the soonest real event that has not ended (the visitor's date), else the latest one.
 
 ## Privacy
 

@@ -2,7 +2,7 @@
    not-found state for a slug that is not in the catalogue. Plain ES module; js/qr.js draws the QR on its own and
    reads ?c= itself, so this file only keeps the canvas's fallback slug and every register link in step.
    Without script, or while it loads, the static HTML is the default event (the one real one). */
-import { loadConferences, getConference, DEFAULT_SLUG } from './conferences.js';
+import { loadConferences, getConference, DEFAULT_SLUG, VENUE_TBA } from './conferences.js';
 
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -54,6 +54,10 @@ function fill(c) {
     date: formatDates(c), capacity: c.capacity ? String(c.capacity) : '',
   };
   $$('[data-c]').forEach((el) => { const k = el.getAttribute('data-c'); if (val[k]) el.textContent = val[k]; });
+  /* facts the organisers have not published are left out, not guessed */
+  $$('[data-c-row="capacity"]').forEach((el) => { el.hidden = !c.capacity; });
+  $$('[data-c-row="site"]').forEach((el) => { el.hidden = !c.url; });
+  $$('a[data-c-site]').forEach((a) => { if (c.url) a.href = c.url; });
   $$('[data-c-topics]').forEach((el) => {
     el.replaceChildren(...(c.topics || []).map((t) => { const li = document.createElement('li'); li.textContent = t; return li; }));
   });
@@ -64,7 +68,7 @@ function fill(c) {
   if (c.assumed) root.setAttribute('data-assumed', ''); else root.removeAttribute('data-assumed');
   const suffix = document.body.getAttribute('data-conference-title') || 'register by QR code or sign-in';
   document.title = `${c.name}: ${suffix}`;
-  const when = `${formatDates(c)}, ${c.venue}, ${c.city}`;
+  const when = c.venue === VENUE_TBA ? `${formatDates(c)}, ${c.city}` : `${formatDates(c)}, ${c.venue}, ${c.city}`;
   setMeta('meta[name="description"]', 'content', `${c.name}, ${when}. Scan the QR code to register from your phone, or continue with GitHub.`);
   setMeta('meta[property="og:title"]', 'content', document.title);
   setMeta('meta[property="og:description"]', 'content', `${when}. Register from your phone.`);

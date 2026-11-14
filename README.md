@@ -25,7 +25,7 @@ A personal demo, originally a Cloud Native Hackathon entry for "make conferences
 | **Understand demand** | `/map`, `/clusters` and `/organizer` show aggregates; protected views need the organizer key. Groups smaller than five are suppressed. |
 | **Inspect health** | `/status` reports application health and in-process search measurements. |
 
-The [native iOS companion](ios/README.md) is a separate Xcode build. Indoor positioning and other-attendee scenes use explicitly simulated data. Seven of the landing page's eight conference listings are fictional demo events.
+The [native iOS companion](ios/README.md) is a separate Xcode build. Indoor positioning and other-attendee scenes use explicitly simulated data. The landing page lists ten real US conferences from 2026 to 2027 (dates, cities and venues from each organiser's site; unannounced venues say so) and two fictional demo events, flagged as such. The "Next event" on the home page is the soonest real event that has not ended.
 
 ## Architecture
 
