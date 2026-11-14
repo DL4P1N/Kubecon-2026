@@ -5,8 +5,8 @@
   `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;` (lime #c6f19d, set in
   `ConferenceCompanion/Assets.xcassets/AccentColor.colorset`). `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`
   is already present, so the regenerated icon needs nothing else.
-- App icon: `tools/make-app-icon.py` regenerates `Assets.xcassets/AppIcon.appiconset/icon-1024.png`
-  (already run; opaque, no alpha). Needs a clean/rebuild of the asset catalog to show on the device.
+- App icon: `Assets.xcassets/AppIcon.appiconset/icon-1024.png` (opaque, no alpha). It was generated once; the generator script is no longer in the repo.
+  Needs a clean/rebuild of the asset catalog to show on the device.
 - New Theme API (additive): `Theme.surface2/lineStrong/ink/accentInk/error`; text styles
   `.ccDisplay() .ccTitle() .ccHeadline() .ccBody() .ccLabel() .ccData() .ccCaption()`; `.ccCard()`,
   `.ccChip(selected:)`, `CCSectionLabel`, `.buttonStyle(.ccPrimary/.ccSecondary)`; glass (control layer only):
